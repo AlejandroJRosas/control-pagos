@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 pub const DB_NAME: &str = "control-pagos.db";
+const SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,12 +20,27 @@ fn s<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
+fn with_suffix(p: &Path, suffix: &str) -> PathBuf {
+    PathBuf::from(format!("{}{suffix}", p.display()))
+}
+
+/// Escribe en `<dest>.part` y renombra al terminar: nunca queda un zip a medias con el nombre final.
 pub fn create_zip(db: &Path, images_dir: &Path, dest: &Path) -> Result<(), String> {
+    let part = with_suffix(dest, ".part");
+    let result = write_zip(db, images_dir, &part).and_then(|_| fs::rename(&part, dest).map_err(s));
+    if result.is_err() {
+        let _ = fs::remove_file(&part);
+    }
+    result
+}
+
+fn write_zip(db: &Path, images_dir: &Path, dest: &Path) -> Result<(), String> {
     use zip::write::SimpleFileOptions;
+    let mut db_file = fs::File::open(db).map_err(s)?;
     let mut zip = zip::ZipWriter::new(fs::File::create(dest).map_err(s)?);
     let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
     zip.start_file(DB_NAME, opts).map_err(s)?;
-    io::copy(&mut fs::File::open(db).map_err(s)?, &mut zip).map_err(s)?;
+    io::copy(&mut db_file, &mut zip).map_err(s)?;
     if images_dir.exists() {
         for entry in fs::read_dir(images_dir).map_err(s)? {
             let entry = entry.map_err(s)?;
@@ -68,32 +84,109 @@ fn extract_to(zip_path: &Path, tmp: &Path) -> Result<(), String> {
     if !has_db {
         return Err("El respaldo no contiene la base de datos".into());
     }
+    let mut header = [0u8; 16];
+    let valid = io::Read::read_exact(&mut fs::File::open(tmp.join(DB_NAME)).map_err(s)?, &mut header).is_ok()
+        && &header == SQLITE_HEADER;
+    if !valid {
+        return Err("La base de datos del respaldo no es válida".into());
+    }
     Ok(())
 }
 
+const ANTERIOR: &str = ".anterior";
+const DB_SIDE_FILES: [&str; 3] = ["-wal", "-shm", "-journal"];
+
+/// Mueve `from` a `to` solo si `from` existe. Devuelve si se movió.
+fn move_if_exists(from: &Path, to: &Path) -> Result<bool, String> {
+    if !from.exists() {
+        return Ok(false);
+    }
+    if to.exists() {
+        if to.is_dir() {
+            fs::remove_dir_all(to).map_err(s)?;
+        } else {
+            fs::remove_file(to).map_err(s)?;
+        }
+    }
+    fs::rename(from, to).map_err(s)?;
+    Ok(true)
+}
+
+/// Reemplaza BD e imágenes por las del respaldo. Todo se prepara y valida antes; el cambio se hace
+/// con renombres y, si alguno falla, se deshacen los anteriores: o queda todo nuevo o todo como estaba.
 pub fn restore_zip(zip_path: &Path, db_path: &Path, images_dir: &Path) -> Result<(), String> {
     let parent = images_dir.parent().ok_or("Ruta de imágenes inválida")?;
     fs::create_dir_all(parent).map_err(s)?;
+    let db_dir = db_path.parent().ok_or("Ruta de la base de datos inválida")?;
+    fs::create_dir_all(db_dir).map_err(s)?;
     let tmp = parent.join("restaurando-tmp");
     if tmp.exists() {
         fs::remove_dir_all(&tmp).map_err(s)?;
     }
-    if let Err(e) = extract_to(zip_path, &tmp) {
-        let _ = fs::remove_dir_all(&tmp);
+    let staged_db = with_suffix(db_path, ".nuevo");
+    let cleanup = |tmp: &Path, staged: &Path| {
+        let _ = fs::remove_dir_all(tmp);
+        let _ = fs::remove_file(staged);
+    };
+    let prepared = extract_to(zip_path, &tmp).and_then(|_| fs::copy(tmp.join(DB_NAME), &staged_db).map(|_| ()).map_err(s));
+    if let Err(e) = prepared {
+        cleanup(&tmp, &staged_db);
         return Err(e);
     }
-    // A partir de aquí el contenido es válido: reemplazar.
-    if let Some(p) = db_path.parent() {
-        fs::create_dir_all(p).map_err(s)?;
+
+    let old_images = with_suffix(images_dir, ANTERIOR);
+    let images_moved = match move_if_exists(images_dir, &old_images) {
+        Ok(m) => m,
+        Err(e) => {
+            cleanup(&tmp, &staged_db);
+            return Err(format!("No se pudieron mover las imágenes actuales: {e}"));
+        }
+    };
+    let rollback_images = || {
+        let _ = fs::remove_dir_all(images_dir);
+        if images_moved {
+            let _ = fs::rename(&old_images, images_dir);
+        }
+    };
+    if let Err(e) = fs::rename(tmp.join("imagenes"), images_dir) {
+        rollback_images();
+        cleanup(&tmp, &staged_db);
+        return Err(s(e));
     }
-    for suffix in ["-wal", "-shm", "-journal"] {
-        let _ = fs::remove_file(PathBuf::from(format!("{}{suffix}", db_path.display())));
+
+    // Archivo principal y archivos auxiliares de SQLite (el WAL viejo no debe aplicarse a la BD nueva).
+    let mut moved: Vec<(PathBuf, PathBuf)> = Vec::new();
+    let rollback_db = |moved: &Vec<(PathBuf, PathBuf)>| {
+        for (orig, aside) in moved.iter().rev() {
+            let _ = fs::rename(aside, orig);
+        }
+    };
+    let mut targets = vec![db_path.to_path_buf()];
+    targets.extend(DB_SIDE_FILES.iter().map(|suf| with_suffix(db_path, suf)));
+    for orig in targets {
+        let aside = with_suffix(&orig, ANTERIOR);
+        match move_if_exists(&orig, &aside) {
+            Ok(true) => moved.push((orig, aside)),
+            Ok(false) => {}
+            Err(e) => {
+                rollback_db(&moved);
+                rollback_images();
+                cleanup(&tmp, &staged_db);
+                return Err(format!("No se pudo reemplazar la base de datos: {e}"));
+            }
+        }
     }
-    fs::copy(tmp.join(DB_NAME), db_path).map_err(s)?;
-    if images_dir.exists() {
-        fs::remove_dir_all(images_dir).map_err(s)?;
+    if let Err(e) = fs::rename(&staged_db, db_path) {
+        rollback_db(&moved);
+        rollback_images();
+        cleanup(&tmp, &staged_db);
+        return Err(s(e));
     }
-    fs::rename(tmp.join("imagenes"), images_dir).map_err(s)?;
+
+    for (_, aside) in &moved {
+        let _ = fs::remove_file(aside);
+    }
+    let _ = fs::remove_dir_all(&old_images);
     let _ = fs::remove_dir_all(&tmp);
     Ok(())
 }
@@ -191,7 +284,7 @@ mod tests {
     fn zip_y_restaurar_ida_y_vuelta() {
         let src = tempdir().unwrap();
         let snap = src.path().join("snap.db");
-        write(&snap, b"DB-ORIGINAL");
+        write(&snap, &sqlite(b"DB-ORIGINAL"));
         let imgs = src.path().join("imagenes");
         write(&imgs.join("a.png"), b"IMG-A");
         let zip_path = src.path().join("r.zip");
@@ -199,7 +292,7 @@ mod tests {
 
         let d = destino_con_datos();
         restore_zip(&zip_path, &d.db, &d.imgs).unwrap();
-        assert_eq!(fs::read(&d.db).unwrap(), b"DB-ORIGINAL");
+        assert_eq!(fs::read(&d.db).unwrap(), sqlite(b"DB-ORIGINAL"));
         assert_eq!(fs::read(d.imgs.join("a.png")).unwrap(), b"IMG-A");
         assert!(!d.imgs.join("vieja.png").exists());
     }
@@ -208,12 +301,12 @@ mod tests {
     fn crea_zip_aunque_no_exista_la_carpeta_de_imagenes() {
         let src = tempdir().unwrap();
         let snap = src.path().join("snap.db");
-        write(&snap, b"DB");
+        write(&snap, &sqlite(b"DB"));
         let zip_path = src.path().join("r.zip");
         create_zip(&snap, &src.path().join("no-existe"), &zip_path).unwrap();
         let d = destino_con_datos();
         restore_zip(&zip_path, &d.db, &d.imgs).unwrap();
-        assert_eq!(fs::read(&d.db).unwrap(), b"DB");
+        assert_eq!(fs::read(&d.db).unwrap(), sqlite(b"DB"));
         assert!(d.imgs.exists());
     }
 
@@ -245,6 +338,66 @@ mod tests {
         let d = destino_con_datos();
         assert!(restore_zip(&zip_path, &d.db, &d.imgs).is_err());
         intactos(&d);
+    }
+
+    #[test]
+    fn rechaza_bd_que_no_es_sqlite_sin_tocar_los_datos() {
+        let src = tempdir().unwrap();
+        let zip_path = src.path().join("r.zip");
+        zip_with(&zip_path, &[(DB_NAME, b"no soy sqlite")]);
+        let d = destino_con_datos();
+        assert!(restore_zip(&zip_path, &d.db, &d.imgs).is_err());
+        intactos(&d);
+    }
+
+    #[test]
+    fn zip_fallido_no_deja_archivo_a_medias() {
+        let src = tempdir().unwrap();
+        let dest = src.path().join("auto-2026-01-01.zip");
+        assert!(create_zip(&src.path().join("no-existe.db"), &src.path().join("imgs"), &dest).is_err());
+        assert!(!dest.exists());
+        assert_eq!(fs::read_dir(src.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn restauracion_fallida_deja_todo_como_estaba() {
+        let src = tempdir().unwrap();
+        let snap = src.path().join("snap.db");
+        write(&snap, &sqlite(b"NUEVA"));
+        let imgs = src.path().join("imagenes");
+        write(&imgs.join("a.png"), b"IMG-A");
+        let zip_path = src.path().join("r.zip");
+        create_zip(&snap, &imgs, &zip_path).unwrap();
+
+        let d = destino_con_datos();
+        // Un archivo bloqueado (abierto sin compartir) impide mover/borrar la carpeta de imágenes en Windows.
+        let _lock = bloquear(&d.imgs.join("vieja.png"));
+        let r = restore_zip(&zip_path, &d.db, &d.imgs);
+        drop(_lock);
+        match r {
+            Ok(()) => {
+                assert_eq!(fs::read(&d.db).unwrap(), sqlite(b"NUEVA"));
+                assert!(d.imgs.join("a.png").exists());
+            }
+            Err(_) => intactos(&d),
+        }
+    }
+
+    #[cfg(windows)]
+    fn bloquear(p: &Path) -> fs::File {
+        use std::os::windows::fs::OpenOptionsExt;
+        fs::OpenOptions::new().read(true).share_mode(0).open(p).unwrap()
+    }
+
+    #[cfg(not(windows))]
+    fn bloquear(p: &Path) -> fs::File {
+        fs::File::open(p).unwrap()
+    }
+
+    fn sqlite(rest: &[u8]) -> Vec<u8> {
+        let mut v = SQLITE_HEADER.to_vec();
+        v.extend_from_slice(rest);
+        v
     }
 
     #[test]
