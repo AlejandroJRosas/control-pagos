@@ -57,7 +57,7 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 
 1. Conseguir 2-3 capturas reales (claro/oscuro, recortada).
 2. `cd src-tauri; cargo run --example ocr -- <imagen> > ../src/extraction/formatos/__fixtures__/<nombre>.json`; reemplazar nombres de personas por ficticios. Las imágenes no se suben.
-3. Crear `src/extraction/formatos/<id>.ts` (`detecta` + `extrae`, por etiqueta con `valorDeEtiqueta`) y sus pruebas en `formatos.test.ts`; comprobar que los demás fixtures no lo activan.
+3. Crear `src/extraction/formatos/<id>.ts` (`detecta` + `extrae`, por etiqueta con `valorDeEtiqueta` si el valor va al lado o `valorDebajo` si va debajo; utilidades en `formatos/comun.ts`) y sus pruebas en `formatos.test.ts`; comprobar que los demás fixtures no lo activan.
 4. Agregarlo a `reconocedoresDeposito` o `reconocedoresTasa` en `formatos/index.ts`.
 
 ## Trampas conocidas

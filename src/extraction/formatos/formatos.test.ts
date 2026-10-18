@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import { agruparFilas, type Fila } from "../filas";
 import { normalizarDeposito, normalizarTasa } from "../normalizar";
 import type { OcrResultado } from "../ocr/types";
+import type { Reconocedor } from "../tipos";
 import { bdvTransferenciaTerceros } from "./bdvTransferenciaTerceros";
 import { tasaMariandres } from "./tasaMariandres";
+import { banescoOperacion } from "./banescoOperacion";
+import { mercantilSolicitud } from "./mercantilSolicitud";
 import { reconocedoresDeposito, reconocedoresTasa } from "./index";
 import bdvOscuro from "./__fixtures__/bdv-oscuro.json";
 import bdvClaro from "./__fixtures__/bdv-claro.json";
 import bdvRecortada from "./__fixtures__/bdv-recortada.json";
 import tasaFixture from "./__fixtures__/tasa-mariandres.json";
+import banescoFixture from "./__fixtures__/banesco.json";
+import mercantilFixture from "./__fixtures__/mercantil.json";
 
 const HOY = "2026-10-18";
 const filasDe = (r: OcrResultado) => agruparFilas(r);
@@ -42,6 +47,28 @@ describe("bdv-transferencia-terceros con capturas reales", () => {
   });
 });
 
+describe("banesco y mercantil con capturas reales", () => {
+  it("banesco: el monto viene con \"Bs.\" delante y el destino es el beneficiario", () => {
+    const f = filasDe(banescoFixture);
+    expect(banescoOperacion.detecta(f)).toBe(true);
+    expect(valores(normalizarDeposito(banescoOperacion.extrae(f), HOY))).toEqual({
+      montoBs: "431.724,30",
+      fecha: "2026-10-18",
+      referencia: "62914564099",
+      banco: "Banesco",
+      cuentaDestino: "INVERSIONES MARI...S CA INVERSIONES",
+    });
+  });
+
+  it("mercantil: el destino es la cuenta y la fecha con un espacio de más se repara", () => {
+    const f = filasDe(mercantilFixture);
+    expect(mercantilSolicitud.detecta(f)).toBe(true);
+    const p = normalizarDeposito(mercantilSolicitud.extrae(f), HOY);
+    expect(valores(p)).toEqual({ montoBs: "20.000,00", fecha: "2026-10-16", referencia: "20443244320", banco: "Mercantil", cuentaDestino: "01020145420002478546" });
+    expect(p.fecha).toEqual({ value: "2026-10-16", confidence: 0.7 });
+  });
+});
+
 describe("tasa-mariandres con la imagen real", () => {
   it("lee valor y fecha aunque el OCR no lea bien el 'bs.'", () => {
     const f = filasDe(tasaFixture);
@@ -62,18 +89,26 @@ describe("tasa-mariandres con texto sintético", () => {
 
 describe("detección", () => {
   it("cada reconocedor detecta solo sus imágenes", () => {
-    expect(bdvTransferenciaTerceros.detecta(filasDe(tasaFixture))).toBe(false);
-    for (const r of [bdvOscuro, bdvClaro, bdvRecortada]) expect(tasaMariandres.detecta(filasDe(r))).toBe(false);
+    const propias = new Map<Reconocedor<string>, OcrResultado[]>([
+      [bdvTransferenciaTerceros, [bdvOscuro, bdvClaro, bdvRecortada]],
+      [banescoOperacion, [banescoFixture]],
+      [mercantilSolicitud, [mercantilFixture]],
+      [tasaMariandres, [tasaFixture]],
+    ]);
+    const todas = [...propias.values()].flat();
+    for (const [r, suyas] of propias) for (const img of todas) expect(r.detecta(filasDe(img))).toBe(suyas.includes(img));
   });
 
   it("no detecta una captura cualquiera", () => {
     const f = filas("Hola", "Pago listo 15$");
     expect(bdvTransferenciaTerceros.detecta(f)).toBe(false);
     expect(tasaMariandres.detecta(f)).toBe(false);
+    expect(banescoOperacion.detecta(f)).toBe(false);
+    expect(mercantilSolicitud.detecta(f)).toBe(false);
   });
 
   it("el registro incluye los formatos", () => {
-    expect(reconocedoresDeposito).toContain(bdvTransferenciaTerceros);
+    expect(reconocedoresDeposito).toEqual(expect.arrayContaining([bdvTransferenciaTerceros, banescoOperacion, mercantilSolicitud]));
     expect(reconocedoresTasa).toContain(tasaMariandres);
   });
 });
@@ -107,5 +142,22 @@ describe("bdv-transferencia-terceros con texto sintético", () => {
   it("sin la etiqueta Fecha toma la primera fecha como heurística", () => {
     const f = filas("Transferencias a terceros", "15/10/2026", "Nombre: X", "Destino: 0102");
     expect(bdvTransferenciaTerceros.extrae(f).fecha).toEqual({ texto: "15/10/2026", certeza: "heuristica" });
+  });
+});
+
+describe("banesco y mercantil con texto sintético", () => {
+  it("mercantil: una fecha bien leída queda con la certeza de la etiqueta", () => {
+    const f = filas("Cuenta origen:", "0010 - Ana", "Fecha y hora de envío:", "16/10/2026 a las 2:23:02 PM", "Nro. de referencia:", "1");
+    expect(mercantilSolicitud.extrae(f).fecha).toEqual({ texto: "16/10/2026", certeza: "etiqueta" });
+  });
+
+  it("banesco: un monto con punto en lugar de coma decimal se repara como heurística", () => {
+    const f = filas("DESDE MI CUENTA", "Cuenta Corriente", "MONTO", "Bs. 431.724.30");
+    expect(banescoOperacion.extrae(f).montoBs).toEqual({ texto: "431.724,30", certeza: "heuristica" });
+  });
+
+  it("sin la etiqueta \"Desde mi cuenta\" no es Banesco, ni sin \"Cuenta origen\" es Mercantil", () => {
+    expect(banescoOperacion.detecta(filas("NÚMERO DE REFERENCIA", "1", "BENEFICIARIO", "X", "MONTO", "Bs. 1,00"))).toBe(false);
+    expect(mercantilSolicitud.detecta(filas("Nro. de referencia:", "1", "Cuenta destino:", "0102", "Monto (Bs.):", "1,00"))).toBe(false);
   });
 });

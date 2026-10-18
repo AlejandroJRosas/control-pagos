@@ -39,6 +39,14 @@ export function contiene(filas: Fila[], texto: string): boolean {
   return filas.some((f) => claveComparacion(f.texto).includes(clave));
 }
 
+/** Texto de la fila que sigue a una fila que solo tiene la etiqueta (con o sin ":"): formatos con la etiqueta encima del valor. */
+export function valorDebajo(filas: Fila[], etiqueta: string): string | null {
+  const clave = claveComparacion(etiqueta);
+  const i = filas.findIndex((f) => claveComparacion(f.texto.replace(/\s*:\s*$/, "")) === clave);
+  const valor = i >= 0 ? filas[i + 1]?.texto.trim() : undefined;
+  return valor || null;
+}
+
 /** Texto que sigue a la etiqueta (con o sin ":") en la primera fila que empieza por ella. */
 export function valorDeEtiqueta(filas: Fila[], etiqueta: string): string | null {
   const clave = claveComparacion(etiqueta);

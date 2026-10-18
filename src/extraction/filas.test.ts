@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agruparFilas, contiene, valorDeEtiqueta } from "./filas";
+import { agruparFilas, contiene, valorDebajo, valorDeEtiqueta } from "./filas";
 import type { OcrLinea, OcrResultado } from "./ocr/types";
 
 /** Una línea cuyas palabras se reparten el ancho a partes iguales. */
@@ -57,6 +57,16 @@ describe("valorDeEtiqueta", () => {
 
   it("no confunde una etiqueta con el comienzo de otra palabra", () => {
     expect(valorDeEtiqueta(filas("Fechas: 1"), "Fecha")).toBeNull();
+  });
+
+  it("valorDebajo toma la fila siguiente a la etiqueta sola", () => {
+    expect(valorDebajo(filas("NÚMERO DE REFERENCIA", "62914564099"), "Número de referencia")).toBe("62914564099");
+    expect(valorDebajo(filas("Monto (Bs.):", "20.000,00"), "Monto (Bs.)")).toBe("20.000,00");
+  });
+
+  it("valorDebajo exige que la etiqueta ocupe toda la fila", () => {
+    expect(valorDebajo(filas("Fecha: 15/10/2026", "Otra"), "Fecha")).toBeNull();
+    expect(valorDebajo(filas("Fecha"), "Fecha")).toBeNull();
   });
 
   it("contiene busca sin acentos ni espacios", () => {

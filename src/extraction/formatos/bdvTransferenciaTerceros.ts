@@ -1,7 +1,7 @@
-import { parseMonto } from "@/domain/money";
 import { contiene, valorDeEtiqueta, type Fila } from "../filas";
 import { fechaDesdeDmy } from "../normalizar";
 import type { CampoCrudo, CamposDeposito, Reconocedor } from "../tipos";
+import { crudo, montoBs } from "./comun";
 
 /**
  * Banco de Venezuela, "Transferencias a terceros": monto en una caja ("13.186,80 Bs") y filas
@@ -10,21 +10,17 @@ import type { CampoCrudo, CamposDeposito, Reconocedor } from "../tipos";
  */
 
 const MONTO_BS = /([\d.,]+)\s*Bs\.?\s*$/i;
-/** "17.200.00": el OCR leyó la coma decimal como punto. */
-const MONTO_PUNTO_DECIMAL = /^\d{1,3}(\.\d{3})*\.\d{2}$/;
 const MONTO_SOLO = /^\d{1,3}(\.\d{3})*,\d{2}$/;
 /** "15110/2026": el OCR leyó la primera barra como 1. */
 const FECHA_BARRA_COMO_UNO = /(\d{2})[1lI|](\d{2})\s*\/\s*(\d{4})/;
 const LARGO_REFERENCIA = 12;
 
-const crudo = (texto: string, certeza: CampoCrudo["certeza"]): CampoCrudo => ({ texto, certeza });
-
 function monto(filas: Fila[]): CampoCrudo | undefined {
   for (const f of filas) {
     const m = MONTO_BS.exec(f.texto);
     if (!m) continue;
-    if (parseMonto(m[1])) return crudo(m[1], "etiqueta");
-    if (MONTO_PUNTO_DECIMAL.test(m[1])) return crudo(m[1].replace(/\.(\d{2})$/, ",$1"), "heuristica");
+    const v = montoBs(m[1], "etiqueta");
+    if (v) return v;
   }
   const solo = filas.find((f) => MONTO_SOLO.test(f.texto.trim()));
   return solo ? crudo(solo.texto.trim(), "heuristica") : undefined;
