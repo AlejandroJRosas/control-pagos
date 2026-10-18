@@ -12,6 +12,7 @@ import { TasasPage } from "@/features/tasas/TasasPage";
 import { SubirLoteDepositosPage } from "@/features/lote/SubirLoteDepositosPage";
 import { SubirLoteTasasPage } from "@/features/lote/SubirLoteTasasPage";
 import { RevisionDepositosPage } from "@/features/lote/RevisionDepositosPage";
+import { RevisionTasasPage } from "@/features/lote/RevisionTasasPage";
 
 export const router = createHashRouter([
   {
@@ -30,6 +31,7 @@ export const router = createHashRouter([
       { path: "gerentes", element: <GerentesPage /> },
       { path: "tasas", element: <TasasPage /> },
       { path: "tasas/lote", element: <SubirLoteTasasPage /> },
+      { path: "tasas/revision", element: <RevisionTasasPage /> },
       { path: "configuracion", element: <ConfiguracionPage /> },
       { path: "*", element: <Navigate to="/" replace /> },
     ],
