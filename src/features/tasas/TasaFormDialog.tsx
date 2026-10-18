@@ -18,7 +18,7 @@ import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { confClass } from "@/lib/confianza";
 import { extractor, type CampoPropuesto, type CamposTasa } from "@/extraction/extractor";
-import { aplicarExtraccion, autollenadoExistente, autollenadoNuevo, marcarTocado, type Autollenado } from "@/extraction/autollenado";
+import { aplicarExtraccion, autollenadoExistente, autollenadoNuevo, marcarTocado, tasaParaFecha, type Autollenado } from "@/extraction/autollenado";
 
 type Props = {
   tasa: TasaConUsos | null;
@@ -62,7 +62,8 @@ export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }:
 
   function conExtraccion(propuestos: Partial<Record<CamposTasa, CampoPropuesto>>) {
     setForm((f) => {
-      const r = aplicarExtraccion({ fecha: f.draft.fecha, valor: f.draft.valor }, f.auto, propuestos, { fecha: fechaInicial.current, valor: "" });
+      const ajustados = tasaParaFecha(propuestos, f.draft.fecha, f.auto.estado.fecha === "tocado");
+      const r = aplicarExtraccion({ fecha: f.draft.fecha, valor: f.draft.valor }, f.auto, ajustados, { fecha: fechaInicial.current, valor: "" });
       return { draft: { ...f.draft, ...r.valores }, auto: r.auto };
     });
   }
@@ -72,8 +73,9 @@ export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }:
     const file = v?.kind === "new" ? v.file : null;
     imagenVigente.current = file;
     setFechaImagen(null);
+    // Lo que puso la imagen anterior se quita de inmediato, no al terminar de leer la nueva.
+    conExtraccion({});
     if (!file) {
-      conExtraccion({});
       setLeyendo(false);
       return;
     }

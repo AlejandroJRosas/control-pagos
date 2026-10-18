@@ -50,3 +50,16 @@ export function aplicarExtraccion<F extends string>(
   }
   return { valores: v, auto: { estado, confianza } };
 }
+
+const CONFIANZA_TASA_OTRA_FECHA = 0.6;
+
+/** Si la fecha del formulario no la cambia el OCR y la imagen es de otro día, su valor queda para revisar. */
+export function tasaParaFecha(
+  propuestos: Partial<Record<"fecha" | "valor", CampoPropuesto>>,
+  fechaFormulario: string,
+  fechaFija: boolean,
+): Partial<Record<"fecha" | "valor", CampoPropuesto>> {
+  const { fecha, valor } = propuestos;
+  if (!fechaFija || !fecha || !valor || fecha.value === fechaFormulario) return propuestos;
+  return { ...propuestos, valor: { ...valor, confidence: Math.min(valor.confidence, CONFIANZA_TASA_OTRA_FECHA) } };
+}

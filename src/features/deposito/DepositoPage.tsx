@@ -201,8 +201,9 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
     setImagen(v);
     const file = v?.kind === "new" ? v.file : null;
     imagenVigente.current = file;
+    // Lo que puso la imagen anterior se quita de inmediato, no al terminar de leer la nueva.
+    setForm((f) => conExtraccion(f, {}, fechaInicial.current));
     if (!file) {
-      setForm((f) => conExtraccion(f, {}, fechaInicial.current));
       setLeyendo(false);
       return;
     }

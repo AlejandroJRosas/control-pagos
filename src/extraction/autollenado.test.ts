@@ -1,5 +1,5 @@
-import { expect, it } from "vitest";
-import { aplicarExtraccion, autollenadoExistente, autollenadoNuevo, marcarTocado } from "./autollenado";
+import { describe, expect, it } from "vitest";
+import { aplicarExtraccion, autollenadoExistente, autollenadoNuevo, marcarTocado, tasaParaFecha } from "./autollenado";
 
 type F = "fecha" | "monto";
 const DEFAULTS: Record<F, string> = { fecha: "2026-10-18", monto: "" };
@@ -49,4 +49,17 @@ it("un campo del OCR que la usuaria editó ya no se limpia", () => {
 it("marcarTocado quita la confianza", () => {
   const r = aplicarExtraccion({ ...DEFAULTS }, autollenadoNuevo<F>(), { fecha: p("2026-10-15") }, DEFAULTS);
   expect(marcarTocado(r.auto, "fecha")).toEqual({ estado: { fecha: "tocado" }, confianza: {} });
+});
+
+describe("tasaParaFecha", () => {
+  const leida = { fecha: p("2026-10-16"), valor: p("880,12") };
+
+  it("baja a ámbar el valor de una imagen de otro día cuando la fecha está fija", () => {
+    expect(tasaParaFecha(leida, "2026-10-15", true).valor).toEqual(p("880,12", 0.6));
+  });
+
+  it("no cambia nada si la fecha coincide o si el OCR puede cambiarla", () => {
+    expect(tasaParaFecha(leida, "2026-10-16", true)).toEqual(leida);
+    expect(tasaParaFecha(leida, "2026-10-15", false)).toEqual(leida);
+  });
 });
