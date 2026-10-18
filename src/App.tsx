@@ -9,6 +9,8 @@ import { DepositoPage } from "@/features/deposito/DepositoPage";
 import { ConfiguracionPage } from "@/features/configuracion/ConfiguracionPage";
 import { GerentesPage } from "@/features/gerentes/GerentesPage";
 import { TasasPage } from "@/features/tasas/TasasPage";
+import { SubirLoteDepositosPage } from "@/features/lote/SubirLoteDepositosPage";
+import { SubirLoteTasasPage } from "@/features/lote/SubirLoteTasasPage";
 
 export const router = createHashRouter([
   {
@@ -19,11 +21,13 @@ export const router = createHashRouter([
       { path: "campanas/:campanaId", element: <CampanaPage /> },
       { path: "campanas/:campanaId/depositos/nuevo", element: <DepositoPage /> },
       { path: "campanas/:campanaId/importar", element: <ImportarPage /> },
+      { path: "campanas/:campanaId/lote", element: <SubirLoteDepositosPage /> },
       { path: "asignaciones/:asignacionId", element: <AsignacionPage /> },
       { path: "asignaciones/:asignacionId/depositos/nuevo", element: <DepositoPage /> },
       { path: "depositos/:depositoId", element: <DepositoPage /> },
       { path: "gerentes", element: <GerentesPage /> },
       { path: "tasas", element: <TasasPage /> },
+      { path: "tasas/lote", element: <SubirLoteTasasPage /> },
       { path: "configuracion", element: <ConfiguracionPage /> },
       { path: "*", element: <Navigate to="/" replace /> },
     ],
