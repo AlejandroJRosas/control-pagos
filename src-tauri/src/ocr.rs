@@ -32,6 +32,9 @@ pub struct OcrResultado {
     pub alto: u32,
 }
 
+#[cfg(windows)]
+const ANCHO_MINIMO: u32 = 2000;
+
 /// Reconoce el texto de una imagen (PNG/JPG/WEBP en bytes) con el OCR integrado de Windows.
 #[cfg(windows)]
 pub fn reconocer(bytes: &[u8]) -> Result<OcrResultado, String> {
@@ -57,7 +60,11 @@ pub fn reconocer(bytes: &[u8]) -> Result<OcrResultado, String> {
     let decoder = BitmapDecoder::CreateAsync(&stream).map_err(leer)?.get().map_err(leer)?;
     let (ancho, alto) = (decoder.PixelWidth().map_err(leer)?, decoder.PixelHeight().map_err(leer)?);
     let max = OcrEngine::MaxImageDimension().map_err(leer)?;
-    let escala = (max as f64 / ancho.max(alto) as f64).min(1.0);
+    // Las capturas de WhatsApp llegan pequeñas y el OCR pierde las etiquetas en gris claro:
+    // se amplían hasta ANCHO_MINIMO, sin pasar del máximo que admite el motor.
+    let escala = (ANCHO_MINIMO as f64 / ancho as f64)
+        .max(1.0)
+        .min(max as f64 / ancho.max(alto) as f64);
     let (ancho, alto) = (
         ((ancho as f64 * escala) as u32).max(1),
         ((alto as f64 * escala) as u32).max(1),
