@@ -1,0 +1,27 @@
+# Node
+node_modules/
+dist/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/
+
+# Tests
+coverage/
+
+# Local data
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
