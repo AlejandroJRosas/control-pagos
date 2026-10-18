@@ -39,3 +39,12 @@ it("restaura cuando la base de datos se cerró bien", async () => {
   await restoreBackup("C:\\r.zip");
   expect(invoke).toHaveBeenCalledWith("restore_backup", { zipPath: "C:\\r.zip" });
 });
+
+it("el respaldo previo a una eliminación va a la carpeta de respaldos", async () => {
+  const { respaldoAntesDe } = await import("./backup");
+  invoke.mockImplementation(async (cmd: string) => (cmd === "data_paths" ? { backupsDir: "C:\\resp" } : undefined));
+  const db = { execute: vi.fn(async () => ({ rowsAffected: 0, lastInsertId: 0 })), select: vi.fn() };
+  const dest = await respaldoAntesDe(db, "eliminar");
+  expect(dest).toMatch(/^C:\\resp\\antes-de-eliminar-\d+\.zip$/);
+  expect(invoke).toHaveBeenCalledWith("create_backup", { snapshotPath: expect.stringMatching(/^C:\\resp\\snapshot-/), destPath: dest });
+});

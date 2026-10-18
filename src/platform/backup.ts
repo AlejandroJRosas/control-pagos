@@ -25,6 +25,14 @@ export async function createBackup(db: SqlDriver, destPath: string): Promise<voi
   await invoke("create_backup", { snapshotPath, destPath });
 }
 
+/** Respaldo de seguridad antes de una operación destructiva (`antes-de-<motivo>-<ms>.zip`); no se poda. */
+export async function respaldoAntesDe(db: SqlDriver, motivo: string): Promise<string> {
+  const { backupsDir } = await getDataPaths();
+  const dest = await join(backupsDir, `antes-de-${motivo}-${Date.now()}.zip`);
+  await createBackup(db, dest);
+  return dest;
+}
+
 export async function runAutoBackup(db: SqlDriver): Promise<void> {
   const dest = await invoke<string | null>("auto_backup_path", { today: todayIso() });
   if (!dest) return;

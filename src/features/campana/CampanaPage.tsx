@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { ChevronDown, FileSpreadsheet, FileUp, Images, ListChecks, Lock, LockOpen, Pencil, Plus, Settings2, UserPlus } from "lucide-react";
+import { ChevronDown, FileSpreadsheet, FileUp, Images, ListChecks, Lock, LockOpen, Pencil, Plus, Settings2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -26,6 +26,7 @@ import { setCampanaActual } from "@/lib/campanaActual";
 import { CampanaFormDialog } from "@/features/campanas/CampanaFormDialog";
 import { AsignacionFormDialog, type AsignacionEditable } from "./AsignacionFormDialog";
 import { AgregarGerentesDialog } from "./AgregarGerentesDialog";
+import { EliminarCampanaDialog } from "./EliminarCampanaDialog";
 import { PorGerenteTab } from "./PorGerenteTab";
 import { TodosDepositosTab } from "./TodosDepositosTab";
 
@@ -47,6 +48,7 @@ export function CampanaPage() {
   const [asig, setAsig] = useState<AsignacionEditable | null>(null);
   const [confirmEstado, setConfirmEstado] = useState(false);
   const [quitar, setQuitar] = useState<GerenteResumen | null>(null);
+  const [eliminar, setEliminar] = useState(false);
 
   const existe = data !== undefined;
   useEffect(() => {
@@ -132,6 +134,10 @@ export function CampanaPage() {
                   {cerrada ? <LockOpen /> : <Lock />}
                   {cerrada ? "Reabrir campaña" : "Cerrar campaña"}
                 </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" disabled={cerrada} onClick={() => setEliminar(true)}>
+                  <Trash2 />
+                  Eliminar campaña
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="flex">
@@ -182,6 +188,7 @@ export function CampanaPage() {
       </Tabs>
 
       <CampanaFormDialog campana={campana} open={editar} onOpenChange={setEditar} />
+      <EliminarCampanaDialog campana={campana} open={eliminar} onOpenChange={setEliminar} />
       <AgregarGerentesDialog
         campanaId={campanaId}
         gerentesEnCampana={asignaciones.map((a) => a.gerenteId)}

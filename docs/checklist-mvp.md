@@ -14,6 +14,7 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] "Todos los depósitos": orden cronológico, filtros por gerente/banco/fechas y totales.
 - [ ] Ordenar la pestaña "Por gerente" por % avance.
 - [ ] Campaña → "Cerrar campaña" → todo de solo lectura ("Registrar depósito" y su menú deshabilitados); reabrir.
+- [ ] Campaña → "Eliminar campaña": el primer aviso muestra cuántos depósitos, gerentes y pendientes se borran; "Continuar" pide escribir el nombre y "Eliminar definitivamente" solo se habilita si coincide. Al eliminar vuelve a Campañas, la campaña ya no está (ni en "Campaña actual"), los gerentes y tasas siguen, y hay un `antes-de-eliminar-*.zip` en Configuración → respaldos. Con la campaña cerrada la opción está deshabilitada.
 - [ ] Exportar campaña a Excel: Resumen, Todos los depósitos, una hoja por gerente; números sumables en Excel.
 - [ ] Exportar tasas a Excel.
 - [ ] Crear respaldo, restaurarlo; respaldo automático diario visible.
@@ -30,6 +31,8 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Una fecha sin tasa aparece como "Tasa nueva" y al importar queda en Tasas; una tasa distinta a la registrada sale desmarcada.
 - [ ] Importar el mismo Excel dos veces: la segunda vez todas las filas salen como "Ya registrado" y desmarcadas.
 - [ ] Varios Excel a la vez; importar uno actualiza la revisión de los demás.
+- [ ] Una fila sin tasa en el Excel cuya fecha ya tiene tasa en la app: sale marcada con "Tasa tomada de la app".
+- [ ] Una fila con datos faltantes o inválidos muestra campos en rojo en esas celdas; al completarlos (salir del campo o Enter) se recalculan tasa, USD y duplicados, la fila se marca sola y dice "Editada". Una tasa escrita para una fecha sin tasa se registra al importar.
 
 ## OCR de comprobantes y tasas
 

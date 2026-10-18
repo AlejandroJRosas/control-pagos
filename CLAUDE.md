@@ -39,7 +39,7 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - La cola de lote **no cuenta** en saldos, Excel ni totales: solo "Hecho" crea el depósito o la tasa. Si el OCR no lee la fecha, el borrador queda sin fecha (no la de hoy).
 - Orden cronológico: `fecha`, luego `creado_en`, luego `id`.
 - **Una tasa por fecha**, y la tasa de un depósito debe ser la de su misma fecha (lo valida `depositos.ts`). Sábado y domingo no llevan tasa propia: usan la del viernes (`fechaDeTasa` en `domain/dates.ts`, `getTasaParaFecha` en el repo); `createTasa` rechaza fines de semana.
-- Campaña `cerrada` = solo lectura; los repos lanzan `DomainError('CAMPANA_CERRADA')`.
+- Campaña `cerrada` = solo lectura; los repos lanzan `DomainError('CAMPANA_CERRADA')`. Eliminar una campaña (`db/operaciones/eliminarCampana.ts`) exige que esté activa, borra asignaciones, depósitos y cola (no gerentes ni tasas) y la UI crea antes un respaldo `antes-de-eliminar-*`.
 - Formato venezolano: `parseMonto` para montos ("1.234" = mil); `parseTasa` para tasas (un único punto es decimal: "36.500" = 36,5).
 - Duplicados: mismo banco + referencia comparando con `claveComparacion` (sin mayúsculas, acentos ni espacios). Es aviso, no bloqueo.
 - Errores de negocio con `DomainError` (mensaje en español, se muestra tal cual en el toast).
@@ -75,4 +75,4 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 
 ## Pendientes conocidos (menores)
 
-`"0.500"` se acepta como 500; imágenes huérfanas no se borran; `antes-de-restaurar-*.zip` sin poda; respaldo automático solo al abrir; Guardar habilitado mientras se busca la tasa; el aviso de duplicados no relaciona referencias sin ceros iniciales ni alias de banco ("BDV") de depósitos importados de Excel; en capturas borrosas el OCR puede leer mal el nombre y aun así marcarlo en verde. En la revisión en lote: cerrar la ventana menos de 0,5 s después de editar pierde esa última edición (el autoguardado no escucha el cierre); Ctrl+Enter da Hecho aunque haya un diálogo abierto; si falla Descartar, la edición en curso no se autoguarda.
+`"0.500"` se acepta como 500; imágenes huérfanas no se borran; `antes-de-restaurar-*.zip` y `antes-de-eliminar-*.zip` sin poda; respaldo automático solo al abrir; Guardar habilitado mientras se busca la tasa; el aviso de duplicados no relaciona referencias sin ceros iniciales ni alias de banco ("BDV") de depósitos importados de Excel; en capturas borrosas el OCR puede leer mal el nombre y aun así marcarlo en verde. En la revisión en lote: cerrar la ventana menos de 0,5 s después de editar pierde esa última edición (el autoguardado no escucha el cierre); Ctrl+Enter da Hecho aunque haya un diálogo abierto; si falla Descartar, la edición en curso no se autoguarda.
