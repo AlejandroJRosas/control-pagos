@@ -34,7 +34,7 @@ import { formatFecha, isValidIsoDate, todayIso } from "@/domain/dates";
 import { DomainError } from "@/domain/errors";
 import { formatBs, formatTasa, formatUsd, parseMonto, toInputVE, toUsd } from "@/domain/money";
 import { validateDeposito, validateDestino, type DepositoDraft, type DestinoDraft } from "@/domain/validation";
-import { extractor, type ExtractableField, type ExtractedField, type ExtractionResult } from "@/extraction/extractor";
+import { extractor, type CampoPropuesto, type CamposDeposito, type ExtractionResult } from "@/extraction/extractor";
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
@@ -110,7 +110,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const [tasaDialog, setTasaDialog] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof DepositoDraft, string>>>({});
   const [duplicados, setDuplicados] = useState<Duplicado[]>([]);
-  const [confianza, setConfianza] = useState<Partial<Record<ExtractableField, number>>>({});
+  const [confianza, setConfianza] = useState<Partial<Record<CamposDeposito, number>>>({});
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -180,15 +180,15 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
     setErrors((e) => ({ ...e, [k]: undefined }));
     setConfianza((c) => {
       const next = { ...c };
-      delete next[k as ExtractableField];
+      delete next[k as CamposDeposito];
       return next;
     });
   }
 
-  function applyExtraction(r: ExtractionResult) {
+  function applyExtraction(r: ExtractionResult<CamposDeposito>) {
     const next = { ...draft };
-    const conf: Partial<Record<ExtractableField, number>> = {};
-    for (const [k, f] of Object.entries(r.fields) as [ExtractableField, ExtractedField | undefined][]) {
+    const conf: Partial<Record<CamposDeposito, number>> = {};
+    for (const [k, f] of Object.entries(r.fields) as [CamposDeposito, CampoPropuesto | undefined][]) {
       if (f && !next[k].trim()) {
         next[k] = f.value;
         conf[k] = f.confidence;
@@ -202,7 +202,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
     setImagen(v);
     if (v?.kind !== "new") return;
     try {
-      applyExtraction(await extractor.extract(v.file));
+      applyExtraction(await extractor.extraerDeposito(v.file));
     } catch (e) {
       reportError(e, "Lectura del comprobante");
     }
