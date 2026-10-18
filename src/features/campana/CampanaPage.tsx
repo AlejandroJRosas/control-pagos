@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
-import { FileSpreadsheet, FileUp, Images, ListChecks, Plus, UserPlus } from "lucide-react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { ChevronDown, FileSpreadsheet, FileUp, Images, ListChecks, Lock, LockOpen, Pencil, Plus, Settings2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando } from "@/components/Feedback";
@@ -24,6 +25,7 @@ import { reportError } from "@/lib/reportError";
 import { setCampanaActual } from "@/lib/campanaActual";
 import { CampanaFormDialog } from "@/features/campanas/CampanaFormDialog";
 import { AsignacionFormDialog, type AsignacionEditable } from "./AsignacionFormDialog";
+import { AgregarGerentesDialog } from "./AgregarGerentesDialog";
 import { PorGerenteTab } from "./PorGerenteTab";
 import { TodosDepositosTab } from "./TodosDepositosTab";
 
@@ -40,7 +42,9 @@ export function CampanaPage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") === "gerentes" ? "gerentes" : "depositos";
   const [editar, setEditar] = useState(false);
-  const [asig, setAsig] = useState<{ open: boolean; asignacion: AsignacionEditable | null }>({ open: false, asignacion: null });
+  const navigate = useNavigate();
+  const [agregar, setAgregar] = useState(false);
+  const [asig, setAsig] = useState<AsignacionEditable | null>(null);
   const [confirmEstado, setConfirmEstado] = useState(false);
   const [quitar, setQuitar] = useState<GerenteResumen | null>(null);
 
@@ -98,57 +102,62 @@ export function CampanaPage() {
         subtitle={formatPeriodo(campana.fechaInicio, campana.fechaFin)}
         actions={
           <>
+            {!!pendientes && (
+              <Link to={`/campanas/${campanaId}/revision`} className={buttonVariants({ variant: "secondary" })}>
+                <ListChecks />
+                Revisar pendientes ({pendientes})
+              </Link>
+            )}
             <Button variant="outline" onClick={exportar}>
               <FileSpreadsheet />
               Exportar a Excel
             </Button>
-            <Button variant="outline" disabled={cerrada} onClick={() => setEditar(true)}>
-              Editar
-            </Button>
-            <Button variant="outline" onClick={() => setConfirmEstado(true)}>
-              {cerrada ? "Reabrir" : "Cerrar campaña"}
-            </Button>
-            <Button variant="outline" disabled={cerrada} onClick={() => setAsig({ open: true, asignacion: null })}>
-              <UserPlus />
-              Agregar gerente
-            </Button>
-            {!!pendientes && (
-              <Link to={`/campanas/${campanaId}/revision`} className={buttonVariants({ variant: "outline" })}>
-                <ListChecks />
-                Revisar ({pendientes})
-              </Link>
-            )}
-            {cerrada ? (
-              <>
-                <Button variant="outline" disabled>
-                  <FileUp />
-                  Importar Excel
-                </Button>
-                <Button variant="outline" disabled>
-                  <Images />
-                  Subir lote
-                </Button>
-                <Button disabled>
-                  <Plus />
-                  Registrar depósito
-                </Button>
-              </>
-            ) : (
-              <>
-                <Link to={`/campanas/${campanaId}/importar`} className={buttonVariants({ variant: "outline" })}>
-                  <FileUp />
-                  Importar Excel
-                </Link>
-                <Link to={`/campanas/${campanaId}/lote`} className={buttonVariants({ variant: "outline" })}>
-                  <Images />
-                  Subir lote
-                </Link>
-                <Link to={`/campanas/${campanaId}/depositos/nuevo`} className={buttonVariants()}>
-                  <Plus />
-                  Registrar depósito
-                </Link>
-              </>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="outline" />}>
+                <Settings2 />
+                Campaña
+                <ChevronDown data-icon="inline-end" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-auto min-w-48">
+                <DropdownMenuItem disabled={cerrada} onClick={() => setAgregar(true)}>
+                  <UserPlus />
+                  Agregar gerentes
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={cerrada} onClick={() => setEditar(true)}>
+                  <Pencil />
+                  Editar datos
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setConfirmEstado(true)}>
+                  {cerrada ? <LockOpen /> : <Lock />}
+                  {cerrada ? "Reabrir campaña" : "Cerrar campaña"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="flex">
+              <Button disabled={cerrada} className="rounded-r-none" onClick={() => navigate(`/campanas/${campanaId}/depositos/nuevo`)}>
+                <Plus />
+                Registrar depósito
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  disabled={cerrada}
+                  render={<Button size="icon" aria-label="Más formas de cargar depósitos" className="rounded-l-none border-l border-l-primary-foreground/25" />}
+                >
+                  <ChevronDown />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-auto min-w-48">
+                  <DropdownMenuItem onClick={() => navigate(`/campanas/${campanaId}/lote`)}>
+                    <Images />
+                    Subir lote de comprobantes
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate(`/campanas/${campanaId}/importar`)}>
+                    <FileUp />
+                    Importar Excel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </>
         }
       />
@@ -163,7 +172,7 @@ export function CampanaPage() {
           <PorGerenteTab
             gerentes={view.gerentes}
             cerrada={cerrada}
-            onEditarSaldo={(g) => setAsig({ open: true, asignacion: { id: g.asignacionId, gerenteNombre: g.gerenteNombre, saldoUsd: g.asignado } })}
+            onEditarSaldo={(g) => setAsig({ id: g.asignacionId, gerenteNombre: g.gerenteNombre, saldoUsd: g.asignado })}
             onQuitar={setQuitar}
           />
         </TabsContent>
@@ -173,13 +182,13 @@ export function CampanaPage() {
       </Tabs>
 
       <CampanaFormDialog campana={campana} open={editar} onOpenChange={setEditar} />
-      <AsignacionFormDialog
+      <AgregarGerentesDialog
         campanaId={campanaId}
         gerentesEnCampana={asignaciones.map((a) => a.gerenteId)}
-        asignacion={asig.asignacion}
-        open={asig.open}
-        onOpenChange={(open) => setAsig((s) => ({ ...s, open }))}
+        open={agregar}
+        onOpenChange={setAgregar}
       />
+      <AsignacionFormDialog asignacion={asig} onOpenChange={(open) => !open && setAsig(null)} />
       <ConfirmDialog
         open={confirmEstado}
         onOpenChange={setConfirmEstado}

@@ -4,53 +4,41 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/Field";
-import { NativeSelect } from "@/components/NativeSelect";
 import { getDb } from "@/db";
-import { listGerentes } from "@/db/repos/gerentes";
-import { createAsignacion, updateSaldoAsignacion } from "@/db/repos/asignaciones";
+import { updateSaldoAsignacion } from "@/db/repos/asignaciones";
 import { validateSaldo } from "@/domain/validation";
 import { toInputVE } from "@/domain/money";
-import { invalidate, useData } from "@/hooks/useData";
+import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 
 export type AsignacionEditable = { id: number; gerenteNombre: string; saldoUsd: string };
 
 type Props = {
-  campanaId: number;
-  gerentesEnCampana: number[];
   asignacion: AsignacionEditable | null;
-  open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
-export function AsignacionFormDialog({ campanaId, gerentesEnCampana, asignacion, open, onOpenChange }: Props) {
-  const { data: gerentes } = useData((db) => listGerentes(db, { soloActivos: true }), []);
-  const [gerenteId, setGerenteId] = useState("");
+/** Edita el saldo a pagar de un gerente en la campaña (agregar gerentes: `AgregarGerentesDialog`). */
+export function AsignacionFormDialog({ asignacion, onOpenChange }: Props) {
   const [saldo, setSaldo] = useState("");
-  const [errors, setErrors] = useState<{ gerenteId?: string; saldoUsd?: string }>({});
+  const [error, setError] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
-    setGerenteId("");
-    setSaldo(asignacion ? toInputVE(asignacion.saldoUsd) : "");
-    setErrors({});
-  }, [open, asignacion]);
-
-  const disponibles = (gerentes ?? []).filter((g) => !gerentesEnCampana.includes(g.id));
+    if (!asignacion) return;
+    setSaldo(toInputVE(asignacion.saldoUsd));
+    setError(undefined);
+  }, [asignacion]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!asignacion) return;
     const r = validateSaldo(saldo);
-    const errs: typeof errors = r.ok ? {} : { ...r.errors };
-    if (!asignacion && !gerenteId) errs.gerenteId = "Elige un gerente";
-    if (!r.ok || errs.gerenteId) return setErrors(errs);
+    if (!r.ok) return setError(r.errors.saldoUsd);
     setSaving(true);
     try {
-      const db = await getDb();
-      if (asignacion) await updateSaldoAsignacion(db, asignacion.id, r.value);
-      else await createAsignacion(db, { campanaId, gerenteId: Number(gerenteId), saldoUsd: r.value });
-      toast.success(asignacion ? "Saldo actualizado" : "Gerente agregado a la campaña");
+      await updateSaldoAsignacion(await getDb(), asignacion.id, r.value);
+      toast.success("Saldo actualizado");
       invalidate();
       onOpenChange(false);
     } catch (err) {
@@ -61,33 +49,16 @@ export function AsignacionFormDialog({ campanaId, gerentesEnCampana, asignacion,
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={asignacion !== null} onOpenChange={onOpenChange}>
       <DialogContent>
         <form onSubmit={onSubmit} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>{asignacion ? `Saldo de ${asignacion.gerenteNombre}` : "Agregar gerente a la campaña"}</DialogTitle>
+            <DialogTitle>Saldo de {asignacion?.gerenteNombre}</DialogTitle>
           </DialogHeader>
-          {!asignacion && (
-            <Field
-              id="a-gerente"
-              label="Gerente"
-              error={errors.gerenteId}
-              hint={disponibles.length === 0 ? "No hay gerentes disponibles: créalos en Gerentes." : undefined}
-            >
-              <NativeSelect id="a-gerente" value={gerenteId} onChange={(e) => setGerenteId(e.target.value)}>
-                <option value="">Selecciona…</option>
-                {disponibles.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.nombre}
-                  </option>
-                ))}
-              </NativeSelect>
-            </Field>
-          )}
-          <Field id="a-saldo" label="Saldo a pagar (USD)" error={errors.saldoUsd} hint="Ej. 1.500,00">
+          <Field id="a-saldo" label="Saldo a pagar (USD)" error={error} hint="Ej. 1.500,00">
             <Input
               id="a-saldo"
-              autoFocus={!!asignacion}
+              autoFocus
               inputMode="decimal"
               className="text-right tabular-nums"
               value={saldo}

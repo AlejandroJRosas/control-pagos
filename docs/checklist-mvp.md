@@ -3,7 +3,7 @@
 Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 
 - [ ] Crear 3 gerentes; desactivar uno; no aparece al agregar gerentes a una campaña.
-- [ ] Crear campaña; agregar 2 gerentes con saldo; saldo general = suma.
+- [ ] Crear campaña; Campaña → "Agregar gerentes": buscar, marcar 3, "Mismo saldo para los marcados" y cambiar uno; saldo general = suma. Un saldo vacío o 0 marca el error en su fila y no agrega ninguno.
 - [ ] Registrar tasa desde Tasas y otra desde el formulario de depósito.
 - [ ] Registrar depósitos pegando (Ctrl+V), arrastrando y eligiendo archivo.
 - [ ] USD = Bs ÷ tasa con 2 decimales; saldo del gerente y general bajan en cada depósito.
@@ -13,7 +13,7 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] No se puede eliminar una tasa en uso.
 - [ ] "Todos los depósitos": orden cronológico, filtros por gerente/banco/fechas y totales.
 - [ ] Ordenar la pestaña "Por gerente" por % avance.
-- [ ] Cerrar campaña → todo de solo lectura; reabrir.
+- [ ] Campaña → "Cerrar campaña" → todo de solo lectura ("Registrar depósito" y su menú deshabilitados); reabrir.
 - [ ] Exportar campaña a Excel: Resumen, Todos los depósitos, una hoja por gerente; números sumables en Excel.
 - [ ] Exportar tasas a Excel.
 - [ ] Crear respaldo, restaurarlo; respaldo automático diario visible.
