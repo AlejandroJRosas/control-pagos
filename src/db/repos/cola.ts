@@ -83,7 +83,13 @@ async function guardarBorrador(db: SqlDriver, t: Tabla, id: number, borrador: un
 
 async function marcarHecho(db: SqlDriver, t: Tabla, id: number, registroId: number): Promise<void> {
   await assertPendiente(db, t, id);
-  await db.execute(`UPDATE ${t.nombre} SET estado = 'hecho', ${t.enlace} = ?, actualizado_en = ? WHERE id = ?`, [registroId, nowIso(), id]);
+  // La condición sobre el estado evita marcar dos veces si dos "Hecho" corren a la vez.
+  const r = await db.execute(`UPDATE ${t.nombre} SET estado = 'hecho', ${t.enlace} = ?, actualizado_en = ? WHERE id = ? AND estado = 'pendiente'`, [
+    registroId,
+    nowIso(),
+    id,
+  ]);
+  if (r.rowsAffected === 0) throw new DomainError("VALIDACION", "Este elemento ya está hecho");
 }
 
 async function descartar(db: SqlDriver, t: Tabla, id: number): Promise<string> {
