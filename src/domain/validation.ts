@@ -101,3 +101,23 @@ export function validateGerente(d: GerenteDraft): Result<GerenteValido, keyof Ge
   if (!d.nombre.trim()) errors.nombre = "Indica el nombre";
   return finish(errors, () => ({ nombre: d.nombre.trim(), telefono: opcional(d.telefono) }));
 }
+
+/** A quién va un depósito registrado desde la campaña. `sel`: "a:<asignaciónId>", "g:<gerenteId>" o "nuevo". */
+export type DestinoDraft = { sel: string; nombre: string; saldo: string };
+export type Destino =
+  | { kind: "asignacion"; asignacionId: number }
+  | { kind: "gerente"; gerenteId: number; saldoUsd: string }
+  | { kind: "nuevo"; nombre: string; saldoUsd: string };
+
+export function validateDestino(d: DestinoDraft): Result<Destino, keyof DestinoDraft> {
+  const errors: Errors<keyof DestinoDraft> = {};
+  const m = /^(a|g):(\d+)$/.exec(d.sel);
+  if (!m && d.sel !== "nuevo") return { ok: false, errors: { sel: "Elige un gerente" } };
+  if (m?.[1] === "a") return { ok: true, value: { kind: "asignacion", asignacionId: Number(m[2]) } };
+  const saldo = positivo(d.saldo);
+  if (!saldo) errors.saldo = "Saldo inválido (debe ser mayor que 0)";
+  if (!m && !d.nombre.trim()) errors.nombre = "Indica el nombre";
+  return finish(errors, () =>
+    m ? { kind: "gerente", gerenteId: Number(m[2]), saldoUsd: saldo as string } : { kind: "nuevo", nombre: d.nombre.trim(), saldoUsd: saldo as string },
+  );
+}

@@ -6,10 +6,17 @@ import { NativeSelect } from "@/components/NativeSelect";
 import { DepositosTable } from "@/components/DepositosTable";
 import { filtrarDepositos, type CampanaView } from "@/domain/campanaView";
 
-const VACIO = { gerenteId: "", banco: "", desde: "", hasta: "" };
+type Filtro = { gerenteId: string; banco: string; desde: string; hasta: string };
+const VACIO: Filtro = { gerenteId: "", banco: "", desde: "", hasta: "" };
+/** Filtros por campaña durante la sesión, para no perderlos al abrir un depósito y volver. */
+const recordados = new Map<number, Filtro>();
 
-export function TodosDepositosTab({ view }: { view: CampanaView }) {
-  const [f, setF] = useState(VACIO);
+export function TodosDepositosTab({ campanaId, view }: { campanaId: number; view: CampanaView }) {
+  const [f, setFiltro] = useState<Filtro>(() => recordados.get(campanaId) ?? VACIO);
+  const setF = (next: Filtro) => {
+    recordados.set(campanaId, next);
+    setFiltro(next);
+  };
   const bancos = useMemo(
     () => Array.from(new Set(view.depositos.map((d) => d.banco.trim()))).sort((a, b) => a.localeCompare(b, "es")),
     [view],

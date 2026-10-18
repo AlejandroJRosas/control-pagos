@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateCampana, validateDeposito, validateGerente, validateSaldo, validateTasa, type DepositoDraft } from "./validation";
+import { validateCampana, validateDeposito, validateDestino, validateGerente, validateSaldo, validateTasa, type DepositoDraft, type DestinoDraft } from "./validation";
 
 const draft = (o: Partial<DepositoDraft> = {}): DepositoDraft => ({
   fecha: "2026-03-02",
@@ -79,5 +79,33 @@ describe("validateGerente", () => {
   it("requiere nombre", () => {
     expect(validateGerente({ nombre: " Ana ", telefono: "" })).toEqual({ ok: true, value: { nombre: "Ana", telefono: null } });
     expect(validateGerente({ nombre: " ", telefono: "" }).ok).toBe(false);
+  });
+});
+
+describe("validateDestino", () => {
+  const d = (o: Partial<DestinoDraft> = {}): DestinoDraft => ({ sel: "", nombre: "", saldo: "", ...o });
+
+  it("un gerente de la campaña no pide saldo", () => {
+    expect(validateDestino(d({ sel: "a:4", saldo: "x" }))).toEqual({ ok: true, value: { kind: "asignacion", asignacionId: 4 } });
+  });
+
+  it("un gerente existente fuera de la campaña pide saldo", () => {
+    expect(validateDestino(d({ sel: "g:2", saldo: "1.500,00" }))).toEqual({ ok: true, value: { kind: "gerente", gerenteId: 2, saldoUsd: "1500" } });
+    expect(validateDestino(d({ sel: "g:2" }))).toMatchObject({ ok: false, errors: { saldo: expect.any(String) } });
+  });
+
+  it("un gerente nuevo pide nombre y saldo", () => {
+    expect(validateDestino(d({ sel: "nuevo", nombre: " Rosmary Madero ", saldo: "5180" }))).toEqual({
+      ok: true,
+      value: { kind: "nuevo", nombre: "Rosmary Madero", saldoUsd: "5180" },
+    });
+    const r = validateDestino(d({ sel: "nuevo" }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(Object.keys(r.errors).sort()).toEqual(["nombre", "saldo"]);
+  });
+
+  it("exige elegir un gerente", () => {
+    expect(validateDestino(d())).toMatchObject({ ok: false, errors: { sel: expect.any(String) } });
+    expect(validateDestino(d({ sel: "a:abc" }))).toMatchObject({ ok: false, errors: { sel: expect.any(String) } });
   });
 });

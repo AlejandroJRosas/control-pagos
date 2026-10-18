@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useParams } from "react-router";
-import { FileSpreadsheet, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router";
+import { FileSpreadsheet, FileUp, Plus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando } from "@/components/Feedback";
@@ -20,6 +20,7 @@ import { archivoExcel } from "@/export/fileName";
 import { saveWorkbook } from "@/export/saveWorkbook";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { setCampanaActual } from "@/lib/campanaActual";
 import { CampanaFormDialog } from "@/features/campanas/CampanaFormDialog";
 import { AsignacionFormDialog, type AsignacionEditable } from "./AsignacionFormDialog";
 import { PorGerenteTab } from "./PorGerenteTab";
@@ -34,11 +35,17 @@ export function CampanaPage() {
     },
     [campanaId],
   );
-  const [tab, setTab] = useState<string>("gerentes");
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "gerentes" ? "gerentes" : "depositos";
   const [editar, setEditar] = useState(false);
   const [asig, setAsig] = useState<{ open: boolean; asignacion: AsignacionEditable | null }>({ open: false, asignacion: null });
   const [confirmEstado, setConfirmEstado] = useState(false);
   const [quitar, setQuitar] = useState<GerenteResumen | null>(null);
+
+  const existe = data !== undefined;
+  useEffect(() => {
+    if (existe) setCampanaActual(campanaId);
+  }, [existe, campanaId]);
 
   if (!data) return <Cargando error={error} />;
   const { campana, view, asignaciones } = data;
@@ -99,19 +106,42 @@ export function CampanaPage() {
             <Button variant="outline" onClick={() => setConfirmEstado(true)}>
               {cerrada ? "Reabrir" : "Cerrar campaña"}
             </Button>
-            <Button disabled={cerrada} onClick={() => setAsig({ open: true, asignacion: null })}>
-              <Plus />
+            <Button variant="outline" disabled={cerrada} onClick={() => setAsig({ open: true, asignacion: null })}>
+              <UserPlus />
               Agregar gerente
             </Button>
+            {cerrada ? (
+              <>
+                <Button variant="outline" disabled>
+                  <FileUp />
+                  Importar Excel
+                </Button>
+                <Button disabled>
+                  <Plus />
+                  Registrar depósito
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link to={`/campanas/${campanaId}/importar`} className={buttonVariants({ variant: "outline" })}>
+                  <FileUp />
+                  Importar Excel
+                </Link>
+                <Link to={`/campanas/${campanaId}/depositos/nuevo`} className={buttonVariants()}>
+                  <Plus />
+                  Registrar depósito
+                </Link>
+              </>
+            )}
           </>
         }
       />
       {cerrada && <Aviso>La campaña está cerrada: solo lectura. Reábrela para hacer cambios.</Aviso>}
       <ResumenCards resumen={view.total} etiquetaAsignado="Saldo general" />
-      <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
+      <Tabs value={tab} onValueChange={(v) => setParams(v === "gerentes" ? { tab: "gerentes" } : {}, { replace: true })}>
         <TabsList>
-          <TabsTrigger value="gerentes">Por gerente ({view.gerentes.length})</TabsTrigger>
           <TabsTrigger value="depositos">Todos los depósitos ({view.depositos.length})</TabsTrigger>
+          <TabsTrigger value="gerentes">Por gerente ({view.gerentes.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="gerentes">
           <PorGerenteTab
@@ -122,7 +152,7 @@ export function CampanaPage() {
           />
         </TabsContent>
         <TabsContent value="depositos">
-          <TodosDepositosTab view={view} />
+          <TodosDepositosTab campanaId={campanaId} view={view} />
         </TabsContent>
       </Tabs>
 

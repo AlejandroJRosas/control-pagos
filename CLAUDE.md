@@ -20,7 +20,9 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 
 - `src/domain/` — lógica pura, sin dependencias del proyecto. **Todo cálculo de dinero vive aquí** (`money.ts`, `campanaView.ts`, `validation.ts`).
 - `src/db/` — `SqlDriver` mínimo (`driver.ts`); en producción `tauriDriver.ts` (tauri-plugin-sql), en pruebas `testing/sqljsDriver.ts`. Repos en `db/repos/`, consulta agregada en `db/queries/campanaData.ts`.
-- `src/features/*` — pantallas; las rutas se registran en `src/App.tsx` (hash router).
+- `src/db/operaciones/` — escrituras de varios pasos con reversión manual (el plugin SQL no da transacciones entre llamadas): `destino.ts` (gerente/asignación al registrar desde la campaña), `importarPagos.ts` (plan + importación).
+- `src/import/cuadroPagos.ts` — lee la hoja "CUADRO DE PAGOS" de las facturas por gerente (busca el encabezado por texto, no por celda fija).
+- `src/features/*` — pantallas; las rutas se registran en `src/App.tsx` (hash router). La última campaña abierta se recuerda en `lib/campanaActual.ts` (localStorage) y `/` redirige a ella.
 - `src/platform/` — imágenes en AppData (plugin-fs) y respaldos (invoca comandos Rust).
 - `src-tauri/src/backup.rs` — crear/restaurar/podar/listar zips; `lib.rs` — comandos y plugins.
 - Datos en `%APPDATA%\com.controlpagos.app\`: `control-pagos.db` (modo WAL), `imagenes\`, `respaldos\`.

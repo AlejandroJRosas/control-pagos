@@ -12,6 +12,7 @@ import { Aviso, Cargando } from "@/components/Feedback";
 import { Field } from "@/components/Field";
 import { ImageDrop } from "@/components/ImageDrop";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { DestinoGerente } from "@/components/DestinoGerente";
 import { getDb } from "@/db";
 import { getAsignacion, type AsignacionDetalle } from "@/db/repos/asignaciones";
 import {
@@ -25,12 +26,14 @@ import {
   type Duplicado,
 } from "@/db/repos/depositos";
 import { getTasaByFecha, type Tasa } from "@/db/repos/tasas";
+import { listGerentes, type Gerente } from "@/db/repos/gerentes";
+import { registrarDepositoEnCampana } from "@/db/operaciones/destino";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
 import { buildCampanaView } from "@/domain/campanaView";
 import { formatFecha, isValidIsoDate, todayIso } from "@/domain/dates";
 import { DomainError } from "@/domain/errors";
 import { formatBs, formatTasa, formatUsd, parseMonto, toInputVE, toUsd } from "@/domain/money";
-import { validateDeposito, type DepositoDraft } from "@/domain/validation";
+import { validateDeposito, validateDestino, type DepositoDraft, type DestinoDraft } from "@/domain/validation";
 import { extractor, type ExtractableField, type ExtractedField, type ExtractionResult } from "@/extraction/extractor";
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
@@ -39,7 +42,10 @@ import { cn } from "@/lib/utils";
 import { TasaFormDialog } from "@/features/tasas/TasaFormDialog";
 import { sugerenciasBancos } from "./bancos";
 
-type Ctx = { deposito: Deposito | null; asignacion: AsignacionDetalle; data: CampanaData; bancos: string[] };
+/** `asignacion` es null al registrar desde la campaña: el gerente se elige (o se crea) en el formulario. */
+type Ctx = { deposito: Deposito | null; asignacion: AsignacionDetalle | null; data: CampanaData; bancos: string[]; gerentes: Gerente[] };
+
+const SIN_DESTINO: DestinoDraft = { sel: "", nombre: "", saldo: "" };
 
 const vacio = (fecha: string): DepositoDraft => ({
   fecha,
@@ -52,21 +58,25 @@ const vacio = (fecha: string): DepositoDraft => ({
 });
 
 export function DepositoPage() {
-  const { depositoId, asignacionId } = useParams();
+  const { depositoId, asignacionId, campanaId } = useParams();
   const { data: ctx, error } = useData<Ctx>(
     async (db) => {
+      if (campanaId) {
+        const data = await loadCampanaData(db, Number(campanaId));
+        return { deposito: null, asignacion: null, data, bancos: sugerenciasBancos(await listBancosUsados(db)), gerentes: await listGerentes(db) };
+      }
       const deposito = depositoId ? await getDeposito(db, Number(depositoId)) : null;
       if (depositoId && !deposito) throw new DomainError("NO_ENCONTRADO", "El depósito no existe");
       const asignacion = await getAsignacion(db, deposito?.asignacionId ?? Number(asignacionId));
       if (!asignacion) throw new DomainError("NO_ENCONTRADO", "El gerente no está en esta campaña");
       const data = await loadCampanaData(db, asignacion.campanaId);
-      return { deposito, asignacion, data, bancos: sugerenciasBancos(await listBancosUsados(db)) };
+      return { deposito, asignacion, data, bancos: sugerenciasBancos(await listBancosUsados(db)), gerentes: [] };
     },
-    [depositoId, asignacionId],
+    [depositoId, asignacionId, campanaId],
   );
 
   if (!ctx) return <Cargando error={error} />;
-  return <DepositoForm key={`${depositoId ?? "nuevo"}-${asignacionId ?? ""}`} {...ctx} />;
+  return <DepositoForm key={`${depositoId ?? "nuevo"}-${asignacionId ?? ""}-${campanaId ?? ""}`} {...ctx} />;
 }
 
 function confClass(c: number | undefined): string {
@@ -76,9 +86,12 @@ function confClass(c: number | undefined): string {
   return "border-red-500 bg-red-50";
 }
 
-function DepositoForm({ deposito, asignacion, data, bancos }: Ctx) {
+function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const navigate = useNavigate();
-  const cerrada = asignacion.campanaEstado === "cerrada";
+  const campana = data.campana;
+  const cerrada = campana.estado === "cerrada";
+  const [destino, setDestino] = useState<DestinoDraft>(SIN_DESTINO);
+  const [destinoErrors, setDestinoErrors] = useState<Partial<Record<keyof DestinoDraft, string>>>({});
   const [draft, setDraft] = useState<DepositoDraft>(() =>
     deposito
       ? {
@@ -151,11 +164,16 @@ function DepositoForm({ deposito, asignacion, data, bancos }: Ctx) {
     () => buildCampanaView(data.asignaciones, data.depositos.filter((d) => d.id !== deposito?.id)),
     [data, deposito?.id],
   );
-  const resumenGerente = view.gerentes.find((g) => g.asignacionId === asignacion.id);
+  const selAsignacion = /^a:(\d+)$/.exec(destino.sel);
+  const asignacionDestino = asignacion?.id ?? (selAsignacion ? Number(selAsignacion[1]) : null);
+  const resumenGerente = view.gerentes.find((g) => g.asignacionId === asignacionDestino);
+  // Un gerente que se agrega a la campaña con este depósito suma su saldo al general.
+  const saldoNuevo = !asignacion && (destino.sel === "nuevo" || destino.sel.startsWith("g:")) ? parseMonto(destino.saldo) : null;
   const monto = parseMonto(draft.montoBs);
   const usd = monto && tasa && new Decimal(monto).gt(0) ? toUsd(monto, tasa.valor) : null;
-  const restanteGerente = new Decimal(resumenGerente?.restante ?? 0).minus(usd ?? 0);
-  const restanteGeneral = new Decimal(view.total.restante).minus(usd ?? 0);
+  const baseGerente = resumenGerente?.restante ?? saldoNuevo;
+  const restanteGerente = baseGerente != null ? new Decimal(baseGerente).minus(usd ?? 0) : null;
+  const restanteGeneral = new Decimal(view.total.restante).plus(saldoNuevo ?? 0).minus(usd ?? 0);
 
   function set<K extends keyof DepositoDraft>(k: K, v: DepositoDraft[K]) {
     setDraft((d) => ({ ...d, [k]: v }));
@@ -192,13 +210,27 @@ function DepositoForm({ deposito, asignacion, data, bancos }: Ctx) {
 
   async function guardar(yNuevo: boolean) {
     const r = validateDeposito(draft);
-    if (!r.ok) return setErrors(r.errors);
+    const rd = asignacion || deposito ? null : validateDestino(destino);
+    if (!r.ok || (rd && !rd.ok)) {
+      if (!r.ok) setErrors(r.errors);
+      if (rd && !rd.ok) setDestinoErrors(rd.errors);
+      return;
+    }
+    const nuevoDestino = rd?.ok ? rd.value : null;
     setSaving(true);
     try {
       const db = await getDb();
       const v = { ...r.value, imagenPath: await persistImagen(imagen) };
-      if (deposito) await updateDeposito(db, deposito.id, v);
-      else await createDeposito(db, asignacion.id, v);
+      let asignacionId: number;
+      if (deposito) {
+        await updateDeposito(db, deposito.id, v);
+        asignacionId = deposito.asignacionId;
+      } else if (nuevoDestino) {
+        asignacionId = await registrarDepositoEnCampana(db, campana.id, nuevoDestino, v);
+      } else {
+        await createDeposito(db, asignacion!.id, v);
+        asignacionId = asignacion!.id;
+      }
       toast.success(deposito ? "Depósito actualizado" : "Depósito registrado");
       if (yNuevo) {
         if (imagen?.kind === "new") URL.revokeObjectURL(imagen.previewUrl);
@@ -206,9 +238,10 @@ function DepositoForm({ deposito, asignacion, data, bancos }: Ctx) {
         setImagen(null);
         setConfianza({});
         setDuplicados([]);
+        if (!asignacion) setDestino({ ...SIN_DESTINO, sel: `a:${asignacionId}` });
         invalidate();
       } else {
-        navigate(`/asignaciones/${asignacion.id}`);
+        navigate(asignacion ? `/asignaciones/${asignacionId}` : `/campanas/${campana.id}`);
         invalidate();
       }
     } catch (e) {
@@ -223,7 +256,7 @@ function DepositoForm({ deposito, asignacion, data, bancos }: Ctx) {
     try {
       await deleteDeposito(await getDb(), deposito.id);
       toast.success("Depósito eliminado");
-      navigate(`/asignaciones/${asignacion.id}`, { replace: true });
+      navigate(`/asignaciones/${deposito.asignacionId}`, { replace: true });
       invalidate();
     } catch (e) {
       reportError(e);
@@ -236,9 +269,9 @@ function DepositoForm({ deposito, asignacion, data, bancos }: Ctx) {
   return (
     <div className="space-y-4">
       <PageHeader
-        back={{ to: `/asignaciones/${asignacion.id}`, label: asignacion.gerenteNombre }}
+        back={asignacion ? { to: `/asignaciones/${asignacion.id}`, label: asignacion.gerenteNombre } : { to: `/campanas/${campana.id}`, label: campana.nombre }}
         title={deposito ? "Editar depósito" : "Registrar depósito"}
-        subtitle={`${asignacion.gerenteNombre} · ${asignacion.campanaNombre}`}
+        subtitle={asignacion ? `${asignacion.gerenteNombre} · ${asignacion.campanaNombre}` : `Campaña ${campana.nombre}`}
         actions={
           deposito && !cerrada ? (
             <Button variant="outline" className="text-destructive" onClick={() => setConfirmDelete(true)}>
@@ -268,6 +301,19 @@ function DepositoForm({ deposito, asignacion, data, bancos }: Ctx) {
           }}
         >
           <fieldset disabled={cerrada || saving} className="grid gap-4">
+            {!asignacion && (
+              <DestinoGerente
+                id="d-destino"
+                asignaciones={data.asignaciones}
+                gerentes={gerentes}
+                value={destino}
+                errors={destinoErrors}
+                onChange={(v) => {
+                  setDestino(v);
+                  setDestinoErrors({});
+                }}
+              />
+            )}
             <div className="grid grid-cols-2 gap-4">
               <Field id="d-fecha" label="Fecha" error={errors.fecha}>
                 <Input id="d-fecha" type="date" className={confClass(confianza.fecha)} value={draft.fecha} onChange={(e) => set("fecha", e.target.value)} />
@@ -340,8 +386,8 @@ function DepositoForm({ deposito, asignacion, data, bancos }: Ctx) {
                 </div>
                 <div>
                   <div className="text-muted-foreground">Saldo del gerente después</div>
-                  <div className={cn("text-lg font-semibold tabular-nums", restanteGerente.isNegative() && "text-destructive")}>
-                    {formatUsd(restanteGerente)}
+                  <div className={cn("text-lg font-semibold tabular-nums", restanteGerente?.isNegative() && "text-destructive")}>
+                    {restanteGerente ? formatUsd(restanteGerente) : "—"}
                   </div>
                 </div>
                 <div>
@@ -363,7 +409,7 @@ function DepositoForm({ deposito, asignacion, data, bancos }: Ctx) {
                 </ul>
               </Aviso>
             )}
-            {usd && restanteGerente.isNegative() && (
+            {usd && restanteGerente?.isNegative() && (
               <Aviso tono="warning">Con este depósito el gerente pagaría {formatUsd(restanteGerente.abs())} de más.</Aviso>
             )}
           </fieldset>
