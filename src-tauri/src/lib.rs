@@ -1,14 +1,119 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod backup;
+
+use serde::Serialize;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::{AppHandle, Manager};
+
+struct Paths {
+    db: PathBuf,
+    images: PathBuf,
+    backups: PathBuf,
+}
+
+/// tauri-plugin-sql resuelve "sqlite:control-pagos.db" relativo a app_config_dir.
+fn paths(app: &AppHandle) -> Result<Paths, String> {
+    let config = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let backups = data.join("respaldos");
+    std::fs::create_dir_all(&backups).map_err(|e| e.to_string())?;
+    Ok(Paths {
+        db: config.join(backup::DB_NAME),
+        images: data.join("imagenes"),
+        backups,
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DataPaths {
+    db_path: String,
+    images_dir: String,
+    backups_dir: String,
+}
+
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn data_paths(app: AppHandle) -> Result<DataPaths, String> {
+    let p = paths(&app)?;
+    Ok(DataPaths {
+        db_path: p.db.display().to_string(),
+        images_dir: p.images.display().to_string(),
+        backups_dir: p.backups.display().to_string(),
+    })
+}
+
+#[tauri::command]
+fn create_backup(app: AppHandle, snapshot_path: String, dest_path: String) -> Result<(), String> {
+    let p = paths(&app)?;
+    let snapshot = Path::new(&snapshot_path);
+    if !snapshot.starts_with(&p.backups) {
+        return Err("Snapshot fuera de la carpeta de respaldos".into());
+    }
+    let result = backup::create_zip(snapshot, &p.images, Path::new(&dest_path));
+    let _ = std::fs::remove_file(snapshot);
+    result
+}
+
+#[tauri::command]
+fn auto_backup_path(app: AppHandle, today: String) -> Result<Option<String>, String> {
+    if today.is_empty() || !today.chars().all(|c| c.is_ascii_digit() || c == '-') {
+        return Err("Fecha inválida".into());
+    }
+    let dest = paths(&app)?.backups.join(format!("auto-{today}.zip"));
+    Ok(if dest.exists() {
+        None
+    } else {
+        Some(dest.display().to_string())
+    })
+}
+
+#[tauri::command]
+fn prune_auto_backups(app: AppHandle) -> Result<(), String> {
+    backup::prune_auto(&paths(&app)?.backups, 7)
+}
+
+#[tauri::command]
+fn list_backups(app: AppHandle) -> Result<Vec<backup::BackupInfo>, String> {
+    backup::list(&paths(&app)?.backups)
+}
+
+/// La BD debe estar cerrada desde JS (closeDb) antes de llamar a este comando.
+#[tauri::command]
+fn restore_backup(app: AppHandle, zip_path: String) -> Result<(), String> {
+    let p = paths(&app)?;
+    if p.db.exists() {
+        let secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        backup::create_zip(
+            &p.db,
+            &p.images,
+            &p.backups.join(format!("antes-de-restaurar-{secs}.zip")),
+        )?;
+    }
+    backup::restore_zip(Path::new(&zip_path), &p.db, &p.images)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
+        .plugin(tauri_plugin_sql::Builder::new().build())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            data_paths,
+            create_backup,
+            auto_backup_path,
+            prune_auto_backups,
+            list_backups,
+            restore_backup
+        ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("error al iniciar la aplicación");
 }
