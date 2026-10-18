@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { AvanceBar } from "@/components/ResumenCards";
 import { PageHeader } from "@/components/PageHeader";
 import { Cargando, Vacio } from "@/components/Feedback";
 import { EstadoBadge } from "@/components/EstadoBadge";
@@ -13,6 +13,7 @@ import { buildCampanaView } from "@/domain/campanaView";
 import { formatPeriodo } from "@/domain/dates";
 import { formatPct, formatUsd } from "@/domain/money";
 import { useData } from "@/hooks/useData";
+import { cn } from "@/lib/utils";
 import { CampanaFormDialog } from "./CampanaFormDialog";
 
 export function CampanasPage() {
@@ -47,7 +48,7 @@ export function CampanasPage() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {data.map(({ campana, total, gerentes }) => (
             <Link key={campana.id} to={`/campanas/${campana.id}`}>
-              <Card className="transition-colors hover:ring-primary">
+              <Card className={cn("transition-colors hover:ring-primary-intenso", campana.estado === "cerrada" && "bg-muted/40")}>
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle>{campana.nombre}</CardTitle>
@@ -62,9 +63,9 @@ export function CampanasPage() {
                     <span className="tabular-nums">
                       {formatUsd(total.pagado)} de {formatUsd(total.asignado)}
                     </span>
-                    <span className="font-medium tabular-nums">{formatPct(total.pct)}</span>
+                    <span className={cn("font-medium tabular-nums", total.pct >= 100 && "text-emerald-700")}>{formatPct(total.pct)}</span>
                   </div>
-                  <Progress value={total.pct} />
+                  <AvanceBar pct={total.pct} />
                 </CardContent>
               </Card>
             </Link>

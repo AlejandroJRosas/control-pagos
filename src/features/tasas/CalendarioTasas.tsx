@@ -80,7 +80,7 @@ function Dia({ d, hoy, onRegistrar, onEditar }: DiaProps) {
   const base = cn(
     "flex h-20 flex-col rounded-md border p-1.5 text-left text-xs transition-colors",
     !d.delMes && "opacity-40",
-    hoy && "ring-2 ring-sky-500",
+    hoy && "ring-2 ring-primary-intenso",
   );
   const numero = <span className="text-sm font-medium">{d.dia}</span>;
 

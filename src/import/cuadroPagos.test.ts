@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
-import { nombreDesdeArchivo, parseCuadroPagos } from "./cuadroPagos";
+import { aplicarEdicion, camposFaltantes, nombreDesdeArchivo, parseCuadroPagos } from "./cuadroPagos";
 
 /** Imita la hoja "CUADRO DE PAGOS " de las facturas por gerente (celdas combinadas, fórmulas con resultado). */
 function libro(filas: (ExcelJS.CellValue | undefined)[][] = []): ExcelJS.Workbook {
@@ -107,6 +107,40 @@ describe("parseCuadroPagos", () => {
     const wb = libro();
     wb.getWorksheet("CUADRO DE PAGOS ")!.getCell("C12").value = null;
     expect(parseCuadroPagos(wb, "FACTURA C3 - 2026 - ROSMARY MADERO.xlsx").gerenteNombre).toBe("ROSMARY MADERO");
+  });
+});
+
+describe("aplicarEdicion", () => {
+  const incompleta = () => parseCuadroPagos(libro([["31/02/2026", "", "", "", "abc", "x"]])).filas[0];
+
+  it("sin edición devuelve la fila tal cual", () => {
+    const f = incompleta();
+    expect(aplicarEdicion(f, undefined)).toBe(f);
+  });
+
+  it("completa los datos escritos y quita sus problemas", () => {
+    const r = aplicarEdicion(incompleta(), {
+      fecha: "2026-03-02",
+      banco: " Venezuela ",
+      referencia: "111",
+      cuentaDestino: "Inv. JD",
+      montoBs: "1.234,50",
+      tasa: "36,5",
+    });
+    expect(r).toMatchObject({ fecha: "2026-03-02", banco: "Venezuela", referencia: "111", montoBs: "1234.5", tasa: "36.5", problemas: [] });
+  });
+
+  it("sigue marcando lo que no se corrigió o se escribió mal", () => {
+    const r = aplicarEdicion(incompleta(), { banco: "Venezuela", montoBs: "0", tasa: "" });
+    expect(r.problemas).toEqual(["Fecha inválida", "Falta la referencia", "Falta la cuenta destino", "Monto en Bs inválido", "Falta la tasa"]);
+    expect(aplicarEdicion(incompleta(), {}).problemas).toContain("Tasa inválida");
+  });
+});
+
+describe("camposFaltantes", () => {
+  it("indica los campos que faltan o vienen mal", () => {
+    const f = parseCuadroPagos(libro([[d("2026-03-02"), "Venezuela", "", "Inv. JD", 730, undefined]])).filas[0];
+    expect(camposFaltantes(f)).toEqual(["referencia", "tasa"]);
   });
 });
 

@@ -14,7 +14,10 @@ const items = [
 ];
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  cn("flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted", isActive && "bg-muted font-medium");
+  cn(
+    "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors",
+    isActive ? "bg-primary font-semibold text-primary-foreground shadow-sm" : "hover:bg-fila-hover",
+  );
 
 export function AppLayout() {
   const actualId = useCampanaActual();

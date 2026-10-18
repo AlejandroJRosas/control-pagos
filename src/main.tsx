@@ -5,7 +5,10 @@ import { router } from "./App";
 import { reportError } from "./lib/reportError";
 import { getDb } from "./db";
 import { runAutoBackup } from "./platform/backup";
+import { aplicarTemaGuardado } from "./lib/tema";
 import "./index.css";
+
+aplicarTemaGuardado();
 
 window.addEventListener("unhandledrejection", (e) => reportError(e.reason));
 

@@ -80,7 +80,7 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, marcado
           const actual = i.id === actualId;
           const Icono = i.estado === "hecho" ? CheckCircle2 : actual ? CircleDot : Circle;
           return (
-            <li key={i.id} className={cn("flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm", actual ? "border-primary bg-primary/5" : "border-transparent hover:bg-muted")}>
+            <li key={i.id} className={cn("flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm", actual ? "border-primary bg-primary/5" : "border-transparent hover:bg-accent")}>
               {onMarcar && (
                 <input
                   type="checkbox"
@@ -92,7 +92,7 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, marcado
                 />
               )}
               <button type="button" className="flex min-w-0 flex-1 items-start gap-1.5 text-left" onClick={() => onElegir(i.id)}>
-                <Icono className={cn("mt-0.5 size-4 shrink-0", i.estado === "hecho" ? "text-emerald-600" : actual ? "text-primary" : "text-muted-foreground")} />
+                <Icono className={cn("mt-0.5 size-4 shrink-0", i.estado === "hecho" ? "text-emerald-600" : actual ? "text-primary-intenso" : "text-muted-foreground")} />
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{i.titulo}</span>
                   <span className="block truncate text-xs text-muted-foreground">{i.detalle}</span>

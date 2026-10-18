@@ -6,6 +6,7 @@ import { FileUp, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/PageHeader";
@@ -16,7 +17,7 @@ import { getDb } from "@/db";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
 import { listGerentes, type Gerente } from "@/db/repos/gerentes";
 import { importarPagos, planificarImportacion, type FilaPlan, type PlanImportacion } from "@/db/operaciones/importarPagos";
-import { parseCuadroPagos } from "@/import/cuadroPagos";
+import { parseCuadroPagos, type CampoEditable, type EdicionFila } from "@/import/cuadroPagos";
 import { formatFecha } from "@/domain/dates";
 import { formatBs, formatTasa, formatUsd } from "@/domain/money";
 import { validateDestino, type DestinoDraft } from "@/domain/validation";
@@ -25,7 +26,16 @@ import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { cn } from "@/lib/utils";
 
-type Archivo = { key: string; nombre: string; plan: PlanImportacion; destino: DestinoDraft; marcadas: Set<number>; actualizarSaldo: boolean };
+type Archivo = {
+  key: string;
+  nombre: string;
+  plan: PlanImportacion;
+  destino: DestinoDraft;
+  marcadas: Set<number>;
+  actualizarSaldo: boolean;
+  /** Lo que el usuario completó, por fila del Excel. */
+  ediciones: Map<number, EdicionFila>;
+};
 
 type Col = "fila" | "fecha" | "banco" | "referencia" | "cuenta" | "montoBs" | "tasa" | "usd";
 const COLUMNAS: Columnas<FilaPlan, Col> = {
@@ -51,6 +61,14 @@ const ENCABEZADOS: [Col, string, string?][] = [
 
 const marcadasPorDefecto = (filas: FilaPlan[]) => new Set(filas.filter((f) => f.marcada).map((f) => f.fila));
 
+/** Tras volver a revisar: se conserva la elección, se desmarca lo que dejó de ser importable y se sugiere lo que pasó a serlo. */
+function ajustarMarcadas(antes: PlanImportacion, despues: PlanImportacion, marcadas: Set<number>): Set<number> {
+  const eraImportable = new Set(antes.filas.filter((f) => f.importable).map((f) => f.fila));
+  return new Set(
+    despues.filas.filter((f) => f.importable && (marcadas.has(f.fila) || (!eraImportable.has(f.fila) && f.marcada))).map((f) => f.fila),
+  );
+}
+
 export function ImportarPage() {
   const campanaId = Number(useParams().campanaId);
   const { data, error } = useData(async (db) => ({ campana: await loadCampanaData(db, campanaId), gerentes: await listGerentes(db) }), [campanaId]);
@@ -58,6 +76,8 @@ export function ImportarPage() {
   const [leyendo, setLeyendo] = useState(false);
   const [over, setOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  /** Última revisión pedida por archivo: una respuesta más vieja no pisa a una más nueva. */
+  const versiones = useRef(new Map<string, number>());
 
   if (!data) return <Cargando error={error} />;
   const { campana } = data.campana;
@@ -81,6 +101,7 @@ export function ImportarPage() {
             destino: plan.destino,
             marcadas: marcadasPorDefecto(plan.filas),
             actualizarSaldo: false,
+            ediciones: new Map(),
           };
           setArchivos((prev) => [...prev, a]);
         } catch (e) {
@@ -101,23 +122,37 @@ export function ImportarPage() {
     const db = await getDb();
     const planes = new Map<string, PlanImportacion>();
     for (const a of archivos) {
-      if (a.key !== importado) planes.set(a.key, await planificarImportacion(db, campanaId, a.plan.cuadro));
+      if (a.key !== importado) planes.set(a.key, await planificarImportacion(db, campanaId, a.plan.cuadro, a.ediciones));
     }
     setArchivos((prev) =>
       prev.map((a) => {
         const plan = planes.get(a.key);
         if (!plan) return a;
-        const importables = new Set(plan.filas.filter((f) => f.importable).map((f) => f.fila));
         const destino = a.destino.sel === "nuevo" && plan.destino.sel !== "nuevo" ? plan.destino : a.destino;
-        return { ...a, plan, destino, marcadas: new Set([...a.marcadas].filter((n) => importables.has(n))) };
+        return { ...a, plan, destino, marcadas: ajustarMarcadas(a.plan, plan, a.marcadas) };
       }),
     );
   }
 
   const actualizar = (key: string, cambio: Partial<Archivo>) => setArchivos((prev) => prev.map((a) => (a.key === key ? { ...a, ...cambio } : a)));
 
+  async function editar(a: Archivo, fila: number, campo: CampoEditable, valor: string) {
+    const ediciones = new Map(a.ediciones).set(fila, { ...a.ediciones.get(fila), [campo]: valor });
+    const version = (versiones.current.get(a.key) ?? 0) + 1;
+    versiones.current.set(a.key, version);
+    actualizar(a.key, { ediciones });
+    try {
+      const plan = await planificarImportacion(await getDb(), campanaId, a.plan.cuadro, ediciones);
+      if (versiones.current.get(a.key) !== version) return;
+      setArchivos((prev) => prev.map((x) => (x.key === a.key ? { ...x, plan, marcadas: ajustarMarcadas(x.plan, plan, x.marcadas) } : x)));
+    } catch (e) {
+      reportError(e, a.nombre);
+    }
+  }
+
   async function importar(a: Archivo) {
-    const filas = a.plan.filas.filter((f) => a.marcadas.has(f.fila));
+    // La tasa que se muestra es la que se usa: la registrada, la del Excel o la que se completó.
+    const filas = a.plan.filas.filter((f) => a.marcadas.has(f.fila)).map((f) => ({ ...f, tasa: f.tasaAplicada ?? f.tasa }));
     const rd = validateDestino(a.destino);
     if (!rd.ok) {
       toast.error(`${a.nombre}: ${Object.values(rd.errors)[0]}`);
@@ -190,6 +225,7 @@ export function ImportarPage() {
           gerentes={data.gerentes}
           cerrada={cerrada}
           onChange={(c) => actualizar(a.key, c)}
+          onEditar={(fila, campo, valor) => editar(a, fila, campo, valor)}
           onQuitar={() => setArchivos((prev) => prev.filter((x) => x.key !== a.key))}
           onImportar={() => importar(a)}
         />
@@ -204,11 +240,12 @@ type CardProps = {
   gerentes: Gerente[];
   cerrada: boolean;
   onChange: (c: Partial<Archivo>) => void;
+  onEditar: (fila: number, campo: CampoEditable, valor: string) => void;
   onQuitar: () => void;
   onImportar: () => Promise<void>;
 };
 
-function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, onQuitar, onImportar }: CardProps) {
+function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, onEditar, onQuitar, onImportar }: CardProps) {
   const [importando, setImportando] = useState(false);
   const { orden, alternar } = useOrden<Col>();
   const { cuadro, filas } = a.plan;
@@ -292,12 +329,30 @@ function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, onQuita
                   />
                 </TableCell>
                 <TableCell className="tabular-nums">{f.fila}</TableCell>
-                <TableCell>{f.fecha ? formatFecha(f.fecha) : "—"}</TableCell>
-                <TableCell>{f.banco || "—"}</TableCell>
-                <TableCell className="font-mono">{f.referencia || "—"}</TableCell>
-                <TableCell>{f.cuentaDestino || "—"}</TableCell>
-                <TableCell className="text-right tabular-nums">{f.montoBs ? formatBs(f.montoBs) : "—"}</TableCell>
-                <TableCell className="text-right tabular-nums">{f.tasaAplicada ? formatTasa(f.tasaAplicada) : "—"}</TableCell>
+                {(
+                  [
+                    ["fecha", f.fecha ? formatFecha(f.fecha) : null, ""],
+                    ["banco", f.banco, ""],
+                    ["referencia", f.referencia, "font-mono"],
+                    ["cuentaDestino", f.cuentaDestino, ""],
+                    ["montoBs", f.montoBs ? formatBs(f.montoBs) : null, "text-right tabular-nums"],
+                    ["tasa", f.tasaAplicada ? formatTasa(f.tasaAplicada) : null, "text-right tabular-nums"],
+                  ] as const
+                ).map(([campo, texto, className]) => (
+                  <TableCell key={campo} className={className}>
+                    {f.editables.includes(campo) ? (
+                      <CampoFila
+                        f={f}
+                        campo={campo}
+                        valor={a.ediciones.get(f.fila)?.[campo] ?? ""}
+                        disabled={cerrada}
+                        onEditar={(valor) => onEditar(f.fila, campo, valor)}
+                      />
+                    ) : (
+                      texto || "—"
+                    )}
+                  </TableCell>
+                ))}
                 <TableCell className="text-right tabular-nums">{f.usd ? formatUsd(f.usd) : "—"}</TableCell>
                 <TableCell>
                   <Revision f={f} />
@@ -330,10 +385,47 @@ function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, onQuita
   );
 }
 
+const ETIQUETAS: Record<CampoEditable, string> = {
+  fecha: "Fecha",
+  banco: "Banco",
+  referencia: "Referencia",
+  cuentaDestino: "Cuenta destino",
+  montoBs: "Monto Bs",
+  tasa: "Tasa",
+};
+
+/** Campo para completar un dato que el Excel no trae o trae mal; se aplica al salir del campo o con Enter. */
+function CampoFila(props: { f: FilaPlan; campo: CampoEditable; valor: string; disabled: boolean; onEditar: (valor: string) => void }) {
+  const { f, campo, valor, disabled, onEditar } = props;
+  const falta = campo === "tasa" ? !f.tasaAplicada : !f[campo];
+  // Una tasa que viene de otra fila del mismo día se muestra como sugerencia.
+  const placeholder = campo === "tasa" && f.tasaAplicada ? formatTasa(f.tasaAplicada) : ETIQUETAS[campo];
+  return (
+    <Input
+      type={campo === "fecha" ? "date" : "text"}
+      inputMode={campo === "montoBs" || campo === "tasa" ? "decimal" : undefined}
+      aria-label={`${ETIQUETAS[campo]} de la fila ${f.fila}`}
+      aria-invalid={falta}
+      defaultValue={valor}
+      placeholder={placeholder}
+      disabled={disabled}
+      className={cn("h-7 min-w-28", (campo === "montoBs" || campo === "tasa") && "text-right")}
+      onBlur={(e) => {
+        if (e.target.value !== valor) onEditar(e.target.value);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+    />
+  );
+}
+
 function Revision({ f }: { f: FilaPlan }) {
   const notas: { texto: string; tono: "error" | "aviso" | "info" }[] = [];
   f.problemas.forEach((p) => notas.push({ texto: p, tono: "error" }));
   if (f.estadoTasa === "nueva") notas.push({ texto: "Tasa nueva: se registrará", tono: "info" });
+  if (f.estadoTasa === "registrada") notas.push({ texto: "Tasa tomada de la app", tono: "info" });
+  if (f.editada) notas.push({ texto: "Editada", tono: "info" });
   if (f.estadoTasa === "distinta" && f.tasa && f.tasaAplicada) {
     notas.push({ texto: `El Excel dice ${formatTasa(f.tasa)}; se usará la del día: ${formatTasa(f.tasaAplicada)}`, tono: "aviso" });
   }

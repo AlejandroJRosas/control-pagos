@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Archive, RotateCcw } from "lucide-react";
+import { Archive, Check, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,8 @@ import { formatNumberVE } from "@/domain/money";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
+import { TEMAS, setTema, useTema } from "@/lib/tema";
+import { cn } from "@/lib/utils";
 
 const tamano = (bytes: number) =>
   bytes < 1024 * 1024 ? `${formatNumberVE(bytes / 1024, 0)} KB` : `${formatNumberVE(bytes / 1024 / 1024, 1)} MB`;
@@ -73,6 +75,7 @@ export function ConfiguracionPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Configuración" />
+      <Apariencia />
       <Card>
         <CardHeader>
           <CardTitle>Datos</CardTitle>
@@ -161,5 +164,42 @@ export function ConfiguracionPage() {
         onConfirm={confirmarRestaurar}
       />
     </div>
+  );
+}
+
+function Apariencia() {
+  const tema = useTema();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Apariencia</CardTitle>
+        <CardDescription>Color principal de botones, barra lateral y barras de avance.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap gap-3">
+        {TEMAS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTema(t.id)}
+            aria-pressed={tema === t.id}
+            className={cn(
+              "flex w-20 flex-col items-center gap-1.5 rounded-lg p-2 text-xs transition-colors hover:bg-accent",
+              tema === t.id && "bg-muted font-medium",
+            )}
+          >
+            <span
+              className={cn(
+                "flex size-9 items-center justify-center rounded-full ring-1 ring-foreground/10",
+                tema === t.id && "ring-2 ring-foreground/60 ring-offset-2 ring-offset-background",
+              )}
+              style={{ background: t.muestra }}
+            >
+              {tema === t.id && <Check className={cn("size-4", t.id === "neutro" ? "text-white" : "text-foreground/70")} />}
+            </span>
+            {t.nombre}
+          </button>
+        ))}
+      </CardContent>
+    </Card>
   );
 }

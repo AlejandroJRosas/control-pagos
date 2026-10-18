@@ -97,6 +97,63 @@ describe("planificarImportacion", () => {
       ["distinta", "41"],
     ]);
   });
+
+  it("si el Excel no trae la tasa, usa la registrada en la app", async () => {
+    const p = await planificarImportacion(
+      db,
+      s.campanaId,
+      cuadro({
+        filas: [
+          fila({ fila: 23, tasa: null, problemas: ["Falta la tasa"] }),
+          fila({ fila: 24, tasa: null, referencia: "2", problemas: ["Tasa inválida"] }),
+        ],
+      }),
+    );
+    for (const f of p.filas) {
+      expect(f).toMatchObject({ estadoTasa: "registrada", tasaAplicada: "36.5", usd: "20.00", problemas: [], importable: true, marcada: true });
+      expect(f.editables).toEqual([]);
+    }
+  });
+
+  it("sin tasa en el Excel ni en la app, usa la de otra fila del mismo día o deja escribirla", async () => {
+    const p = await planificarImportacion(
+      db,
+      s.campanaId,
+      cuadro({
+        filas: [
+          fila({ fila: 23, fecha: "2026-03-03", tasa: "37" }),
+          fila({ fila: 24, fecha: "2026-03-03", tasa: null, referencia: "2", problemas: ["Falta la tasa"] }),
+          fila({ fila: 25, fecha: "2026-03-04", tasa: null, referencia: "3", problemas: ["Falta la tasa"] }),
+        ],
+      }),
+    );
+    const r = (n: number) => p.filas.find((f) => f.fila === n)!;
+    expect(r(24)).toMatchObject({ estadoTasa: "nueva", tasaAplicada: "37", importable: true, editables: ["tasa"] });
+    expect(r(25)).toMatchObject({ estadoTasa: null, tasaAplicada: null, importable: false, marcada: false, editables: ["tasa"] });
+  });
+
+  it("aplica lo que el usuario completó y vuelve a revisar la fila", async () => {
+    const incompleta = fila({ fila: 23, fecha: null, banco: "", tasa: null, problemas: ["Fecha inválida", "Falta el banco", "Falta la tasa"] });
+    const sin = await planificarImportacion(db, s.campanaId, cuadro({ filas: [incompleta] }));
+    expect(sin.filas[0]).toMatchObject({ importable: false, editada: false, editables: ["fecha", "banco", "tasa"] });
+
+    const ediciones = new Map([[23, { fecha: "2026-03-02", banco: "Venezuela" }]]);
+    const con = await planificarImportacion(db, s.campanaId, cuadro({ filas: [incompleta] }), ediciones);
+    expect(con.filas[0]).toMatchObject({
+      fecha: "2026-03-02",
+      banco: "Venezuela",
+      estadoTasa: "registrada",
+      tasaAplicada: "36.5",
+      problemas: [],
+      importable: true,
+      marcada: true,
+      editada: true,
+      editables: ["fecha", "banco"],
+    });
+
+    const nueva = await planificarImportacion(db, s.campanaId, cuadro({ filas: [incompleta] }), new Map([[23, { fecha: "2026-03-04", banco: "V", tasa: "38,5" }]]));
+    expect(nueva.filas[0]).toMatchObject({ estadoTasa: "nueva", tasaAplicada: "38.5", importable: true, editables: ["fecha", "banco", "tasa"] });
+  });
 });
 
 describe("importarPagos", () => {
@@ -132,6 +189,24 @@ describe("importarPagos", () => {
   it("puede actualizar el saldo de un gerente que ya está en la campaña", async () => {
     await importarPagos(db, s.campanaId, { destino: { kind: "asignacion", asignacionId: s.asignacionId }, saldoUsd: "250", filas: [fila()] });
     expect((await getAsignacion(db, s.asignacionId))?.saldoUsd).toBe("250");
+  });
+
+  it("una fila sin tasa usa la registrada; si no hay, no importa nada", async () => {
+    const r = await importarPagos(db, s.campanaId, {
+      destino: { kind: "asignacion", asignacionId: s.asignacionId },
+      saldoUsd: null,
+      filas: [fila({ tasa: null })],
+    });
+    expect(r).toMatchObject({ depositos: 1, tasasCreadas: 0 });
+    await expect(
+      importarPagos(db, s.campanaId, {
+        destino: { kind: "nuevo", nombre: "Beto", saldoUsd: "1" },
+        saldoUsd: null,
+        filas: [fila({ referencia: "2" }), fila({ fila: 31, fecha: "2026-03-04", tasa: null, referencia: "3" })],
+      }),
+    ).rejects.toMatchObject({ code: "VALIDACION", message: expect.stringContaining("31") });
+    expect(await contar("depositos")).toBe(1);
+    expect(await contar("gerentes")).toBe(1);
   });
 
   it("no importa filas con problemas", async () => {

@@ -6,14 +6,17 @@ import { listGerentes } from "../repos/gerentes";
 import { createTasa, getTasaParaFecha } from "../repos/tasas";
 import { claveComparacion, createDeposito, findDuplicados, type Duplicado } from "../repos/depositos";
 import { resolverDestino } from "./destino";
-import type { CuadroPagos, FilaCuadro } from "@/import/cuadroPagos";
+import { aplicarEdicion, camposFaltantes, type CampoEditable, type CuadroPagos, type EdicionFila, type FilaCuadro } from "@/import/cuadroPagos";
 import type { Destino, DestinoDraft } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
 import { toInputVE, toUsd } from "@/domain/money";
-import { fechaDeTasa } from "@/domain/dates";
+import { fechaDeTasa, formatFecha } from "@/domain/dates";
 
-/** existente: ya hay tasa ese día y coincide · nueva: se registrará · distinta: se usará la ya registrada (o la de una fila anterior). */
-export type EstadoTasa = "existente" | "nueva" | "distinta";
+/**
+ * existente: ya hay tasa ese día y coincide · nueva: se registrará · distinta: se usará la ya registrada (o la de una fila anterior)
+ * · registrada: el Excel no la trae y se usa la de la app.
+ */
+export type EstadoTasa = "existente" | "nueva" | "distinta" | "registrada";
 
 export type FilaPlan = FilaCuadro & {
   estadoTasa: EstadoTasa | null;
@@ -25,7 +28,13 @@ export type FilaPlan = FilaCuadro & {
   importable: boolean;
   /** Sugerencia inicial: se desmarca lo que pide revisión. */
   marcada: boolean;
+  /** El usuario completó algo de la fila. */
+  editada: boolean;
+  /** Campos que el Excel no trae o trae mal, y se pueden completar (la tasa, solo si la app no la tiene). */
+  editables: CampoEditable[];
 };
+
+const PROBLEMAS_TASA = ["Falta la tasa", "Tasa inválida"];
 
 export type PlanImportacion = { cuadro: CuadroPagos; destino: DestinoDraft; filas: FilaPlan[] };
 
@@ -39,23 +48,34 @@ async function sugerirDestino(db: SqlDriver, campanaId: number, c: CuadroPagos):
   return a ? { sel: `a:${a.id}`, nombre: "", saldo: "" } : { sel: `g:${g.id}`, nombre: "", saldo };
 }
 
-export async function planificarImportacion(db: SqlDriver, campanaId: number, cuadro: CuadroPagos): Promise<PlanImportacion> {
+/** `ediciones`: lo que el usuario completó, por número de fila del Excel. */
+export async function planificarImportacion(
+  db: SqlDriver,
+  campanaId: number,
+  cuadro: CuadroPagos,
+  ediciones: ReadonlyMap<number, EdicionFila> = new Map(),
+): Promise<PlanImportacion> {
   const tasas = new Map<string, { valor: string; registrada: boolean }>();
   const vistas = new Map<string, number>();
   const filas: FilaPlan[] = [];
 
-  for (const f of cuadro.filas) {
+  for (const original of cuadro.filas) {
+    const edicion = ediciones.get(original.fila);
+    const f = aplicarEdicion(original, edicion);
     let estadoTasa: EstadoTasa | null = null;
     let tasaAplicada: string | null = null;
+    let tasaEnApp = false;
     if (f.fecha) {
       // Clave = fecha donde vive la tasa (sábado y domingo comparten la del viernes).
       const t = await getTasaParaFecha(db, f.fecha);
       const clave = t?.fecha ?? fechaDeTasa(f.fecha);
       if (t && !tasas.has(clave)) tasas.set(clave, { valor: t.valor, registrada: true });
+      tasaEnApp = t !== null;
       const previa = tasas.get(clave);
       if (previa) {
         tasaAplicada = previa.valor;
-        if (f.tasa && !new Decimal(f.tasa).eq(previa.valor)) estadoTasa = "distinta";
+        if (!f.tasa) estadoTasa = previa.registrada ? "registrada" : "nueva";
+        else if (!new Decimal(f.tasa).eq(previa.valor)) estadoTasa = "distinta";
         else estadoTasa = previa.registrada ? "existente" : "nueva";
       } else if (f.tasa) {
         tasas.set(clave, { valor: f.tasa, registrada: false });
@@ -73,9 +93,11 @@ export async function planificarImportacion(db: SqlDriver, campanaId: number, cu
       if (repetidaEnArchivo === null) vistas.set(clave, f.fila);
     }
 
-    const importable = f.problemas.length === 0;
+    const problemas = tasaAplicada ? f.problemas.filter((p) => !PROBLEMAS_TASA.includes(p)) : f.problemas;
+    const importable = problemas.length === 0;
     filas.push({
       ...f,
+      problemas,
       estadoTasa,
       tasaAplicada,
       usd: f.montoBs && tasaAplicada ? toUsd(f.montoBs, tasaAplicada) : null,
@@ -83,6 +105,8 @@ export async function planificarImportacion(db: SqlDriver, campanaId: number, cu
       repetidaEnArchivo,
       importable,
       marcada: importable && estadoTasa !== "distinta" && duplicados.length === 0 && repetidaEnArchivo === null,
+      editada: edicion !== undefined && Object.keys(edicion).length > 0,
+      editables: camposFaltantes(original).filter((c) => c !== "tasa" || !tasaEnApp),
     });
   }
 
@@ -97,7 +121,8 @@ export type Importacion = {
 };
 
 /**
- * Registra los depósitos elegidos. Crea la tasa del día si no existe (la de un sábado o domingo, en su viernes); si existe, se usa la registrada.
+ * Registra los depósitos elegidos. Crea la tasa del día si no existe (la de un sábado o domingo, en su viernes); si existe, se usa la registrada
+ * (una fila sin tasa solo se acepta si ya hay tasa registrada para su fecha).
  * Si algo falla, borra lo creado y restaura el saldo (el plugin SQL no permite transacciones entre llamadas).
  */
 export async function importarPagos(
@@ -106,9 +131,14 @@ export async function importarPagos(
   imp: Importacion,
 ): Promise<{ asignacionId: number; depositos: number; tasasCreadas: number }> {
   await assertCampanaActiva(db, campanaId);
-  const malas = imp.filas.filter((f) => f.problemas.length > 0 || !f.fecha || !f.montoBs || !f.tasa);
+  const malas = imp.filas.filter((f) => f.problemas.length > 0 || !f.fecha || !f.montoBs);
   if (malas.length > 0) {
     throw new DomainError("VALIDACION", `No se pueden importar filas con problemas (fila ${malas.map((f) => f.fila).join(", ")})`);
+  }
+  for (const f of imp.filas) {
+    if (!f.tasa && !(await getTasaParaFecha(db, f.fecha as string))) {
+      throw new DomainError("VALIDACION", `Falta la tasa del ${formatFecha(f.fecha as string)} (fila ${f.fila})`);
+    }
   }
 
   const { asignacionId, deshacer } = await resolverDestino(db, campanaId, imp.destino);

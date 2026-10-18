@@ -18,7 +18,7 @@ export function Aviso({ tono = "info", children }: { tono?: "info" | "warning"; 
     <div
       className={cn(
         "flex gap-2 rounded-md border px-3 py-2 text-sm",
-        tono === "warning" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-sky-200 bg-sky-50 text-sky-900",
+        tono === "warning" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-primary-intenso/40 bg-fila-par text-foreground",
       )}
     >
       <Icon className="mt-0.5 size-4 shrink-0" />

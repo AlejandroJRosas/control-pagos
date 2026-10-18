@@ -148,6 +148,52 @@ function elegirHoja(wb: ExcelJS.Workbook): { ws: ExcelJS.Worksheet; enc: NonNull
   return null;
 }
 
+/** `tasaEscrita`: la celda (o el campo) de la tasa tiene algo, aunque no se pueda leer. */
+function problemas(f: FilaCuadro, tasaEscrita: boolean): string[] {
+  const p: string[] = [];
+  if (!f.fecha) p.push("Fecha inválida");
+  if (!f.banco) p.push("Falta el banco");
+  if (!f.referencia) p.push("Falta la referencia");
+  if (!f.cuentaDestino) p.push("Falta la cuenta destino");
+  if (!f.montoBs) p.push("Monto en Bs inválido");
+  if (!f.tasa) p.push(tasaEscrita ? "Tasa inválida" : "Falta la tasa");
+  return p;
+}
+
+export type CampoEditable = "fecha" | "banco" | "referencia" | "cuentaDestino" | "montoBs" | "tasa";
+/** Lo que el usuario escribió para completar una fila: fecha en ISO, montos y tasa en formato venezolano. */
+export type EdicionFila = Partial<Record<CampoEditable, string>>;
+
+/** Campos que el Excel no trae o no se pudieron leer. */
+export function camposFaltantes(f: FilaCuadro): CampoEditable[] {
+  const faltan: [CampoEditable, boolean][] = [
+    ["fecha", !f.fecha],
+    ["banco", !f.banco],
+    ["referencia", !f.referencia],
+    ["cuentaDestino", !f.cuentaDestino],
+    ["montoBs", !f.montoBs],
+    ["tasa", !f.tasa],
+  ];
+  return faltan.filter(([, falta]) => falta).map(([c]) => c);
+}
+
+const positivo = (p: string | null): string | null => (p !== null && new Decimal(p).gt(0) ? p : null);
+
+/** La fila con lo que el usuario completó encima de lo leído del Excel, y sus problemas recalculados. */
+export function aplicarEdicion(f: FilaCuadro, ed: EdicionFila | undefined): FilaCuadro {
+  if (!ed) return f;
+  const r: FilaCuadro = { ...f };
+  if (ed.fecha !== undefined) r.fecha = isValidIsoDate(ed.fecha) ? ed.fecha : null;
+  if (ed.banco !== undefined) r.banco = ed.banco.trim();
+  if (ed.referencia !== undefined) r.referencia = ed.referencia.trim();
+  if (ed.cuentaDestino !== undefined) r.cuentaDestino = ed.cuentaDestino.trim();
+  if (ed.montoBs !== undefined) r.montoBs = positivo(parseMonto(ed.montoBs));
+  if (ed.tasa !== undefined) r.tasa = positivo(parseTasa(ed.tasa));
+  const tasaEscrita = ed.tasa !== undefined ? ed.tasa.trim() !== "" : f.problemas.includes("Tasa inválida");
+  r.problemas = problemas(r, tasaEscrita);
+  return r;
+}
+
 export function parseCuadroPagos(wb: ExcelJS.Workbook, archivo?: string): CuadroPagos {
   const hallado = elegirHoja(wb);
   if (!hallado) {
@@ -182,12 +228,7 @@ export function parseCuadroPagos(wb: ExcelJS.Workbook, archivo?: string): Cuadro
       observaciones: texto(celda(row, "obs")) || null,
       problemas: [],
     };
-    if (!f.fecha) f.problemas.push("Fecha inválida");
-    if (!f.banco) f.problemas.push("Falta el banco");
-    if (!f.referencia) f.problemas.push("Falta la referencia");
-    if (!f.cuentaDestino) f.problemas.push("Falta la cuenta destino");
-    if (!f.montoBs) f.problemas.push("Monto en Bs inválido");
-    if (!f.tasa) f.problemas.push(texto(celda(row, "tasa")) ? "Tasa inválida" : "Falta la tasa");
+    f.problemas = problemas(f, texto(celda(row, "tasa")) !== "");
     filas.push(f);
   }
 

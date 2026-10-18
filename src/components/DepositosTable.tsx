@@ -85,7 +85,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
   return (
     <div className="space-y-2">
       {!soloLectura && elegidos.length > 0 && (
-        <div className="flex items-center gap-3 rounded-md border bg-sky-50 px-3 py-2 text-sm dark:bg-sky-950">
+        <div className="flex items-center gap-3 rounded-md border bg-fila-hover px-3 py-2 text-sm">
           <span className="font-medium">{elegidos.length} seleccionado(s)</span>
           <Button size="sm" variant="destructive" onClick={() => setBorrar(elegidos)}>
             <Trash2 />
