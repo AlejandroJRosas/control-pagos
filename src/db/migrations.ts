@@ -56,6 +56,38 @@ const MIGRATIONS: Migration[] = [
       "CREATE INDEX IF NOT EXISTS idx_depositos_referencia ON depositos(referencia)",
     ],
   },
+  {
+    // Colas de revisión de la subida en lote: no cuentan en saldos hasta darles "Hecho".
+    version: 2,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS cola_depositos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        campana_id INTEGER NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
+        imagen_path TEXT NOT NULL,
+        nombre_archivo TEXT,
+        estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'hecho')),
+        borrador TEXT NOT NULL,
+        formato TEXT,
+        deposito_id INTEGER REFERENCES depositos(id) ON DELETE SET NULL,
+        orden INTEGER NOT NULL,
+        creado_en TEXT NOT NULL,
+        actualizado_en TEXT NOT NULL
+      )`,
+      "CREATE INDEX IF NOT EXISTS idx_cola_depositos_campana ON cola_depositos(campana_id)",
+      `CREATE TABLE IF NOT EXISTS cola_tasas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        imagen_path TEXT NOT NULL,
+        nombre_archivo TEXT,
+        estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'hecho')),
+        borrador TEXT NOT NULL,
+        formato TEXT,
+        tasa_id INTEGER REFERENCES tasas(id) ON DELETE SET NULL,
+        orden INTEGER NOT NULL,
+        creado_en TEXT NOT NULL,
+        actualizado_en TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
