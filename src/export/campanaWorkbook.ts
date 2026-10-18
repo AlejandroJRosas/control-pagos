@@ -15,13 +15,13 @@ export function isoToExcelDate(iso: string): Date {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
+/** Excel no admite comillas simples al inicio o al final del nombre de una hoja. */
+const sinApostrofesNiEspaciosEnBordes = (s: string) => s.replace(/^[\s']+|[\s']+$/g, "");
+
 export function safeSheetName(name: string, used: Set<string>): string {
-  const base =
-    name
-      .replace(/[[\]:*?/\\]/g, " ")
-      .replace(/^'+|'+$/g, "")
-      .trim()
-      .slice(0, 31) || "Hoja";
+  const base = sinApostrofesNiEspaciosEnBordes(sinApostrofesNiEspaciosEnBordes(name.replace(/[[\]:*?/\\]/g, " ")).slice(0, 31)) || "Hoja";
+  // "History" es un nombre reservado por Excel.
+  if (base.toLowerCase() === "history") used.add("history");
   let candidate = base;
   for (let i = 2; used.has(candidate.toLowerCase()); i++) {
     const suffix = ` (${i})`;

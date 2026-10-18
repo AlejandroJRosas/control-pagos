@@ -34,6 +34,10 @@ export async function runAutoBackup(db: SqlDriver): Promise<void> {
 
 /** Cierra la BD y reemplaza los datos. Quien llama debe recargar la ventana. */
 export async function restoreBackup(zipPath: string): Promise<void> {
-  await closeDb();
+  try {
+    await closeDb({ strict: true });
+  } catch (e) {
+    throw new Error(`No se pudo cerrar la base de datos; no se restauró nada (${e instanceof Error ? e.message : String(e)})`);
+  }
   await invoke("restore_backup", { zipPath });
 }

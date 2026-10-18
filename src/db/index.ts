@@ -26,13 +26,20 @@ export async function getDb(): Promise<SqlDriver> {
   return (await current).driver;
 }
 
-export async function closeDb(): Promise<void> {
+/** Con `strict`, un fallo al cerrar se propaga (la restauración no debe reemplazar una BD abierta). */
+export async function closeDb(opts: { strict?: boolean } = {}): Promise<void> {
   if (!current) return;
   const opened = current;
   current = null;
+  let raw: Database;
   try {
-    await (await opened).raw.close();
+    raw = (await opened).raw;
   } catch {
-    // ya estaba cerrada o nunca abrió
+    return; // nunca llegó a abrir
+  }
+  try {
+    await raw.close();
+  } catch (e) {
+    if (opts.strict) throw e;
   }
 }

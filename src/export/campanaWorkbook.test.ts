@@ -41,6 +41,23 @@ describe("safeSheetName", () => {
   });
 });
 
+it("nombres que Excel/ExcelJS rechazan no rompen la exportación", async () => {
+  const nombres = ["History", "Ana ' ", `${"y".repeat(30)}'z`, "'Luis'"];
+  const view = buildCampanaView(
+    nombres.map((n, i) => ({ id: i + 1, gerenteId: i + 1, gerenteNombre: n, saldoUsd: "10" })),
+    [],
+  );
+  const wb = await roundTrip(buildCampanaWorkbook(campana, view));
+  const hojas = wb.worksheets.map((w) => w.name).slice(2);
+  expect(hojas).toHaveLength(4);
+  for (const h of hojas) {
+    expect(h.toLowerCase()).not.toBe("history");
+    expect(h.endsWith("'")).toBe(false);
+    expect(h.startsWith("'")).toBe(false);
+    expect(h.length).toBeLessThanOrEqual(31);
+  }
+});
+
 it("archivoExcel genera un nombre seguro", () => {
   expect(archivoExcel("Campaña Marzo/2026", "2026-10-18")).toBe("campana-marzo-2026-2026-10-18.xlsx");
   expect(archivoExcel("***", "2026-10-18")).toBe("reporte-2026-10-18.xlsx");
