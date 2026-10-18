@@ -122,6 +122,7 @@ Restricción: `UNIQUE(campana_id, gerente_id)`.
   - Saldo general restante de la campaña = Σ `saldo_usd` de todas las asignaciones − USD acumulados de todos los depósitos de la campaña.
   - % avance = pagado / asignado, limitado a 0–100% para mostrarlo, aunque el valor real puede superar el 100%.
 - Las imágenes se copian a `<carpeta de datos>/imagenes/` con nombre UUID. La BD guarda solo la ruta relativa.
+- La tasa de un depósito debe ser la de su misma fecha (validado al guardar). Si se cambia la fecha, se toma la tasa del nuevo día.
 - Si ya existe un depósito con el mismo `banco` + `referencia`, se muestra una **advertencia**, pero se permite guardar.
 
 ## 6. Pantallas
@@ -150,7 +151,7 @@ Montos con formato venezolano (`1.234.567,89 Bs`, `$ 1.234,56`) y fechas `dd/mm/
 
 ```ts
 interface Extractor {
-  extract(imagePath: string): Promise<ExtractionResult>;
+  extract(image: Blob): Promise<ExtractionResult>; // la imagen aún no guardada
 }
 type ExtractionResult = {
   fields: Partial<Record<'fecha' | 'banco' | 'referencia' | 'cuentaDestino' | 'montoBs', {
