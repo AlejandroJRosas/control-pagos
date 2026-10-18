@@ -1,14 +1,12 @@
-import { useEffect, useState } from "react";
-import { getDb } from "@/db";
-import { getDataPaths } from "@/platform/backup";
+import { createHashRouter, Navigate } from "react-router";
+import { AppLayout } from "@/components/AppLayout";
 
-export default function App() {
-  const [estado, setEstado] = useState("Abriendo base de datos…");
-  useEffect(() => {
-    getDb()
-      .then(getDataPaths)
-      .then((p) => setEstado(`Base de datos lista: ${p.dbPath}`))
-      .catch((e) => setEstado(`Error: ${String(e)}`));
-  }, []);
-  return <div className="p-6">{estado}</div>;
-}
+export const router = createHashRouter([
+  {
+    element: <AppLayout />,
+    children: [
+      { index: true, element: <Navigate to="/campanas" replace /> },
+      { path: "*", element: <Navigate to="/campanas" replace /> },
+    ],
+  },
+]);
