@@ -15,6 +15,7 @@
     "fs:allow-read-file",
     "fs:allow-write-file",
     "fs:allow-mkdir",
+    "fs:allow-remove",
     "dialog:default",
     "log:default"
   ]

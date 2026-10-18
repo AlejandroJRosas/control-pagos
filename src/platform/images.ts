@@ -1,4 +1,4 @@
-import { BaseDirectory, mkdir, readFile, writeFile } from "@tauri-apps/plugin-fs";
+import { BaseDirectory, mkdir, readFile, remove, writeFile } from "@tauri-apps/plugin-fs";
 
 export type ImagenValue = { kind: "stored"; path: string } | { kind: "new"; file: Blob; previewUrl: string } | null;
 
@@ -29,4 +29,19 @@ export async function loadImageUrl(relPath: string): Promise<string> {
 export async function persistImagen(v: ImagenValue): Promise<string | null> {
   if (!v) return null;
   return v.kind === "stored" ? v.path : saveImage(v.file);
+}
+
+/** Borra una imagen guardada; si ya no existe (os error 2) no hace nada. */
+export async function deleteImage(relPath: string): Promise<void> {
+  try {
+    await remove(relPath, opts);
+  } catch (e) {
+    if (!/os error 2\b/.test(String(e))) throw e;
+  }
+}
+
+/** Separa los archivos de un lote en imágenes aceptadas (PNG, JPG, WEBP) y el resto. */
+export function separarImagenes<T extends { type: string }>(files: T[]): { aceptadas: T[]; rechazadas: T[] } {
+  const aceptadas = files.filter((f) => ACCEPTED_IMAGE_TYPES.includes(f.type));
+  return { aceptadas, rechazadas: files.filter((f) => !aceptadas.includes(f)) };
 }
