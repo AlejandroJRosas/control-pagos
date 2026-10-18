@@ -81,17 +81,30 @@ export async function deleteDeposito(db: SqlDriver, id: number): Promise<void> {
   await db.execute("DELETE FROM depositos WHERE id = ?", [id]);
 }
 
+/** Clave de comparación: sin mayúsculas, acentos ni espacios (SQLite `lower` solo pliega ASCII). */
+export const claveComparacion = (s: string): string =>
+  s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, "")
+    .toLowerCase();
+
 export async function findDuplicados(db: SqlDriver, banco: string, referencia: string, excludeId?: number): Promise<Duplicado[]> {
-  return db.select<Duplicado>(
-    `SELECT d.id, d.fecha, d.monto_bs AS montoBs, g.nombre AS gerenteNombre, c.nombre AS campanaNombre
+  const rows = await db.select<Duplicado & { banco: string; referencia: string }>(
+    `SELECT d.id, d.fecha, d.monto_bs AS montoBs, g.nombre AS gerenteNombre, c.nombre AS campanaNombre, d.banco, d.referencia
      FROM depositos d
      JOIN asignaciones a ON a.id = d.asignacion_id
      JOIN gerentes g ON g.id = a.gerente_id
      JOIN campanas c ON c.id = a.campana_id
-     WHERE lower(trim(d.banco)) = lower(trim(?)) AND trim(d.referencia) = trim(?) AND d.id != ?
+     WHERE d.id != ?
      ORDER BY d.fecha`,
-    [banco, referencia, excludeId ?? -1],
+    [excludeId ?? -1],
   );
+  const kBanco = claveComparacion(banco);
+  const kRef = claveComparacion(referencia);
+  return rows
+    .filter((r) => claveComparacion(r.banco) === kBanco && claveComparacion(r.referencia) === kRef)
+    .map(({ id, fecha, montoBs, gerenteNombre, campanaNombre }) => ({ id, fecha, montoBs, gerenteNombre, campanaNombre }));
 }
 
 export async function listBancosUsados(db: SqlDriver): Promise<string[]> {

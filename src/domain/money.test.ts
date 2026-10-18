@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBs, formatNumberVE, formatPct, formatTasa, formatUsd, parseMonto, toInputVE, toUsd } from "./money";
+import { formatBs, formatNumberVE, formatPct, formatTasa, formatUsd, parseMonto, parseTasa, toInputVE, toUsd } from "./money";
 
 describe("parseMonto", () => {
   it.each([
@@ -21,6 +21,23 @@ describe("parseMonto", () => {
 
   it.each(["", "   ", "abc", "1,2,3", "12,34.5", "-5", "1.23.4", ",5", "12.34.567,8x"])("rechaza %j", (input) => {
     expect(parseMonto(input)).toBeNull();
+  });
+});
+
+describe("parseTasa", () => {
+  it.each([
+    ["36.500", "36.5"],
+    ["36.5", "36.5"],
+    ["245.1234", "245.1234"],
+    ["36,50", "36.5"],
+    ["1.234,56", "1234.56"],
+    ["40", "40"],
+  ])("%j → %s (un punto solo siempre es decimal)", (input, expected) => {
+    expect(parseTasa(input)).toBe(expected);
+  });
+
+  it.each(["", "abc", "-1", "1,2,3"])("rechaza %j", (input) => {
+    expect(parseTasa(input)).toBeNull();
   });
 });
 

@@ -37,6 +37,12 @@ it("detecta duplicados sin distinguir mayúsculas ni espacios, excluyendo el pro
   expect(await findDuplicados(db, "Mercantil", "123")).toEqual([]);
 });
 
+it("detecta duplicados con otra capitalización, acentos o espacios internos", async () => {
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Venezolano de Crédito", referencia: "AB12 cd" }));
+  expect((await findDuplicados(db, "VENEZOLANO DE CREDITO", "ab12CD")).map((d) => d.id)).toEqual([id]);
+  expect(await findDuplicados(db, "Venezolano de Crédito", "AB12 ce")).toEqual([]);
+});
+
 it("bloquea cambios en campaña cerrada", async () => {
   const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
   await setEstadoCampana(db, s.campanaId, "cerrada");

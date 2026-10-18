@@ -43,6 +43,9 @@ describe("validateTasa", () => {
       value: { fecha: "2026-03-02", valor: "36.5", notas: null },
     });
   });
+  it("un punto solo en la tasa es decimal: 36.500 es 36,5 y no 36.500", () => {
+    expect(validateTasa({ fecha: "2026-03-02", valor: "36.500", notas: "" })).toMatchObject({ ok: true, value: { valor: "36.5" } });
+  });
   it("rechaza valor 0 y fecha inválida", () => {
     const r = validateTasa({ fecha: "x", valor: "0", notas: "" });
     expect(r.ok).toBe(false);

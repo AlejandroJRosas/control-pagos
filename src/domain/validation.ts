@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { parseMonto } from "./money";
+import { parseMonto, parseTasa } from "./money";
 import { isValidIsoDate } from "./dates";
 
 export type Result<T, K extends string> = { ok: true; value: T } | { ok: false; errors: Partial<Record<K, string>> };
@@ -63,7 +63,8 @@ export type TasaValida = { fecha: string; valor: string; notas: string | null };
 export function validateTasa(d: TasaDraft): Result<TasaValida, keyof TasaDraft> {
   const errors: Errors<keyof TasaDraft> = {};
   if (!isValidIsoDate(d.fecha)) errors.fecha = "Fecha inválida";
-  const valor = positivo(d.valor);
+  const parsed = parseTasa(d.valor);
+  const valor = parsed !== null && new Decimal(parsed).gt(0) ? parsed : null;
   if (!valor) errors.valor = "Tasa inválida (ej. 36,50)";
   return finish(errors, () => ({ fecha: d.fecha, valor: valor as string, notas: opcional(d.notas) }));
 }

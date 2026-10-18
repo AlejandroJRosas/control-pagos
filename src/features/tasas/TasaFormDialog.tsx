@@ -10,7 +10,7 @@ import { ImageDrop } from "@/components/ImageDrop";
 import { getDb } from "@/db";
 import { createTasa, getTasa, updateTasa, type Tasa, type TasaConUsos } from "@/db/repos/tasas";
 import { validateTasa, type TasaDraft } from "@/domain/validation";
-import { parseMonto, toInputVE } from "@/domain/money";
+import { formatTasa, parseTasa, toInputVE } from "@/domain/money";
 import { todayIso } from "@/domain/dates";
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate } from "@/hooks/useData";
@@ -37,7 +37,7 @@ export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }:
     setErrors({});
   }, [open, tasa, fechaFija]);
 
-  const nuevoValor = parseMonto(draft.valor);
+  const nuevoValor = parseTasa(draft.valor);
   const afectados = tasa && nuevoValor !== null && nuevoValor !== tasa.valor ? tasa.usos : 0;
 
   async function onSubmit(e: FormEvent) {
@@ -84,7 +84,7 @@ export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }:
                 onChange={(e) => setDraft({ ...draft, fecha: e.target.value })}
               />
             </Field>
-            <Field id="t-valor" label="Bs por USD" error={errors.valor} hint="Ej. 36,50">
+            <Field id="t-valor" label="Bs por USD" error={errors.valor} hint={nuevoValor ? `= ${formatTasa(nuevoValor)} Bs por USD` : "Ej. 36,50"}>
               <Input
                 id="t-valor"
                 autoFocus

@@ -38,6 +38,16 @@ export function parseMonto(input: string): string | null {
   return new Decimal(normalized).toFixed();
 }
 
+/**
+ * Como parseMonto, pero para tasas: un único punto sin coma siempre es decimal ("36.500" = 36,5).
+ * Una tasa nunca se escribe con miles separados solo por un punto, y leerla como 36500 daría USD 1000 veces menores.
+ */
+export function parseTasa(input: string): string | null {
+  const s = input.replace(/\s/g, "");
+  if (!s.includes(",") && /^\d+\.\d+$/.test(s)) return new Decimal(s).toFixed();
+  return parseMonto(input);
+}
+
 export function formatNumberVE(value: Decimal.Value, decimals = 2): string {
   const d = new Decimal(value).toDecimalPlaces(decimals, Decimal.ROUND_HALF_UP);
   const negative = d.isNegative() && !d.isZero();
