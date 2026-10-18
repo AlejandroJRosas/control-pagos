@@ -17,7 +17,7 @@ export function agruparFilas(r: OcrResultado): Fila[] {
   const lineas = [...r.lineas].sort((a, b) => centroY(a.caja) - centroY(b.caja));
   const grupos: { caja: Caja; lineas: OcrLinea[] }[] = [];
   for (const l of lineas) {
-    const g = grupos.at(-1);
+    const g = grupos[grupos.length - 1];
     if (g) {
       const solape = Math.min(g.caja.y + g.caja.h, l.caja.y + l.caja.h) - Math.max(g.caja.y, l.caja.y);
       if (solape >= Math.min(g.caja.h, l.caja.h) / 2) {
