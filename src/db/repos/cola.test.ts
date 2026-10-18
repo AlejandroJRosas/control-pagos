@@ -163,3 +163,12 @@ it("tasas: encola, guarda, marca y descarta", async () => {
   expect(await quitarHechosTasas(db)).toBe(1);
   expect(await listColaTasas(db)).toEqual([]);
 });
+
+it("al marcar hecho guarda el borrador final", async () => {
+  const id = await encolar(1);
+  const final = borradorDepositoVacio("a:1");
+  final.draft.montoBs = "3.650,00";
+  const dep = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
+  await marcarDepositoHecho(db, id, dep, final);
+  expect(await getItemColaDeposito(db, id)).toMatchObject({ estado: "hecho", borrador: final });
+});

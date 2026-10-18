@@ -120,7 +120,7 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
     setSaving(true);
     auto.cancelar();
     try {
-      await completarTasa(await getDb(), item.id, r.value);
+      await completarTasa(await getDb(), item.id, r.value, form);
       toast.success("Tasa registrada");
       onSiguiente();
       invalidate();

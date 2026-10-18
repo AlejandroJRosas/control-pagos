@@ -215,6 +215,8 @@ function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, editor, 
   const f = useDepositoForm({
     data,
     asignacion: null,
+    // Un hecho ya está en los datos de la campaña: se excluye de los saldos y de los duplicados.
+    depositoId: hecho ? (item.depositoId ?? undefined) : undefined,
     inicial: () => ({ draft: { ...item.borrador.draft, tasaId: null }, destino: item.borrador.destino, auto: item.borrador.auto }),
   });
   editor.current = hecho ? null : { setDestino: f.setDestino };
@@ -248,7 +250,7 @@ function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, editor, 
     auto.cancelar();
     try {
       // En la revisión no hay asignación fija: `validar` siempre devuelve el destino.
-      await completarDeposito(await getDb(), item.id, r.deposito, r.destino!);
+      await completarDeposito(await getDb(), item.id, r.deposito, r.destino!, borrador);
       toast.success("Depósito registrado");
       onSiguiente();
       invalidate();

@@ -1,7 +1,7 @@
 import type { SqlDriver } from "../driver";
 import { createDeposito } from "../repos/depositos";
 import { createTasa, deleteTasa } from "../repos/tasas";
-import { getItemColaDeposito, getItemColaTasa, marcarDepositoHecho, marcarTasaHecha } from "../repos/cola";
+import { getItemColaDeposito, getItemColaTasa, marcarDepositoHecho, marcarTasaHecha, type BorradorDeposito, type BorradorTasa } from "../repos/cola";
 import { resolverDestino } from "./destino";
 import type { Destino, DepositoValido, TasaValida } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
@@ -12,10 +12,17 @@ function assertPendiente(item: { estado: string } | null): void {
 }
 
 /**
- * "Hecho" en la revisión de depósitos: guarda el depósito con la imagen de la cola y marca el elemento.
+ * "Hecho" en la revisión de depósitos: guarda el depósito con la imagen de la cola y marca el elemento
+ * (con `borrador`, el final que se guardó, aunque el autoguardado no haya alcanzado a escribirlo).
  * Si algo falla no deja depósito, gerente ni asignación a medias y el elemento sigue pendiente.
  */
-export async function completarDeposito(db: SqlDriver, itemId: number, v: DepositoValido, destino: Destino): Promise<{ depositoId: number; asignacionId: number }> {
+export async function completarDeposito(
+  db: SqlDriver,
+  itemId: number,
+  v: DepositoValido,
+  destino: Destino,
+  borrador?: BorradorDeposito,
+): Promise<{ depositoId: number; asignacionId: number }> {
   const item = await getItemColaDeposito(db, itemId);
   assertPendiente(item);
   const { asignacionId, deshacer } = await resolverDestino(db, item!.campanaId, destino);
@@ -27,7 +34,7 @@ export async function completarDeposito(db: SqlDriver, itemId: number, v: Deposi
     throw e;
   }
   try {
-    await marcarDepositoHecho(db, itemId, depositoId);
+    await marcarDepositoHecho(db, itemId, depositoId, borrador);
   } catch (e) {
     await db.execute("DELETE FROM depositos WHERE id = ?", [depositoId]);
     await deshacer();
@@ -37,12 +44,12 @@ export async function completarDeposito(db: SqlDriver, itemId: number, v: Deposi
 }
 
 /** "Hecho" en la revisión de tasas: registra la tasa con la imagen de la cola y marca el elemento. */
-export async function completarTasa(db: SqlDriver, itemId: number, v: TasaValida): Promise<number> {
+export async function completarTasa(db: SqlDriver, itemId: number, v: TasaValida, borrador?: BorradorTasa): Promise<number> {
   const item = await getItemColaTasa(db, itemId);
   assertPendiente(item);
   const tasaId = await createTasa(db, { ...v, imagenPath: item!.imagenPath });
   try {
-    await marcarTasaHecha(db, itemId, tasaId);
+    await marcarTasaHecha(db, itemId, tasaId, borrador);
   } catch (e) {
     await deleteTasa(db, tasaId);
     throw e;

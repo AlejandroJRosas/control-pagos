@@ -61,8 +61,8 @@ export function useLote(o: Opciones) {
     const nuevas = files.map((file) => ({ key: crypto.randomUUID(), file }));
     setFilas((fs) => [...fs, ...nuevas.map(({ key, file }) => ({ key, nombre: file.name, estado: "en-cola" as const, formato: null }))]);
     encolados.current = encolados.current.then(async () => {
+      // Se encolan todas aunque se salga de la pantalla: solo las lecturas se abandonan.
       for (const { key, file } of nuevas) {
-        if (!vivo.current) return;
         try {
           const id = await opts.current.encolar(file);
           porLeer.current.push({ key, file, id });

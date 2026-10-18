@@ -102,3 +102,14 @@ it("tasas: si marcar falla, borra la tasa creada", async () => {
   await expect(completarTasa(fallaAlMarcar("cola_tasas"), t, { fecha: "2026-10-16", valor: "1", notas: null })).rejects.toThrow("disco lleno");
   expect(await contar("tasas")).toBe(1);
 });
+
+it("guarda en la cola el borrador con el que se completó", async () => {
+  const final = borradorDepositoVacio(`a:${s.asignacionId}`);
+  final.draft.montoBs = "3.650,00";
+  await completarDeposito(db, item, deposito(), enAna(), final);
+  expect((await getItemColaDeposito(db, item))?.borrador).toEqual(final);
+  const t = await tasaItem();
+  const bt = { draft: { fecha: "2026-10-16", valor: "1", notas: "" }, auto: { estado: {}, confianza: {} } };
+  await completarTasa(db, t, { fecha: "2026-10-16", valor: "1", notas: null }, bt);
+  expect((await getItemColaTasa(db, t))?.borrador).toEqual(bt);
+});

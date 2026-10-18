@@ -81,14 +81,14 @@ async function guardarBorrador(db: SqlDriver, t: Tabla, id: number, borrador: un
   await db.execute(`UPDATE ${t.nombre} SET borrador = ?${conFormato}, actualizado_en = ? WHERE id = ?`, [JSON.stringify(borrador), ...params, nowIso(), id]);
 }
 
-async function marcarHecho(db: SqlDriver, t: Tabla, id: number, registroId: number): Promise<void> {
-  await assertPendiente(db, t, id);
+/** `borrador`: lo que se guardó, para que la cola muestre lo mismo que el registro creado. */
+async function marcarHecho(db: SqlDriver, t: Tabla, id: number, registroId: number, borrador?: unknown): Promise<void> {
+  const row = await assertPendiente(db, t, id);
   // La condición sobre el estado evita marcar dos veces si dos "Hecho" corren a la vez.
-  const r = await db.execute(`UPDATE ${t.nombre} SET estado = 'hecho', ${t.enlace} = ?, actualizado_en = ? WHERE id = ? AND estado = 'pendiente'`, [
-    registroId,
-    nowIso(),
-    id,
-  ]);
+  const r = await db.execute(
+    `UPDATE ${t.nombre} SET estado = 'hecho', ${t.enlace} = ?, borrador = ?, actualizado_en = ? WHERE id = ? AND estado = 'pendiente'`,
+    [registroId, borrador === undefined ? row.borrador : JSON.stringify(borrador), nowIso(), id],
+  );
   if (r.rowsAffected === 0) throw new DomainError("VALIDACION", "Este elemento ya está hecho");
 }
 
@@ -147,7 +147,7 @@ export async function asignarGerenteCola(db: SqlDriver, ids: number[], sel: stri
   return n;
 }
 
-export const marcarDepositoHecho = (db: SqlDriver, id: number, depositoId: number) => marcarHecho(db, DEP, id, depositoId);
+export const marcarDepositoHecho = (db: SqlDriver, id: number, depositoId: number, borrador?: BorradorDeposito) => marcarHecho(db, DEP, id, depositoId, borrador);
 /** Borra un pendiente y devuelve su imagen (la borra quien llama). */
 export const descartarDeposito = (db: SqlDriver, id: number) => descartar(db, DEP, id);
 export const quitarHechosDepositos = (db: SqlDriver, campanaId: number) => quitarHechos(db, DEP, campanaId);
@@ -168,7 +168,7 @@ export async function getItemColaTasa(db: SqlDriver, id: number): Promise<ItemCo
 }
 
 export const guardarBorradorTasa = (db: SqlDriver, id: number, borrador: BorradorTasa, formato?: string | null) => guardarBorrador(db, TAS, id, borrador, formato);
-export const marcarTasaHecha = (db: SqlDriver, id: number, tasaId: number) => marcarHecho(db, TAS, id, tasaId);
+export const marcarTasaHecha = (db: SqlDriver, id: number, tasaId: number, borrador?: BorradorTasa) => marcarHecho(db, TAS, id, tasaId, borrador);
 export const descartarTasa = (db: SqlDriver, id: number) => descartar(db, TAS, id);
 export const quitarHechosTasas = (db: SqlDriver) => quitarHechos(db, TAS);
 export const contarPendientesTasas = (db: SqlDriver) => contarPendientes(db, TAS);

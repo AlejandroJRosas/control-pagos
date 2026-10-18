@@ -75,4 +75,4 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 
 ## Pendientes conocidos (menores)
 
-`"0.500"` se acepta como 500; imágenes huérfanas no se borran; `antes-de-restaurar-*.zip` sin poda; respaldo automático solo al abrir; Guardar habilitado mientras se busca la tasa; el aviso de duplicados no relaciona referencias sin ceros iniciales ni alias de banco ("BDV") de depósitos importados de Excel; en capturas borrosas el OCR puede leer mal el nombre y aun así marcarlo en verde.
+`"0.500"` se acepta como 500; imágenes huérfanas no se borran; `antes-de-restaurar-*.zip` sin poda; respaldo automático solo al abrir; Guardar habilitado mientras se busca la tasa; el aviso de duplicados no relaciona referencias sin ceros iniciales ni alias de banco ("BDV") de depósitos importados de Excel; en capturas borrosas el OCR puede leer mal el nombre y aun así marcarlo en verde. En la revisión en lote: cerrar la ventana menos de 0,5 s después de editar pierde esa última edición (el autoguardado no escucha el cierre); Ctrl+Enter da Hecho aunque haya un diálogo abierto; si falla Descartar, la edición en curso no se autoguarda.
