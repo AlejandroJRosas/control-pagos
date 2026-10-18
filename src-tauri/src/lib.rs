@@ -1,4 +1,5 @@
 mod backup;
+pub mod ocr;
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -95,6 +96,18 @@ fn restore_backup(app: AppHandle, zip_path: String) -> Result<(), String> {
     backup::restore_zip(Path::new(&zip_path), &p.db, &p.images)
 }
 
+/// Recibe los bytes de la imagen como cuerpo crudo del invoke.
+#[tauri::command]
+async fn ocr_imagen(request: tauri::ipc::Request<'_>) -> Result<ocr::OcrResultado, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Se esperaba la imagen en bytes".into());
+    };
+    let bytes = bytes.clone();
+    tauri::async_runtime::spawn_blocking(move || ocr::reconocer(&bytes))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -112,7 +125,8 @@ pub fn run() {
             auto_backup_path,
             prune_auto_backups,
             list_backups,
-            restore_backup
+            restore_backup,
+            ocr_imagen
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar la aplicación");
