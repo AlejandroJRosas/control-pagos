@@ -50,5 +50,5 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Importar un Excel con depósitos de sábado/domingo: se comparan con la tasa del viernes (o la crean en el viernes).
 - [ ] Tasas → Calendario: verde = con tasa (clic para editar), ámbar = día hábil sin tasa (clic para registrar con esa fecha), gris = fin de semana con la tasa del viernes; contador de días pendientes; navegar meses y "Hoy".
 - [ ] Todas las tablas: clic en el encabezado ordena ascendente → descendente → original; montos ordenan como número; filas alternadas con color.
-- [ ] Ver un comprobante: abre ajustado a la ventana (no gigante); + / − y "Tamaño real" con desplazamiento.
+- [ ] Rueda del ratón sobre cualquier imagen (formulario, diálogo de tasa, visor, revisión): acerca hacia el cursor sin desplazar la página; arrastrar mueve; doble clic ajusta; el visor conserva − / + / Ajustar / Tamaño real.
 - [ ] Depósitos: botón de eliminar por fila con confirmación; marcar varios (o todos) y "Eliminar seleccionados"; en campaña cerrada no hay casillas ni botón.

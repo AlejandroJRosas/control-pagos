@@ -3,7 +3,7 @@ import { ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ACCEPTED_IMAGE_TYPES, type ImagenValue } from "@/platform/images";
-import { StoredImage } from "./StoredImage";
+import { ZoomableImage } from "./ZoomableImage";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -49,12 +49,9 @@ export function ImageDrop({ value, onChange, pasteEnabled = true, disabled = fal
     onChange(null);
   };
 
-  const preview =
-    value?.kind === "new" ? (
-      <img src={value.previewUrl} alt={label} className="max-h-full max-w-full object-contain" />
-    ) : value?.kind === "stored" ? (
-      <StoredImage path={value.path} alt={label} className="max-h-full max-w-full object-contain" />
-    ) : null;
+  const preview = value ? (
+    <ZoomableImage imagen={value.kind === "new" ? { url: value.previewUrl } : { path: value.path }} alt={label} className="flex-1 self-stretch" />
+  ) : null;
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
