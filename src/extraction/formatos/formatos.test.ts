@@ -50,6 +50,16 @@ describe("tasa-mariandres con la imagen real", () => {
   });
 });
 
+describe("tasa-mariandres con texto sintético", () => {
+  it.each([
+    ["bs. 1050,25", "1050,25"],
+    ["Ds. 1.050,25", "1.050,25"],
+    ["880,12", "880,12"],
+  ])("toma el número completo de %j", (fila, esperado) => {
+    expect(tasaMariandres.extrae(filas("TASA DEL DÍA", "16/10/2026", fila)).valor).toEqual({ texto: esperado, certeza: "etiqueta" });
+  });
+});
+
 describe("detección", () => {
   it("cada reconocedor detecta solo sus imágenes", () => {
     expect(bdvTransferenciaTerceros.detecta(filasDe(tasaFixture))).toBe(false);

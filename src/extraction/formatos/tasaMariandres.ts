@@ -7,7 +7,7 @@ import type { CampoCrudo, CamposTasa, Reconocedor } from "../tipos";
  * El OCR suele leer mal o perder el "bs.", así que el valor es el número con coma decimal de una fila sin barras.
  */
 
-const VALOR = /(\d{1,3}(?:\.\d{3})*,\d{2,4})\s*$/;
+const VALOR = /(?<![\d.])((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2,4})\s*$/;
 
 const filaValor = (filas: Fila[]) => filas.find((f) => !f.texto.includes("/") && VALOR.test(f.texto));
 
