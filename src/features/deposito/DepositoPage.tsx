@@ -25,12 +25,12 @@ import {
   type Deposito,
   type Duplicado,
 } from "@/db/repos/depositos";
-import { getTasaByFecha, type Tasa } from "@/db/repos/tasas";
+import { getTasaParaFecha, type Tasa } from "@/db/repos/tasas";
 import { listGerentes, type Gerente } from "@/db/repos/gerentes";
 import { registrarDepositoEnCampana } from "@/db/operaciones/destino";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
 import { buildCampanaView } from "@/domain/campanaView";
-import { formatFecha, isValidIsoDate, todayIso } from "@/domain/dates";
+import { fechaDeTasa, formatFecha, isValidIsoDate, todayIso } from "@/domain/dates";
 import { DomainError } from "@/domain/errors";
 import { formatBs, formatTasa, formatUsd, parseMonto, toInputVE, toUsd } from "@/domain/money";
 import { validateDeposito, validateDestino, type DepositoDraft, type DestinoDraft } from "@/domain/validation";
@@ -128,7 +128,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // La tasa siempre es la de la fecha del depósito.
+  // La tasa siempre es la de la fecha del depósito (sábado y domingo: la del viernes).
   useEffect(() => {
     let alive = true;
     setTasa(undefined);
@@ -138,7 +138,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
       return;
     }
     getDb()
-      .then((db) => getTasaByFecha(db, draft.fecha))
+      .then((db) => getTasaParaFecha(db, draft.fecha))
       .then((t) => {
         if (!alive) return;
         setTasa(t);
@@ -338,10 +338,21 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
                   {tasa === undefined ? (
                     <span className="text-muted-foreground">Buscando…</span>
                   ) : tasa ? (
-                    <span className="font-medium tabular-nums">{formatTasa(tasa.valor)} Bs/USD</span>
+                    <span className="font-medium tabular-nums">
+                      {formatTasa(tasa.valor)} Bs/USD
+                      {tasa.fecha !== draft.fecha && (
+                        <span className="ml-1 font-normal text-muted-foreground">(la del viernes {formatFecha(tasa.fecha)})</span>
+                      )}
+                    </span>
                   ) : (
                     <>
-                      <span className="text-amber-700">{fechaValida ? `Sin tasa para el ${formatFecha(draft.fecha)}` : "Elige una fecha"}</span>
+                      <span className="text-amber-700">
+                        {!fechaValida
+                          ? "Elige una fecha"
+                          : fechaDeTasa(draft.fecha) !== draft.fecha
+                            ? `Sin tasa del viernes ${formatFecha(fechaDeTasa(draft.fecha))}`
+                            : `Sin tasa para el ${formatFecha(draft.fecha)}`}
+                      </span>
                       <Button type="button" size="sm" variant="outline" disabled={!fechaValida} onClick={() => setTasaDialog(true)}>
                         Registrar tasa
                       </Button>
@@ -447,7 +458,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
 
       <TasaFormDialog
         tasa={null}
-        fechaFija={draft.fecha}
+        fechaFija={isValidIsoDate(draft.fecha) ? fechaDeTasa(draft.fecha) : draft.fecha}
         open={tasaDialog}
         onOpenChange={setTasaDialog}
         onSaved={(t) => {

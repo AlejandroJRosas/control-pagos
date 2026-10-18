@@ -52,7 +52,7 @@ export function AsignacionPage() {
       />
       {cerrada && <Aviso>La campaña está cerrada: solo lectura.</Aviso>}
       <ResumenCards resumen={resumen} />
-      <DepositosTable filas={r.filas} mostrarGerente={false} saldoLabel="Saldo restante" totales={r} />
+      <DepositosTable filas={r.filas} mostrarGerente={false} saldoLabel="Saldo restante" totales={r} soloLectura={cerrada} />
     </div>
   );
 }

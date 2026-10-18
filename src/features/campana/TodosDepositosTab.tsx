@@ -11,7 +11,7 @@ const VACIO: Filtro = { gerenteId: "", banco: "", desde: "", hasta: "" };
 /** Filtros por campaña durante la sesión, para no perderlos al abrir un depósito y volver. */
 const recordados = new Map<number, Filtro>();
 
-export function TodosDepositosTab({ campanaId, view }: { campanaId: number; view: CampanaView }) {
+export function TodosDepositosTab({ campanaId, view, cerrada }: { campanaId: number; view: CampanaView; cerrada: boolean }) {
   const [f, setFiltro] = useState<Filtro>(() => recordados.get(campanaId) ?? VACIO);
   const setF = (next: Filtro) => {
     recordados.set(campanaId, next);
@@ -70,7 +70,13 @@ export function TodosDepositosTab({ campanaId, view }: { campanaId: number; view
           Limpiar
         </Button>
       </div>
-      <DepositosTable filas={r.filas} mostrarGerente saldoLabel={porGerente ? "Saldo del gerente" : "Saldo general restante"} totales={r} />
+      <DepositosTable
+        filas={r.filas}
+        mostrarGerente
+        saldoLabel={porGerente ? "Saldo del gerente" : "Saldo general restante"}
+        totales={r}
+        soloLectura={cerrada}
+      />
     </div>
   );
 }

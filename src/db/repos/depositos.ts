@@ -5,7 +5,7 @@ import { getAsignacion } from "./asignaciones";
 import { getTasa } from "./tasas";
 import type { DepositoValido } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
-import { formatFecha } from "@/domain/dates";
+import { fechaDeTasa, formatFecha } from "@/domain/dates";
 import { claveComparacion } from "@/domain/texto";
 
 export type Deposito = {
@@ -42,7 +42,7 @@ async function assertEditable(db: SqlDriver, asignacionId: number): Promise<void
 async function assertTasaDeLaFecha(db: SqlDriver, v: DepositoGuardar): Promise<void> {
   const tasa = await getTasa(db, v.tasaId);
   if (!tasa) throw new DomainError("VALIDACION", "La tasa seleccionada no existe");
-  if (tasa.fecha !== v.fecha) {
+  if (tasa.fecha !== v.fecha && tasa.fecha !== fechaDeTasa(v.fecha)) {
     throw new DomainError("VALIDACION", `La tasa es del ${formatFecha(tasa.fecha)} y el depósito del ${formatFecha(v.fecha)}`);
   }
 }
@@ -80,6 +80,13 @@ export async function deleteDeposito(db: SqlDriver, id: number): Promise<void> {
   const actual = await requireDeposito(db, id);
   await assertEditable(db, actual.asignacionId);
   await db.execute("DELETE FROM depositos WHERE id = ?", [id]);
+}
+
+/** Elimina todos o ninguno: primero se comprueba que cada uno exista y sea editable. */
+export async function deleteDepositos(db: SqlDriver, ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  for (const id of ids) await assertEditable(db, (await requireDeposito(db, id)).asignacionId);
+  await db.execute(`DELETE FROM depositos WHERE id IN (${ids.map(() => "?").join(", ")})`, ids);
 }
 
 /** Clave de comparación: sin mayúsculas, acentos ni espacios (SQLite `lower` solo pliega ASCII). */

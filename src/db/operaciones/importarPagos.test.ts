@@ -77,9 +77,42 @@ describe("planificarImportacion", () => {
     expect(r(28)).toMatchObject({ repetidaEnArchivo: 23, marcada: false });
     expect(r(29)).toMatchObject({ importable: false, marcada: false, usd: "20.00" });
   });
+
+  it("los sábados y domingos se comparan con la tasa del viernes", async () => {
+    await createTasa(db, { fecha: "2026-03-06", valor: "40", notas: null, imagenPath: null });
+    const p = await planificarImportacion(
+      db,
+      s.campanaId,
+      cuadro({
+        filas: [
+          fila({ fila: 23, fecha: "2026-03-07", tasa: "40", montoBs: "400" }), // sábado: la del viernes registrada
+          fila({ fila: 24, fecha: "2026-03-14", tasa: "41", referencia: "2" }), // sábado sin viernes: nueva
+          fila({ fila: 25, fecha: "2026-03-15", tasa: "42", referencia: "3" }), // domingo: distinta a la de la fila 24
+        ],
+      }),
+    );
+    expect(p.filas.map((f) => [f.estadoTasa, f.tasaAplicada])).toEqual([
+      ["existente", "40"],
+      ["nueva", "41"],
+      ["distinta", "41"],
+    ]);
+  });
 });
 
 describe("importarPagos", () => {
+  it("registra la tasa de un sábado o domingo en su viernes", async () => {
+    const r = await importarPagos(db, s.campanaId, {
+      destino: { kind: "asignacion", asignacionId: s.asignacionId },
+      saldoUsd: null,
+      filas: [fila({ fecha: "2026-03-14", tasa: "41" }), fila({ fecha: "2026-03-15", tasa: "41", referencia: "2" })],
+    });
+    expect(r).toMatchObject({ depositos: 2, tasasCreadas: 1 });
+    expect((await listTasas(db)).map((t) => [t.fecha, t.valor, t.usos])).toEqual([
+      ["2026-03-13", "41", 2],
+      ["2026-03-02", "36.5", 0],
+    ]);
+  });
+
   it("crea gerente, asignación, tasas que falten y depósitos", async () => {
     const r = await importarPagos(db, s.campanaId, {
       destino: { kind: "nuevo", nombre: "Rosmary Madero", saldoUsd: "5180" },

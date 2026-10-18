@@ -1,13 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Decimal from "decimal.js";
 import { useNavigate } from "react-router";
-import { ArrowDown, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Vacio } from "@/components/Feedback";
+import { SortableHead, useOrden } from "@/components/SortableHead";
 import type { GerenteResumen } from "@/domain/campanaView";
 import { formatFecha } from "@/domain/dates";
 import { formatPct, formatUsd } from "@/domain/money";
+import { ordenar, type Columnas } from "@/lib/orden";
 import { cn } from "@/lib/utils";
 
 type Key = "gerenteNombre" | "asignado" | "pagado" | "restante" | "pct" | "cantidad" | "ultimaFecha";
@@ -20,17 +21,15 @@ const COLS: { key: Key; label: string; numeric?: boolean }[] = [
   { key: "cantidad", label: "Depósitos", numeric: true },
   { key: "ultimaFecha", label: "Último depósito" },
 ];
-const DECIMALES: Key[] = ["asignado", "pagado", "restante"];
-
-function compare(a: GerenteResumen, b: GerenteResumen, key: Key): number {
-  const va = a[key];
-  const vb = b[key];
-  if (va == null) return vb == null ? 0 : -1;
-  if (vb == null) return 1;
-  if (DECIMALES.includes(key)) return new Decimal(va).cmp(vb as string);
-  if (typeof va === "number") return va - (vb as number);
-  return String(va).localeCompare(String(vb), "es");
-}
+const COLUMNAS: Columnas<GerenteResumen, Key> = {
+  gerenteNombre: { tipo: "texto", valor: (g) => g.gerenteNombre },
+  asignado: { tipo: "decimal", valor: (g) => g.asignado },
+  pagado: { tipo: "decimal", valor: (g) => g.pagado },
+  restante: { tipo: "decimal", valor: (g) => g.restante },
+  pct: { tipo: "numero", valor: (g) => g.pct },
+  cantidad: { tipo: "numero", valor: (g) => g.cantidad },
+  ultimaFecha: { tipo: "texto", valor: (g) => g.ultimaFecha },
+};
 
 type Props = {
   gerentes: GerenteResumen[];
@@ -41,8 +40,8 @@ type Props = {
 
 export function PorGerenteTab({ gerentes, cerrada, onEditarSaldo, onQuitar }: Props) {
   const navigate = useNavigate();
-  const [sort, setSort] = useState<{ key: Key; dir: 1 | -1 }>({ key: "gerenteNombre", dir: 1 });
-  const filas = useMemo(() => [...gerentes].sort((a, b) => compare(a, b, sort.key) * sort.dir), [gerentes, sort]);
+  const { orden, alternar } = useOrden<Key>({ key: "gerenteNombre", dir: 1 });
+  const filas = useMemo(() => ordenar(gerentes, COLUMNAS, orden), [gerentes, orden]);
 
   if (gerentes.length === 0) return <Vacio texto="Agrega gerentes a la campaña con su saldo a pagar." />;
 
@@ -51,16 +50,9 @@ export function PorGerenteTab({ gerentes, cerrada, onEditarSaldo, onQuitar }: Pr
       <TableHeader>
         <TableRow>
           {COLS.map((c) => (
-            <TableHead key={c.key} className={cn(c.numeric && "text-right")}>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 hover:text-foreground"
-                onClick={() => setSort((s) => ({ key: c.key, dir: s.key === c.key ? (s.dir === 1 ? -1 : 1) : 1 }))}
-              >
-                {c.label}
-                {sort.key === c.key && (sort.dir === 1 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
-              </button>
-            </TableHead>
+            <SortableHead key={c.key} col={c.key} orden={orden} onOrden={alternar} className={cn(c.numeric && "text-right")}>
+              {c.label}
+            </SortableHead>
           ))}
           <TableHead className="text-right">Acciones</TableHead>
         </TableRow>

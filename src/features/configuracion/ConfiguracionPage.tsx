@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { Archive, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -8,20 +8,31 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PageHeader } from "@/components/PageHeader";
 import { Cargando, Vacio } from "@/components/Feedback";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { SortableHead, useOrden } from "@/components/SortableHead";
 import { getDb } from "@/db";
-import { createBackup, getDataPaths, listBackups, restoreBackup } from "@/platform/backup";
+import { createBackup, getDataPaths, listBackups, restoreBackup, type BackupInfo } from "@/platform/backup";
 import { todayIso } from "@/domain/dates";
 import { formatNumberVE } from "@/domain/money";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { ordenar, type Columnas } from "@/lib/orden";
 
 const tamano = (bytes: number) =>
   bytes < 1024 * 1024 ? `${formatNumberVE(bytes / 1024, 0)} KB` : `${formatNumberVE(bytes / 1024 / 1024, 1)} MB`;
+
+type Col = "archivo" | "fecha" | "tamano";
+const COLUMNAS: Columnas<BackupInfo, Col> = {
+  archivo: { tipo: "texto", valor: (b) => b.name },
+  fecha: { tipo: "numero", valor: (b) => b.modifiedMs },
+  tamano: { tipo: "numero", valor: (b) => b.sizeBytes },
+};
 
 export function ConfiguracionPage() {
   const { data, error } = useData(async () => ({ paths: await getDataPaths(), backups: await listBackups() }), []);
   const [restaurar, setRestaurar] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { orden, alternar } = useOrden<Col>();
+  const backups = useMemo(() => ordenar(data?.backups ?? [], COLUMNAS, orden), [data, orden]);
 
   async function respaldar() {
     const dest = await save({ defaultPath: `control-pagos-respaldo-${todayIso()}.zip`, filters: [{ name: "Respaldo", extensions: ["zip"] }] });
@@ -107,14 +118,20 @@ export function ConfiguracionPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Archivo</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead className="text-right">Tamaño</TableHead>
+                  <SortableHead col="archivo" orden={orden} onOrden={alternar}>
+                    Archivo
+                  </SortableHead>
+                  <SortableHead col="fecha" orden={orden} onOrden={alternar}>
+                    Fecha
+                  </SortableHead>
+                  <SortableHead col="tamano" orden={orden} onOrden={alternar} className="text-right">
+                    Tamaño
+                  </SortableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.backups.map((b) => (
+                {backups.map((b) => (
                   <TableRow key={b.path}>
                     <TableCell className="font-mono text-xs">{b.name}</TableCell>
                     <TableCell>{new Date(b.modifiedMs).toLocaleString("es-VE")}</TableCell>

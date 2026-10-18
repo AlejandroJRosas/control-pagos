@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando } from "@/components/Feedback";
+import { SortableHead, useOrden } from "@/components/SortableHead";
 import { DestinoGerente } from "@/components/DestinoGerente";
 import { getDb } from "@/db";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
@@ -21,9 +22,32 @@ import { formatBs, formatTasa, formatUsd } from "@/domain/money";
 import { validateDestino, type DestinoDraft } from "@/domain/validation";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { ordenar, type Columnas } from "@/lib/orden";
 import { cn } from "@/lib/utils";
 
 type Archivo = { key: string; nombre: string; plan: PlanImportacion; destino: DestinoDraft; marcadas: Set<number>; actualizarSaldo: boolean };
+
+type Col = "fila" | "fecha" | "banco" | "referencia" | "cuenta" | "montoBs" | "tasa" | "usd";
+const COLUMNAS: Columnas<FilaPlan, Col> = {
+  fila: { tipo: "numero", valor: (f) => f.fila },
+  fecha: { tipo: "texto", valor: (f) => f.fecha },
+  banco: { tipo: "texto", valor: (f) => f.banco },
+  referencia: { tipo: "texto", valor: (f) => f.referencia },
+  cuenta: { tipo: "texto", valor: (f) => f.cuentaDestino },
+  montoBs: { tipo: "decimal", valor: (f) => f.montoBs },
+  tasa: { tipo: "decimal", valor: (f) => f.tasaAplicada },
+  usd: { tipo: "decimal", valor: (f) => f.usd },
+};
+const ENCABEZADOS: [Col, string, string?][] = [
+  ["fila", "Fila"],
+  ["fecha", "Fecha"],
+  ["banco", "Banco"],
+  ["referencia", "Referencia"],
+  ["cuenta", "Cuenta destino"],
+  ["montoBs", "Monto Bs", "text-right"],
+  ["tasa", "Tasa", "text-right"],
+  ["usd", "USD", "text-right"],
+];
 
 const marcadasPorDefecto = (filas: FilaPlan[]) => new Set(filas.filter((f) => f.marcada).map((f) => f.fila));
 
@@ -186,7 +210,9 @@ type CardProps = {
 
 function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, onQuitar, onImportar }: CardProps) {
   const [importando, setImportando] = useState(false);
+  const { orden, alternar } = useOrden<Col>();
   const { cuadro, filas } = a.plan;
+  const ordenadas = ordenar(filas, COLUMNAS, orden);
   const elegidas = filas.filter((f) => a.marcadas.has(f.fila));
   const totalUsd = elegidas.reduce((s, f) => s.plus(f.usd ?? 0), new Decimal(0));
   const selAsignacion = /^a:(\d+)$/.exec(a.destino.sel);
@@ -245,19 +271,16 @@ function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, onQuita
                   onChange={(e) => onChange({ marcadas: e.target.checked ? new Set(importables.map((f) => f.fila)) : new Set() })}
                 />
               </TableHead>
-              <TableHead>Fila</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead>Banco</TableHead>
-              <TableHead>Referencia</TableHead>
-              <TableHead>Cuenta destino</TableHead>
-              <TableHead className="text-right">Monto Bs</TableHead>
-              <TableHead className="text-right">Tasa</TableHead>
-              <TableHead className="text-right">USD</TableHead>
+              {ENCABEZADOS.map(([col, label, className]) => (
+                <SortableHead key={col} col={col} orden={orden} onOrden={alternar} className={className}>
+                  {label}
+                </SortableHead>
+              ))}
               <TableHead>Revisión</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filas.map((f) => (
+            {ordenadas.map((f) => (
               <TableRow key={f.fila} className={cn(!f.importable && "text-muted-foreground")}>
                 <TableCell>
                   <input

@@ -152,7 +152,7 @@ export function CampanaPage() {
           />
         </TabsContent>
         <TabsContent value="depositos">
-          <TodosDepositosTab campanaId={campanaId} view={view} />
+          <TodosDepositosTab campanaId={campanaId} view={view} cerrada={cerrada} />
         </TabsContent>
       </Tabs>
 

@@ -3,13 +3,14 @@ import type { SqlDriver } from "../driver";
 import { assertCampanaActiva } from "../repos/campanas";
 import { getAsignacion, updateSaldoAsignacion } from "../repos/asignaciones";
 import { listGerentes } from "../repos/gerentes";
-import { createTasa, getTasaByFecha } from "../repos/tasas";
+import { createTasa, getTasaParaFecha } from "../repos/tasas";
 import { claveComparacion, createDeposito, findDuplicados, type Duplicado } from "../repos/depositos";
 import { resolverDestino } from "./destino";
 import type { CuadroPagos, FilaCuadro } from "@/import/cuadroPagos";
 import type { Destino, DestinoDraft } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
 import { toInputVE, toUsd } from "@/domain/money";
+import { fechaDeTasa } from "@/domain/dates";
 
 /** existente: ya hay tasa ese día y coincide · nueva: se registrará · distinta: se usará la ya registrada (o la de una fila anterior). */
 export type EstadoTasa = "existente" | "nueva" | "distinta";
@@ -47,17 +48,17 @@ export async function planificarImportacion(db: SqlDriver, campanaId: number, cu
     let estadoTasa: EstadoTasa | null = null;
     let tasaAplicada: string | null = null;
     if (f.fecha) {
-      if (!tasas.has(f.fecha)) {
-        const t = await getTasaByFecha(db, f.fecha);
-        if (t) tasas.set(f.fecha, { valor: t.valor, registrada: true });
-      }
-      const previa = tasas.get(f.fecha);
+      // Clave = fecha donde vive la tasa (sábado y domingo comparten la del viernes).
+      const t = await getTasaParaFecha(db, f.fecha);
+      const clave = t?.fecha ?? fechaDeTasa(f.fecha);
+      if (t && !tasas.has(clave)) tasas.set(clave, { valor: t.valor, registrada: true });
+      const previa = tasas.get(clave);
       if (previa) {
         tasaAplicada = previa.valor;
         if (f.tasa && !new Decimal(f.tasa).eq(previa.valor)) estadoTasa = "distinta";
         else estadoTasa = previa.registrada ? "existente" : "nueva";
       } else if (f.tasa) {
-        tasas.set(f.fecha, { valor: f.tasa, registrada: false });
+        tasas.set(clave, { valor: f.tasa, registrada: false });
         tasaAplicada = f.tasa;
         estadoTasa = "nueva";
       }
@@ -96,7 +97,7 @@ export type Importacion = {
 };
 
 /**
- * Registra los depósitos elegidos. Crea la tasa del día si no existe; si existe, se usa la registrada.
+ * Registra los depósitos elegidos. Crea la tasa del día si no existe (la de un sábado o domingo, en su viernes); si existe, se usa la registrada.
  * Si algo falla, borra lo creado y restaura el saldo (el plugin SQL no permite transacciones entre llamadas).
  */
 export async function importarPagos(
@@ -121,9 +122,9 @@ export async function importarPagos(
     }
     for (const f of imp.filas) {
       const fecha = f.fecha as string;
-      let tasaId = (await getTasaByFecha(db, fecha))?.id;
+      let tasaId = (await getTasaParaFecha(db, fecha))?.id;
       if (tasaId === undefined) {
-        tasaId = await createTasa(db, { fecha, valor: f.tasa as string, notas: "Importada de Excel", imagenPath: null });
+        tasaId = await createTasa(db, { fecha: fechaDeTasa(fecha), valor: f.tasa as string, notas: "Importada de Excel", imagenPath: null });
         tasasCreadas.push(tasaId);
       }
       depositos.push(

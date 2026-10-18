@@ -1,0 +1,47 @@
+import { diaSemana, esFinDeSemana, fechaDeTasa, sumarDias } from "./dates";
+
+/** tasa: con tasa propia · finde: sábado o domingo (usa la del viernes) · falta: día hábil sin tasa · futuro: aún no llega. */
+export type EstadoDia = "tasa" | "finde" | "falta" | "futuro";
+
+export type DiaCalendario<T> = { fecha: string; dia: number; delMes: boolean; estado: EstadoDia; tasa: T | null };
+
+/** `mes` en formato YYYY-MM. */
+export function mesSiguiente(mes: string, delta: number): string {
+  const [y, m] = mes.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return d.toISOString().slice(0, 7);
+}
+
+/** Calendario del mes (semanas de lunes a domingo) con el estado de la tasa de cada día. */
+export function calendarioTasas<T extends { fecha: string }>(
+  mes: string,
+  tasas: T[],
+  hoy: string,
+): { semanas: DiaCalendario<T>[][]; faltan: number } {
+  const porFecha = new Map(tasas.map((t) => [t.fecha, t]));
+  const primero = `${mes}-01`;
+  const ultimo = sumarDias(`${mesSiguiente(mes, 1)}-01`, -1);
+  let fecha = sumarDias(primero, -((diaSemana(primero) + 6) % 7));
+  const semanas: DiaCalendario<T>[][] = [];
+  let faltan = 0;
+  while (fecha <= ultimo) {
+    const semana: DiaCalendario<T>[] = [];
+    for (let i = 0; i < 7; i++) {
+      const propia = porFecha.get(fecha) ?? null;
+      let estado: EstadoDia;
+      let tasa = propia;
+      if (propia) estado = "tasa";
+      else if (fecha > hoy) estado = "futuro";
+      else if (esFinDeSemana(fecha)) {
+        estado = "finde";
+        tasa = porFecha.get(fechaDeTasa(fecha)) ?? null;
+      } else estado = "falta";
+      const delMes = fecha.startsWith(mes);
+      if (delMes && estado === "falta") faltan++;
+      semana.push({ fecha, dia: Number(fecha.slice(8)), delMes, estado, tasa });
+      fecha = sumarDias(fecha, 1);
+    }
+    semanas.push(semana);
+  }
+  return { semanas, faltan };
+}

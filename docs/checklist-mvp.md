@@ -42,3 +42,13 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Tasas → "Registrar tasa" y soltar la imagen "TASA DEL DÍA": fecha 16/10/2026 y valor 880,12.
 - [ ] Desde el depósito (fecha fija distinta) soltar la imagen de tasa: se llena el valor, la fecha no cambia y aparece "La imagen es del dd/mm/aaaa".
 - [ ] Sin el idioma español con OCR en Windows, el toast explica cómo instalarlo (mensaje en `src-tauri/src/ocr.rs`).
+
+## Fines de semana, calendario de tasas y tablas
+
+- [ ] Depósito con fecha sábado o domingo: toma la tasa del viernes y lo indica "(la del viernes dd/mm/aaaa)"; sin tasa del viernes, "Registrar tasa" abre con la fecha del viernes.
+- [ ] Registrar una tasa con fecha sábado o domingo: aviso y error "Los sábados y domingos usan la tasa del viernes…".
+- [ ] Importar un Excel con depósitos de sábado/domingo: se comparan con la tasa del viernes (o la crean en el viernes).
+- [ ] Tasas → Calendario: verde = con tasa (clic para editar), ámbar = día hábil sin tasa (clic para registrar con esa fecha), gris = fin de semana con la tasa del viernes; contador de días pendientes; navegar meses y "Hoy".
+- [ ] Todas las tablas: clic en el encabezado ordena ascendente → descendente → original; montos ordenan como número; filas alternadas con color.
+- [ ] Ver un comprobante: abre ajustado a la ventana (no gigante); + / − y "Tamaño real" con desplazamiento.
+- [ ] Depósitos: botón de eliminar por fila con confirmación; marcar varios (o todos) y "Eliminar seleccionados"; en campaña cerrada no hay casillas ni botón.

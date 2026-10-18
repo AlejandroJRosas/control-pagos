@@ -1,15 +1,25 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/PageHeader";
 import { Cargando, Vacio } from "@/components/Feedback";
+import { SortableHead, useOrden } from "@/components/SortableHead";
 import { getDb } from "@/db";
-import { listGerentesConCampanas, setGerenteActivo, type Gerente } from "@/db/repos/gerentes";
+import { listGerentesConCampanas, setGerenteActivo, type Gerente, type GerenteConCampanas } from "@/db/repos/gerentes";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { ordenar, type Columnas } from "@/lib/orden";
 import { GerenteFormDialog } from "./GerenteFormDialog";
+
+type Col = "nombre" | "telefono" | "campanas" | "estado";
+const COLUMNAS: Columnas<GerenteConCampanas, Col> = {
+  nombre: { tipo: "texto", valor: (g) => g.nombre },
+  telefono: { tipo: "texto", valor: (g) => g.telefono },
+  campanas: { tipo: "numero", valor: (g) => g.campanas.length },
+  estado: { tipo: "numero", valor: (g) => (g.activo ? 0 : 1) },
+};
 
 export function GerentesPage() {
   const { data, error } = useData((db) => listGerentesConCampanas(db), []);
@@ -25,7 +35,11 @@ export function GerentesPage() {
     }
   }
 
-  const filas = (data ?? []).filter((g) => verInactivos || g.activo);
+  const { orden, alternar } = useOrden<Col>();
+  const filas = useMemo(
+    () => ordenar((data ?? []).filter((g) => verInactivos || g.activo), COLUMNAS, orden),
+    [data, verInactivos, orden],
+  );
 
   return (
     <div>
@@ -52,10 +66,18 @@ export function GerentesPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Teléfono</TableHead>
-              <TableHead>Campañas</TableHead>
-              <TableHead>Estado</TableHead>
+              <SortableHead col="nombre" orden={orden} onOrden={alternar}>
+                Nombre
+              </SortableHead>
+              <SortableHead col="telefono" orden={orden} onOrden={alternar}>
+                Teléfono
+              </SortableHead>
+              <SortableHead col="campanas" orden={orden} onOrden={alternar}>
+                Campañas
+              </SortableHead>
+              <SortableHead col="estado" orden={orden} onOrden={alternar}>
+                Estado
+              </SortableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>

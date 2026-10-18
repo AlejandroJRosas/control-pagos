@@ -4,7 +4,7 @@ import { createTestDb } from "../testing/sqljsDriver";
 import { depositoBase, seedBasico } from "../testing/fixtures";
 import { createTasa } from "./tasas";
 import { setEstadoCampana } from "./campanas";
-import { createDeposito, deleteDeposito, findDuplicados, getDeposito, listBancosUsados, updateDeposito } from "./depositos";
+import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, getDeposito, listBancosUsados, updateDeposito } from "./depositos";
 
 let db: SqlDriver;
 let s: Awaited<ReturnType<typeof seedBasico>>;
@@ -58,4 +58,26 @@ it("elimina y lista bancos usados sin repetir", async () => {
   expect(await listBancosUsados(db)).toEqual(["Banesco", "Mercantil"]);
   await deleteDeposito(db, id);
   expect(await getDeposito(db, id)).toBeNull();
+});
+
+it("un depósito de sábado o domingo usa la tasa del viernes", async () => {
+  const viernes = await createTasa(db, { fecha: "2026-03-06", valor: "40", notas: null, imagenPath: null });
+  const id = await createDeposito(db, s.asignacionId, depositoBase(viernes, { fecha: "2026-03-07" }));
+  await updateDeposito(db, id, depositoBase(viernes, { fecha: "2026-03-08" }));
+  expect(await getDeposito(db, id)).toMatchObject({ fecha: "2026-03-08", tasaId: viernes });
+  await expect(updateDeposito(db, id, depositoBase(viernes, { fecha: "2026-03-09" }))).rejects.toMatchObject({ code: "VALIDACION" });
+});
+
+it("elimina varios depósitos a la vez, o ninguno si alguno es de una campaña cerrada", async () => {
+  const a = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
+  const b = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "2" }));
+  const c = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "3" }));
+  await deleteDepositos(db, [a, b]);
+  expect(await getDeposito(db, a)).toBeNull();
+  expect(await getDeposito(db, b)).toBeNull();
+  await expect(deleteDepositos(db, [c, 999])).rejects.toMatchObject({ code: "NO_ENCONTRADO" });
+  await setEstadoCampana(db, s.campanaId, "cerrada");
+  await expect(deleteDepositos(db, [c])).rejects.toMatchObject({ code: "CAMPANA_CERRADA" });
+  expect(await getDeposito(db, c)).not.toBeNull();
+  await deleteDepositos(db, []);
 });

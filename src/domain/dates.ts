@@ -18,3 +18,22 @@ export function todayIso(now: Date = new Date()): string {
 export function formatPeriodo(inicio: string, fin: string | null): string {
   return `${formatFecha(inicio)} – ${fin ? formatFecha(fin) : "en curso"}`;
 }
+
+/** 0 = domingo … 6 = sábado. */
+export function diaSemana(iso: string): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+export function sumarDias(iso: string, dias: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + dias)).toISOString().slice(0, 10);
+}
+
+export const esFinDeSemana = (iso: string): boolean => diaSemana(iso) === 0 || diaSemana(iso) === 6;
+
+/** Fecha cuya tasa rige ese día: sábado y domingo usan la del viernes anterior. */
+export function fechaDeTasa(iso: string): string {
+  const dia = diaSemana(iso);
+  return dia === 6 ? sumarDias(iso, -1) : dia === 0 ? sumarDias(iso, -2) : iso;
+}

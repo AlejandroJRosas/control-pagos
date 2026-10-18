@@ -12,7 +12,7 @@ import { getDb } from "@/db";
 import { createTasa, getTasa, updateTasa, type Tasa, type TasaConUsos } from "@/db/repos/tasas";
 import { validateTasa, type TasaDraft } from "@/domain/validation";
 import { formatTasa, parseTasa, toInputVE } from "@/domain/money";
-import { formatFecha, todayIso } from "@/domain/dates";
+import { esFinDeSemana, fechaDeTasa, formatFecha, isValidIsoDate, todayIso } from "@/domain/dates";
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
@@ -152,6 +152,11 @@ export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }:
               />
             </Field>
           </div>
+          {!tasa && isValidIsoDate(draft.fecha) && esFinDeSemana(draft.fecha) && (
+            <Aviso tono="warning">
+              Los sábados y domingos no llevan tasa propia: usan la del viernes {formatFecha(fechaDeTasa(draft.fecha))}. Registra la tasa en esa fecha.
+            </Aviso>
+          )}
           {afectados > 0 && <Aviso tono="warning">Cambiar esta tasa recalcula {afectados} depósito(s).</Aviso>}
           <Field id="t-notas" label="Notas (opcional)">
             <Textarea id="t-notas" rows={2} value={draft.notas} onChange={(e) => set("notas", e.target.value)} />

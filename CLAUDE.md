@@ -23,6 +23,7 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - `src/db/` — `SqlDriver` mínimo (`driver.ts`); en producción `tauriDriver.ts` (tauri-plugin-sql), en pruebas `testing/sqljsDriver.ts`. Repos en `db/repos/`, consulta agregada en `db/queries/campanaData.ts`.
 - `src/db/operaciones/` — escrituras de varios pasos con reversión manual (el plugin SQL no da transacciones entre llamadas): `destino.ts` (gerente/asignación al registrar desde la campaña), `importarPagos.ts` (plan + importación).
 - `src/import/cuadroPagos.ts` — lee la hoja "CUADRO DE PAGOS" de las facturas por gerente (busca el encabezado por texto, no por celda fija).
+- Tablas ordenables con `SortableHead` + `useOrden` y `ordenar` (`lib/orden.ts`: montos como `decimal`, nunca como texto).
 - `src/features/*` — pantallas; las rutas se registran en `src/App.tsx` (hash router). La última campaña abierta se recuerda en `lib/campanaActual.ts` (localStorage) y `/` redirige a ella.
 - `src/platform/` — imágenes en AppData (plugin-fs) y respaldos (invoca comandos Rust).
 - `src/extraction/` — OCR de comprobantes y tasas. `ocr/` = motor intercambiable (`OcrEngine`; hoy `windowsOcr.ts` → comando `ocr_imagen`), `filas.ts` agrupa líneas por altura, `formatos/` = un reconocedor por formato (registro en `formatos/index.ts`), `normalizar.ts` valida y asigna confianza, `autollenado.ts` decide qué campos llena (sin tocar / OCR / tocado), `extractor.ts` lo une.
@@ -34,7 +35,7 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - Montos como **texto decimal exacto**; nunca `number` para dinero. decimal.js con `ROUND_HALF_UP`; USD a 2 decimales por depósito (`toUsd`), y los totales suman esos valores redondeados.
 - **No se guardan derivados** (USD, saldos, %): siempre se calculan con `buildCampanaView`.
 - Orden cronológico: `fecha`, luego `creado_en`, luego `id`.
-- **Una tasa por fecha**, y la tasa de un depósito debe ser la de su misma fecha (lo valida `depositos.ts`).
+- **Una tasa por fecha**, y la tasa de un depósito debe ser la de su misma fecha (lo valida `depositos.ts`). Sábado y domingo no llevan tasa propia: usan la del viernes (`fechaDeTasa` en `domain/dates.ts`, `getTasaParaFecha` en el repo); `createTasa` rechaza fines de semana.
 - Campaña `cerrada` = solo lectura; los repos lanzan `DomainError('CAMPANA_CERRADA')`.
 - Formato venezolano: `parseMonto` para montos ("1.234" = mil); `parseTasa` para tasas (un único punto es decimal: "36.500" = 36,5).
 - Duplicados: mismo banco + referencia comparando con `claveComparacion` (sin mayúsculas, acentos ni espacios). Es aviso, no bloqueo.
