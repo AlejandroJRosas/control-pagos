@@ -6,6 +6,7 @@ import { getTasa } from "./tasas";
 import type { DepositoValido } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
 import { formatFecha } from "@/domain/dates";
+import { claveComparacion } from "@/domain/texto";
 
 export type Deposito = {
   id: number;
@@ -82,12 +83,7 @@ export async function deleteDeposito(db: SqlDriver, id: number): Promise<void> {
 }
 
 /** Clave de comparación: sin mayúsculas, acentos ni espacios (SQLite `lower` solo pliega ASCII). */
-export const claveComparacion = (s: string): string =>
-  s
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/\s+/g, "")
-    .toLowerCase();
+export { claveComparacion };
 
 export async function findDuplicados(db: SqlDriver, banco: string, referencia: string, excludeId?: number): Promise<Duplicado[]> {
   const rows = await db.select<Duplicado & { banco: string; referencia: string }>(
