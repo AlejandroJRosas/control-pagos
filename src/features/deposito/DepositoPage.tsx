@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import Decimal from "decimal.js";
 import { Trash2 } from "lucide-react";
@@ -34,11 +34,13 @@ import { formatFecha, isValidIsoDate, todayIso } from "@/domain/dates";
 import { DomainError } from "@/domain/errors";
 import { formatBs, formatTasa, formatUsd, parseMonto, toInputVE, toUsd } from "@/domain/money";
 import { validateDeposito, validateDestino, type DepositoDraft, type DestinoDraft } from "@/domain/validation";
-import { extractor, type CampoPropuesto, type CamposDeposito, type ExtractionResult } from "@/extraction/extractor";
+import { extractor, type CampoPropuesto, type CamposDeposito } from "@/extraction/extractor";
+import { aplicarExtraccion, autollenadoExistente, autollenadoNuevo, marcarTocado, type Autollenado } from "@/extraction/autollenado";
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { cn } from "@/lib/utils";
+import { confClass } from "@/lib/confianza";
 import { TasaFormDialog } from "@/features/tasas/TasaFormDialog";
 import { sugerenciasBancos } from "./bancos";
 
@@ -79,11 +81,16 @@ export function DepositoPage() {
   return <DepositoForm key={`${depositoId ?? "nuevo"}-${asignacionId ?? ""}-${campanaId ?? ""}`} {...ctx} />;
 }
 
-function confClass(c: number | undefined): string {
-  if (c === undefined) return "";
-  if (c >= 0.9) return "border-green-500";
-  if (c >= 0.6) return "border-amber-500 bg-amber-50";
-  return "border-red-500 bg-red-50";
+const CAMPOS_OCR: CamposDeposito[] = ["fecha", "banco", "referencia", "cuentaDestino", "montoBs"];
+const camposOcr = (d: DepositoDraft): Record<CamposDeposito, string> =>
+  Object.fromEntries(CAMPOS_OCR.map((k) => [k, d[k]])) as Record<CamposDeposito, string>;
+
+type FormState = { draft: DepositoDraft; auto: Autollenado<CamposDeposito> };
+
+/** Aplica lo leído del comprobante (o limpia, con `{}`) sobre el estado actual del formulario. */
+function conExtraccion(f: FormState, propuestos: Partial<Record<CamposDeposito, CampoPropuesto>>, fechaInicial: string): FormState {
+  const r = aplicarExtraccion(camposOcr(f.draft), f.auto, propuestos, camposOcr(vacio(fechaInicial)));
+  return { draft: { ...f.draft, ...r.valores }, auto: r.auto };
 }
 
 function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
@@ -92,25 +99,32 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const cerrada = campana.estado === "cerrada";
   const [destino, setDestino] = useState<DestinoDraft>(SIN_DESTINO);
   const [destinoErrors, setDestinoErrors] = useState<Partial<Record<keyof DestinoDraft, string>>>({});
-  const [draft, setDraft] = useState<DepositoDraft>(() =>
-    deposito
-      ? {
-          fecha: deposito.fecha,
-          banco: deposito.banco,
-          referencia: deposito.referencia,
-          cuentaDestino: deposito.cuentaDestino,
-          montoBs: toInputVE(deposito.montoBs),
-          tasaId: deposito.tasaId,
-          observaciones: deposito.observaciones ?? "",
-        }
-      : vacio(todayIso()),
-  );
+  const [form, setForm] = useState<FormState>(() => {
+    if (!deposito) return { draft: vacio(todayIso()), auto: autollenadoNuevo() };
+    const draft: DepositoDraft = {
+      fecha: deposito.fecha,
+      banco: deposito.banco,
+      referencia: deposito.referencia,
+      cuentaDestino: deposito.cuentaDestino,
+      montoBs: toInputVE(deposito.montoBs),
+      tasaId: deposito.tasaId,
+      observaciones: deposito.observaciones ?? "",
+    };
+    return { draft, auto: autollenadoExistente(camposOcr(draft)) };
+  });
+  const draft = form.draft;
+  const setDraft = (next: DepositoDraft | ((d: DepositoDraft) => DepositoDraft)) =>
+    setForm((f) => ({ ...f, draft: typeof next === "function" ? next(f.draft) : next }));
+  // Fecha con la que arrancó el formulario: a ella vuelve la fecha si se quita la imagen que la llenó.
+  const fechaInicial = useRef(form.draft.fecha);
+  // Imagen cuya lectura sigue vigente; un resultado de otra imagen se descarta.
+  const imagenVigente = useRef<Blob | null>(null);
+  const [leyendo, setLeyendo] = useState(false);
   const [imagen, setImagen] = useState<ImagenValue>(deposito?.imagenPath ? { kind: "stored", path: deposito.imagenPath } : null);
   const [tasa, setTasa] = useState<Tasa | null | undefined>(undefined); // undefined = buscando
   const [tasaDialog, setTasaDialog] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof DepositoDraft, string>>>({});
   const [duplicados, setDuplicados] = useState<Duplicado[]>([]);
-  const [confianza, setConfianza] = useState<Partial<Record<CamposDeposito, number>>>({});
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -176,35 +190,32 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const restanteGeneral = new Decimal(view.total.restante).plus(saldoNuevo ?? 0).minus(usd ?? 0);
 
   function set<K extends keyof DepositoDraft>(k: K, v: DepositoDraft[K]) {
-    setDraft((d) => ({ ...d, [k]: v }));
+    setForm((f) => ({
+      draft: { ...f.draft, [k]: v },
+      auto: (CAMPOS_OCR as string[]).includes(k) ? marcarTocado(f.auto, k as CamposDeposito) : f.auto,
+    }));
     setErrors((e) => ({ ...e, [k]: undefined }));
-    setConfianza((c) => {
-      const next = { ...c };
-      delete next[k as CamposDeposito];
-      return next;
-    });
-  }
-
-  function applyExtraction(r: ExtractionResult<CamposDeposito>) {
-    const next = { ...draft };
-    const conf: Partial<Record<CamposDeposito, number>> = {};
-    for (const [k, f] of Object.entries(r.fields) as [CamposDeposito, CampoPropuesto | undefined][]) {
-      if (f && !next[k].trim()) {
-        next[k] = f.value;
-        conf[k] = f.confidence;
-      }
-    }
-    setDraft(next);
-    setConfianza(conf);
   }
 
   async function onImagen(v: ImagenValue) {
     setImagen(v);
-    if (v?.kind !== "new") return;
+    const file = v?.kind === "new" ? v.file : null;
+    imagenVigente.current = file;
+    if (!file) {
+      setForm((f) => conExtraccion(f, {}, fechaInicial.current));
+      setLeyendo(false);
+      return;
+    }
+    setLeyendo(true);
     try {
-      applyExtraction(await extractor.extraerDeposito(v.file));
+      const r = await extractor.extraerDeposito(file);
+      if (imagenVigente.current !== file) return;
+      setForm((f) => conExtraccion(f, r.fields, fechaInicial.current));
+      if (r.formato === null) toast.info("No se reconoció el formato del comprobante; completa los datos a mano");
     } catch (e) {
-      reportError(e, "Lectura del comprobante");
+      if (imagenVigente.current === file) reportError(e, "Lectura del comprobante");
+    } finally {
+      if (imagenVigente.current === file) setLeyendo(false);
     }
   }
 
@@ -234,9 +245,11 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
       toast.success(deposito ? "Depósito actualizado" : "Depósito registrado");
       if (yNuevo) {
         if (imagen?.kind === "new") URL.revokeObjectURL(imagen.previewUrl);
-        setDraft((d) => ({ ...vacio(d.fecha), tasaId: d.tasaId }));
+        fechaInicial.current = draft.fecha;
+        setForm((f) => ({ draft: { ...vacio(f.draft.fecha), tasaId: f.draft.tasaId }, auto: autollenadoNuevo() }));
+        imagenVigente.current = null;
+        setLeyendo(false);
         setImagen(null);
-        setConfianza({});
         setDuplicados([]);
         if (!asignacion) setDestino({ ...SIN_DESTINO, sel: `a:${asignacionId}` });
         invalidate();
@@ -300,6 +313,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
             void guardar(false);
           }}
         >
+          {leyendo && <p className="text-sm text-muted-foreground">Leyendo comprobante…</p>}
           <fieldset disabled={cerrada || saving} className="grid gap-4">
             {!asignacion && (
               <DestinoGerente
@@ -316,7 +330,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
             )}
             <div className="grid grid-cols-2 gap-4">
               <Field id="d-fecha" label="Fecha" error={errors.fecha}>
-                <Input id="d-fecha" type="date" className={confClass(confianza.fecha)} value={draft.fecha} onChange={(e) => set("fecha", e.target.value)} />
+                <Input id="d-fecha" type="date" className={confClass(form.auto.confianza.fecha)} value={draft.fecha} onChange={(e) => set("fecha", e.target.value)} />
               </Field>
               <Field id="d-tasa" label="Tasa del día" error={errors.tasaId}>
                 <div id="d-tasa" className="flex h-8 items-center gap-2 text-sm">
@@ -336,7 +350,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
               </Field>
             </div>
             <Field id="d-banco" label="Banco de origen" error={errors.banco}>
-              <Input id="d-banco" list="bancos" className={confClass(confianza.banco)} value={draft.banco} onChange={(e) => set("banco", e.target.value)} />
+              <Input id="d-banco" list="bancos" className={confClass(form.auto.confianza.banco)} value={draft.banco} onChange={(e) => set("banco", e.target.value)} />
               <datalist id="bancos">
                 {bancos.map((b) => (
                   <option key={b} value={b} />
@@ -347,7 +361,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
               <Field id="d-ref" label="Referencia bancaria" error={errors.referencia}>
                 <Input
                   id="d-ref"
-                  className={cn("font-mono", confClass(confianza.referencia))}
+                  className={cn("font-mono", confClass(form.auto.confianza.referencia))}
                   value={draft.referencia}
                   onChange={(e) => set("referencia", e.target.value)}
                 />
@@ -356,7 +370,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
                 <Input
                   id="d-monto"
                   inputMode="decimal"
-                  className={cn("text-right tabular-nums", confClass(confianza.montoBs))}
+                  className={cn("text-right tabular-nums", confClass(form.auto.confianza.montoBs))}
                   value={draft.montoBs}
                   onChange={(e) => set("montoBs", e.target.value)}
                   onBlur={() => {
@@ -369,7 +383,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
             <Field id="d-cuenta" label="Cuenta destino" error={errors.cuentaDestino}>
               <Input
                 id="d-cuenta"
-                className={cn("font-mono", confClass(confianza.cuentaDestino))}
+                className={cn("font-mono", confClass(form.auto.confianza.cuentaDestino))}
                 value={draft.cuentaDestino}
                 onChange={(e) => set("cuentaDestino", e.target.value)}
               />
