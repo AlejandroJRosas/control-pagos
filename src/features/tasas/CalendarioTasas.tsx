@@ -42,13 +42,13 @@ export function CalendarioTasas({ tasas, onRegistrar, onEditar }: Props) {
         <Button size="sm" variant="ghost" disabled={mes === hoy.slice(0, 7)} onClick={() => setMes(hoy.slice(0, 7))}>
           Hoy
         </Button>
-        <span className={cn("ml-2 text-sm", faltan > 0 ? "font-medium text-amber-700" : "text-muted-foreground")}>
+        <span className={cn("ml-2 text-sm", faltan > 0 ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
           {faltan === 0 ? "Sin días hábiles pendientes" : `${faltan} día(s) hábil(es) sin tasa`}
         </span>
         <div className="ml-auto flex flex-wrap gap-3 text-xs text-muted-foreground">
-          <Leyenda className="border-emerald-300 bg-emerald-50" texto="Con tasa" />
-          <Leyenda className="border-amber-300 bg-amber-50" texto="Falta la tasa" />
-          <Leyenda className="border-slate-200 bg-slate-100" texto="Fin de semana (usa la del viernes)" />
+          <Leyenda className="border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950" texto="Con tasa" />
+          <Leyenda className="border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" texto="Falta la tasa" />
+          <Leyenda className="border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900" texto="Fin de semana (usa la del viernes)" />
         </div>
       </div>
       <div className="grid grid-cols-7 gap-1.5">
@@ -89,7 +89,7 @@ function Dia({ d, hoy, onRegistrar, onEditar }: DiaProps) {
     return (
       <button
         type="button"
-        className={cn(base, "border-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950")}
+        className={cn(base, "border-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:hover:bg-emerald-900")}
         title={`Editar la tasa del ${formatFecha(d.fecha)}`}
         onClick={() => onEditar(t)}
       >
@@ -101,7 +101,7 @@ function Dia({ d, hoy, onRegistrar, onEditar }: DiaProps) {
   }
   if (d.estado === "finde") {
     return (
-      <div className={cn(base, "border-slate-200 bg-slate-100 text-muted-foreground dark:bg-slate-900")}>
+      <div className={cn(base, "border-slate-200 bg-slate-100 text-muted-foreground dark:border-slate-800 dark:bg-slate-900")}>
         {numero}
         {d.tasa ? (
           <>
@@ -109,7 +109,7 @@ function Dia({ d, hoy, onRegistrar, onEditar }: DiaProps) {
             <span>la del viernes</span>
           </>
         ) : (
-          <span className="mt-auto text-amber-700">falta la del viernes</span>
+          <span className="mt-auto text-amber-700 dark:text-amber-400">falta la del viernes</span>
         )}
       </div>
     );
@@ -118,7 +118,7 @@ function Dia({ d, hoy, onRegistrar, onEditar }: DiaProps) {
     return (
       <button
         type="button"
-        className={cn(base, "group border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-200")}
+        className={cn(base, "group border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900")}
         title={`Registrar la tasa del ${formatFecha(d.fecha)}`}
         onClick={() => onRegistrar(d.fecha)}
       >

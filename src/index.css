@@ -101,6 +101,8 @@
     --primary: oklch(0.922 0 0);
     --primary-foreground: oklch(0.205 0 0);
     --primary-intenso: var(--primary);
+    --fila-hover: oklch(0.25 0 0);
+    --fila-sel: oklch(0.31 0 0);
     --secondary: oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.269 0 0);
@@ -118,7 +120,7 @@
     --chart-5: oklch(0.269 0 0);
     --sidebar: oklch(0.205 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary: oklch(0.922 0 0);
     --sidebar-primary-foreground: oklch(0.985 0 0);
     --sidebar-accent: oklch(0.269 0 0);
     --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -181,6 +183,14 @@
     /* Hover de botones, menús y listas (hover:bg-accent) con el color del tema. */
     --accent: var(--fila-hover);
     --sidebar-accent: var(--fila-hover);
+}
+/* Modo oscuro con tema de color: el pastel se mantiene en botones y barra lateral; las filas
+   y el hover pasan a tonos oscuros del mismo matiz y --primary-intenso se aclara para leerse sobre fondo oscuro. */
+.dark[data-tema]:not([data-tema="neutro"]) {
+    --fila-par: oklch(0.2 0.015 var(--tono));
+    --fila-hover: oklch(0.26 0.035 var(--tono));
+    --fila-sel: oklch(0.32 0.055 var(--tono));
+    --primary-intenso: oklch(0.78 0.12 var(--tono));
 }
 
 @layer base {

@@ -13,22 +13,43 @@ export const TEMAS = [
 
 export type TemaId = (typeof TEMAS)[number]["id"];
 
+/** Claro u oscuro; se combina con cualquier tema de color (clase `.dark` en index.css). */
+export const MODOS = [
+  { id: "claro", nombre: "Claro" },
+  { id: "oscuro", nombre: "Oscuro" },
+] as const;
+
+export type ModoId = (typeof MODOS)[number]["id"];
+
 const KEY = "control-pagos:tema";
+const KEY_MODO = "control-pagos:modo";
 const listeners = new Set<() => void>();
 
-function leer(): TemaId {
+function leer<T extends string>(key: string, validos: readonly { id: T }[], defecto: T): T {
   try {
-    const t = localStorage.getItem(KEY);
-    return TEMAS.some((x) => x.id === t) ? (t as TemaId) : "neutro";
+    const v = localStorage.getItem(key);
+    return validos.some((x) => x.id === v) ? (v as T) : defecto;
   } catch {
-    return "neutro";
+    return defecto;
   }
 }
 
-let actual = leer();
+function guardar(key: string, valor: string): void {
+  try {
+    localStorage.setItem(key, valor);
+  } catch {
+    // sin almacenamiento el tema dura hasta cerrar la app
+  }
+}
+
+let actual: TemaId = leer(KEY, TEMAS, "neutro");
+let modo: ModoId = leer(KEY_MODO, MODOS, "claro");
 
 function aplicar(): void {
-  document.documentElement.dataset.tema = actual;
+  const html = document.documentElement;
+  html.dataset.tema = actual;
+  html.classList.toggle("dark", modo === "oscuro");
+  html.style.colorScheme = modo === "oscuro" ? "dark" : "light";
 }
 
 /** Se llama una vez al arrancar, antes de pintar. */
@@ -44,11 +65,19 @@ export function setTema(id: TemaId): void {
   if (id === actual) return;
   actual = id;
   aplicar();
-  try {
-    localStorage.setItem(KEY, id);
-  } catch {
-    // sin almacenamiento el tema dura hasta cerrar la app
-  }
+  guardar(KEY, id);
+  listeners.forEach((l) => l());
+}
+
+export function getModo(): ModoId {
+  return modo;
+}
+
+export function setModo(id: ModoId): void {
+  if (id === modo) return;
+  modo = id;
+  aplicar();
+  guardar(KEY_MODO, id);
   listeners.forEach((l) => l());
 }
 
@@ -61,4 +90,8 @@ function subscribe(l: () => void): () => void {
 
 export function useTema(): TemaId {
   return useSyncExternalStore(subscribe, getTema);
+}
+
+export function useModo(): ModoId {
+  return useSyncExternalStore(subscribe, getModo);
 }

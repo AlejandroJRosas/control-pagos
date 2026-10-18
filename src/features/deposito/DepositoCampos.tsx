@@ -62,7 +62,7 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
                 </span>
               ) : (
                 <>
-                  <span className="text-amber-700">
+                  <span className="text-amber-700 dark:text-amber-400">
                     {!fechaValida
                       ? "Elige una fecha"
                       : fechaDeTasa(draft.fecha) !== draft.fecha

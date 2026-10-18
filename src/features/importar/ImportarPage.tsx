@@ -437,7 +437,7 @@ function Revision({ f }: { f: FilaPlan }) {
   return (
     <ul className="space-y-0.5 text-xs">
       {notas.map((n) => (
-        <li key={n.texto} className={cn(n.tono === "error" && "text-destructive", n.tono === "aviso" && "text-amber-700")}>
+        <li key={n.texto} className={cn(n.tono === "error" && "text-destructive", n.tono === "aviso" && "text-amber-700 dark:text-amber-400")}>
           {n.texto}
         </li>
       ))}

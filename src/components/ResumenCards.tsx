@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
 /** Colores fijos por significado (no siguen el tema): saldo azul, pagado verde, restante ámbar, de más rojo.
     `icono` es el fondo del icono y `lengueta` la franja del borde izquierdo de la tarjeta. */
 const TONOS = {
-  asignado: { icono: "bg-sky-100 text-sky-700", lengueta: "bg-sky-500" },
-  pagado: { icono: "bg-emerald-100 text-emerald-700", lengueta: "bg-emerald-500" },
-  restante: { icono: "bg-amber-100 text-amber-700", lengueta: "bg-amber-500" },
+  asignado: { icono: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300", lengueta: "bg-sky-500" },
+  pagado: { icono: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300", lengueta: "bg-emerald-500" },
+  restante: { icono: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300", lengueta: "bg-amber-500" },
   peligro: { icono: "bg-destructive/10 text-destructive", lengueta: "bg-destructive" },
   avance: { icono: "bg-primary/25 text-primary-intenso", lengueta: "bg-primary-intenso" },
 };

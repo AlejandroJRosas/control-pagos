@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Archive, Check, RotateCcw } from "lucide-react";
+import { Archive, Check, Moon, RotateCcw, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import { formatNumberVE } from "@/domain/money";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
-import { TEMAS, setTema, useTema } from "@/lib/tema";
+import { MODOS, TEMAS, setModo, setTema, useModo, useTema } from "@/lib/tema";
 import { cn } from "@/lib/utils";
 
 const tamano = (bytes: number) =>
@@ -169,12 +169,24 @@ export function ConfiguracionPage() {
 
 function Apariencia() {
   const tema = useTema();
+  const modo = useModo();
   return (
     <Card>
       <CardHeader>
         <CardTitle>Apariencia</CardTitle>
-        <CardDescription>Color principal de botones, barra lateral y barras de avance.</CardDescription>
+        <CardDescription>Modo claro u oscuro y color principal de botones, barra lateral y barras de avance.</CardDescription>
       </CardHeader>
+      <CardContent className="flex gap-2">
+        {MODOS.map((m) => {
+          const Icono = m.id === "oscuro" ? Moon : Sun;
+          return (
+            <Button key={m.id} variant={modo === m.id ? "default" : "outline"} aria-pressed={modo === m.id} onClick={() => setModo(m.id)}>
+              <Icono />
+              {m.nombre}
+            </Button>
+          );
+        })}
+      </CardContent>
       <CardContent className="flex flex-wrap gap-3">
         {TEMAS.map((t) => (
           <button

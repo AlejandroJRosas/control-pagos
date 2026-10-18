@@ -79,8 +79,8 @@ export function ZonaLote({ onArchivos, disabled = false }: { onArchivos: (files:
 const ESTADOS: Record<FilaLote["estado"], { icono: typeof Loader2; texto: (f: FilaLote) => string; clase: string }> = {
   "en-cola": { icono: Loader2, texto: () => "En espera…", clase: "text-muted-foreground" },
   leyendo: { icono: Loader2, texto: () => "Leyendo…", clase: "text-muted-foreground" },
-  leido: { icono: CheckCircle2, texto: (f) => `Leído (${f.formato})`, clase: "text-emerald-700" },
-  "no-reconocido": { icono: AlertTriangle, texto: () => "Formato no reconocido: se llena a mano", clase: "text-amber-700" },
+  leido: { icono: CheckCircle2, texto: (f) => `Leído (${f.formato})`, clase: "text-emerald-700 dark:text-emerald-400" },
+  "no-reconocido": { icono: AlertTriangle, texto: () => "Formato no reconocido: se llena a mano", clase: "text-amber-700 dark:text-amber-400" },
   error: { icono: XCircle, texto: () => "Error: revisa el aviso", clase: "text-destructive" },
 };
 

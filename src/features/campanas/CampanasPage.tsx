@@ -63,7 +63,7 @@ export function CampanasPage() {
                     <span className="tabular-nums">
                       {formatUsd(total.pagado)} de {formatUsd(total.asignado)}
                     </span>
-                    <span className={cn("font-medium tabular-nums", total.pct >= 100 && "text-emerald-700")}>{formatPct(total.pct)}</span>
+                    <span className={cn("font-medium tabular-nums", total.pct >= 100 && "text-emerald-700 dark:text-emerald-400")}>{formatPct(total.pct)}</span>
                   </div>
                   <AvanceBar pct={total.pct} />
                 </CardContent>

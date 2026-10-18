@@ -92,7 +92,7 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, marcado
                 />
               )}
               <button type="button" className="flex min-w-0 flex-1 items-start gap-1.5 text-left" onClick={() => onElegir(i.id)}>
-                <Icono className={cn("mt-0.5 size-4 shrink-0", i.estado === "hecho" ? "text-emerald-600" : actual ? "text-primary-intenso" : "text-muted-foreground")} />
+                <Icono className={cn("mt-0.5 size-4 shrink-0", i.estado === "hecho" ? "text-emerald-600 dark:text-emerald-400" : actual ? "text-primary-intenso" : "text-muted-foreground")} />
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{i.titulo}</span>
                   <span className="block truncate text-xs text-muted-foreground">{i.detalle}</span>
