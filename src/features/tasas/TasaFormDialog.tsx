@@ -98,6 +98,8 @@ export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }:
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    // El diálogo puede abrirse desde otro formulario (el depósito): el submit no debe llegarle por el árbol de React.
+    e.stopPropagation();
     const r = validateTasa(draft);
     if (!r.ok) return setErrors(r.errors);
     setSaving(true);
