@@ -2,21 +2,17 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Field } from "@/components/Field";
 import { Aviso } from "@/components/Feedback";
-import { cn } from "@/lib/utils";
 import { ImageDrop } from "@/components/ImageDrop";
+import { TasaCampos } from "./TasaCampos";
 import { getDb } from "@/db";
 import { createTasa, getTasa, updateTasa, type Tasa, type TasaConUsos } from "@/db/repos/tasas";
 import { validateTasa, type TasaDraft } from "@/domain/validation";
-import { formatTasa, parseTasa, toInputVE } from "@/domain/money";
-import { esFinDeSemana, fechaDeTasa, formatFecha, isValidIsoDate, todayIso } from "@/domain/dates";
+import { parseTasa, toInputVE } from "@/domain/money";
+import { formatFecha, todayIso } from "@/domain/dates";
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
-import { confClass } from "@/lib/confianza";
 import { extractor, type CampoPropuesto, type CamposTasa } from "@/extraction/extractor";
 import { aplicarExtraccion, autollenadoExistente, autollenadoNuevo, marcarTocado, tasaParaFecha, type Autollenado } from "@/extraction/autollenado";
 
@@ -132,37 +128,15 @@ export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }:
           <DialogHeader>
             <DialogTitle>{tasa ? "Editar tasa" : "Registrar tasa del día"}</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
-            <Field id="t-fecha" label="Fecha" error={errors.fecha}>
-              <Input
-                id="t-fecha"
-                type="date"
-                className={confClass(form.auto.confianza.fecha)}
-                value={draft.fecha}
-                disabled={tasa != null || fechaFija != null}
-                onChange={(e) => set("fecha", e.target.value)}
-              />
-            </Field>
-            <Field id="t-valor" label="Bs por USD" error={errors.valor} hint={nuevoValor ? `= ${formatTasa(nuevoValor)} Bs por USD` : "Ej. 36,50"}>
-              <Input
-                id="t-valor"
-                autoFocus
-                inputMode="decimal"
-                className={cn("text-right tabular-nums", confClass(form.auto.confianza.valor))}
-                value={draft.valor}
-                onChange={(e) => set("valor", e.target.value)}
-              />
-            </Field>
-          </div>
-          {!tasa && isValidIsoDate(draft.fecha) && esFinDeSemana(draft.fecha) && (
-            <Aviso tono="warning">
-              Los sábados y domingos no llevan tasa propia: usan la del viernes {formatFecha(fechaDeTasa(draft.fecha))}. Registra la tasa en esa fecha.
-            </Aviso>
-          )}
-          {afectados > 0 && <Aviso tono="warning">Cambiar esta tasa recalcula {afectados} depósito(s).</Aviso>}
-          <Field id="t-notas" label="Notas (opcional)">
-            <Textarea id="t-notas" rows={2} value={draft.notas} onChange={(e) => set("notas", e.target.value)} />
-          </Field>
+          <TasaCampos
+            form={form}
+            set={set}
+            errors={errors}
+            fechaBloqueada={tasa != null || fechaFija != null}
+            fechaImagen={null}
+            avisoFinDeSemana={!tasa}
+            avisosExtra={afectados > 0 && <Aviso tono="warning">Cambiar esta tasa recalcula {afectados} depósito(s).</Aviso>}
+          />
           <ImageDrop label="Captura de la tasa (opcional)" value={imagen} onChange={onImagen} pasteEnabled={open} className="h-56" />
           {leyendo && <p className="text-sm text-muted-foreground">Leyendo imagen…</p>}
           {fechaImagen && fechaImagen !== draft.fecha && form.auto.estado.fecha === "tocado" && (
