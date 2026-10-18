@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { FileSpreadsheet, FileUp, Plus, UserPlus } from "lucide-react";
+import { FileSpreadsheet, FileUp, Images, ListChecks, Plus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +13,7 @@ import { getDb } from "@/db";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { setEstadoCampana } from "@/db/repos/campanas";
 import { deleteAsignacion } from "@/db/repos/asignaciones";
+import { contarPendientesDepositos } from "@/db/repos/cola";
 import { buildCampanaView, type GerenteResumen } from "@/domain/campanaView";
 import { formatPeriodo, todayIso } from "@/domain/dates";
 import { buildCampanaWorkbook } from "@/export/campanaWorkbook";
@@ -35,6 +36,7 @@ export function CampanaPage() {
     },
     [campanaId],
   );
+  const { data: pendientes } = useData((db) => contarPendientesDepositos(db, campanaId), [campanaId]);
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") === "gerentes" ? "gerentes" : "depositos";
   const [editar, setEditar] = useState(false);
@@ -110,11 +112,21 @@ export function CampanaPage() {
               <UserPlus />
               Agregar gerente
             </Button>
+            {!!pendientes && (
+              <Link to={`/campanas/${campanaId}/revision`} className={buttonVariants({ variant: "outline" })}>
+                <ListChecks />
+                Revisar ({pendientes})
+              </Link>
+            )}
             {cerrada ? (
               <>
                 <Button variant="outline" disabled>
                   <FileUp />
                   Importar Excel
+                </Button>
+                <Button variant="outline" disabled>
+                  <Images />
+                  Subir lote
                 </Button>
                 <Button disabled>
                   <Plus />
@@ -126,6 +138,10 @@ export function CampanaPage() {
                 <Link to={`/campanas/${campanaId}/importar`} className={buttonVariants({ variant: "outline" })}>
                   <FileUp />
                   Importar Excel
+                </Link>
+                <Link to={`/campanas/${campanaId}/lote`} className={buttonVariants({ variant: "outline" })}>
+                  <Images />
+                  Subir lote
                 </Link>
                 <Link to={`/campanas/${campanaId}/depositos/nuevo`} className={buttonVariants()}>
                   <Plus />

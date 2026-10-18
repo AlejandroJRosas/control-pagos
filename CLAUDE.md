@@ -25,6 +25,8 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - `src/import/cuadroPagos.ts` — lee la hoja "CUADRO DE PAGOS" de las facturas por gerente (busca el encabezado por texto, no por celda fija).
 - Tablas ordenables con `SortableHead` + `useOrden` y `ordenar` (`lib/orden.ts`: montos como `decimal`, nunca como texto).
 - `src/features/*` — pantallas; las rutas se registran en `src/App.tsx` (hash router). La última campaña abierta se recuerda en `lib/campanaActual.ts` (localStorage) y `/` redirige a ella.
+- `src/features/lote/` — subida en lote y revisión uno a uno (depósitos por campaña y tasas). La cola vive en `db/repos/cola.ts` (tablas `cola_depositos`/`cola_tasas`, borrador en JSON, autoguardado); "Hecho" en `db/operaciones/revision.ts` (guarda con los mismos repos y revierte si falla). Los formularios se comparten con el registro individual: `deposito/useDepositoForm.ts` + `DepositoCampos.tsx`, `tasas/TasaCampos.tsx`.
+- `components/ZoomableImage.tsx` + `lib/zoom.ts` — zoom con la rueda hacia el cursor, arrastre y doble clic; lo usan `ImageDrop`, `ImageViewer` y la revisión.
 - `src/platform/` — imágenes en AppData (plugin-fs) y respaldos (invoca comandos Rust).
 - `src/extraction/` — OCR de comprobantes y tasas. `ocr/` = motor intercambiable (`OcrEngine`; hoy `windowsOcr.ts` → comando `ocr_imagen`), `filas.ts` agrupa líneas por altura, `formatos/` = un reconocedor por formato (registro en `formatos/index.ts`), `normalizar.ts` valida y asigna confianza, `autollenado.ts` decide qué campos llena (sin tocar / OCR / tocado), `extractor.ts` lo une.
 - `src-tauri/src/backup.rs` — crear/restaurar/podar/listar zips; `ocr.rs` — OCR de Windows (`Windows.Media.Ocr`, amplía la imagen a 2000 px); `lib.rs` — comandos y plugins.
@@ -34,6 +36,7 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 
 - Montos como **texto decimal exacto**; nunca `number` para dinero. decimal.js con `ROUND_HALF_UP`; USD a 2 decimales por depósito (`toUsd`), y los totales suman esos valores redondeados.
 - **No se guardan derivados** (USD, saldos, %): siempre se calculan con `buildCampanaView`.
+- La cola de lote **no cuenta** en saldos, Excel ni totales: solo "Hecho" crea el depósito o la tasa. Si el OCR no lee la fecha, el borrador queda sin fecha (no la de hoy).
 - Orden cronológico: `fecha`, luego `creado_en`, luego `id`.
 - **Una tasa por fecha**, y la tasa de un depósito debe ser la de su misma fecha (lo valida `depositos.ts`). Sábado y domingo no llevan tasa propia: usan la del viernes (`fechaDeTasa` en `domain/dates.ts`, `getTasaParaFecha` en el repo); `createTasa` rechaza fines de semana.
 - Campaña `cerrada` = solo lectura; los repos lanzan `DomainError('CAMPANA_CERRADA')`.
@@ -64,6 +67,8 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - Ventana con `dragDropEnabled: false` para que el arrastrar/soltar HTML5 entregue `File`.
 - Restaurar: JS cierra la BD con `closeDb({ strict: true })` antes de invocar `restore_backup`; Rust valida el zip (cabecera SQLite, rutas) y hace el cambio con renombres reversibles. Mantener esa garantía: o todo nuevo o todo como estaba.
 - Los zips se escriben en `.part` y se renombran al terminar.
+- El `onWheel` de React es pasivo: para `preventDefault` en la rueda usar `addEventListener("wheel", …, { passive: false })`.
+- Un `<form>` dentro de un diálogo abierto desde otro formulario (p. ej. `TasaFormDialog` en el depósito) propaga `submit` por el árbol de React a través del portal: usar `stopPropagation`.
 - Windows OCR no da confianza: se deduce en `normalizar.ts` (etiqueta 0,9, heurística 0,7, constante 0,95). Pierde etiquetas en gris y confunde caracteres ("15110/2026", "17.200.00"): los reconocedores los recuperan como heurística (ámbar).
 - El OCR necesita el idioma español con reconocimiento de texto instalado en Windows; si falta, `ocr.rs` devuelve un error que lo explica.
 - Al escribir archivos con barras invertidas (`̀`, `\0`, regex), usar la herramienta de escritura de archivos y no heredocs del shell: el shell de este entorno interpreta los escapes.

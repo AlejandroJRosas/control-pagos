@@ -52,3 +52,20 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Todas las tablas: clic en el encabezado ordena ascendente → descendente → original; montos ordenan como número; filas alternadas con color.
 - [ ] Rueda del ratón sobre cualquier imagen (formulario, diálogo de tasa, visor, revisión): acerca hacia el cursor sin desplazar la página; arrastrar mueve; doble clic ajusta; el visor conserva − / + / Ajustar / Tamaño real.
 - [ ] Depósitos: botón de eliminar por fila con confirmación; marcar varios (o todos) y "Eliminar seleccionados"; en campaña cerrada no hay casillas ni botón.
+
+## Subida en lote y revisión
+
+- [ ] Campaña → "Subir lote": soltar 5 capturas y un PDF → aviso solo por el PDF; las 5 pasan por "Leyendo…" una a una y quedan "Leído (formato)" o "Formato no reconocido".
+- [ ] Elegir "Gerente para todo el lote" antes de soltar: en la revisión aparecen con ese gerente.
+- [ ] Salir de "Subir lote" mientras lee: las que faltaban quedan en la cola sin leer, para llenar a mano.
+- [ ] La campaña muestra "Revisar (N)"; los saldos y el Excel no cambian hasta darle Hecho.
+- [ ] Revisión: lista a la izquierda, imagen con zoom al centro, mismo formulario a la derecha (colores de confianza, tasa del día, saldos "después", "Registrar tasa").
+- [ ] Hecho (o Ctrl+Enter) registra el depósito con la imagen y abre el siguiente pendiente; con errores de validación no avanza.
+- [ ] Corregir un campo, cerrar la app y volver: la corrección sigue ahí.
+- [ ] Saltar pasa al siguiente sin guardar; con un solo pendiente se queda en él.
+- [ ] Marcar varios y "Asignar gerente a marcados", incluido el abierto: todos quedan con ese gerente.
+- [ ] Dos comprobantes de la cola con el mismo banco y referencia: aviso "En la cola hay otro…".
+- [ ] Descartar pide confirmación, quita el elemento y borra su imagen de `imagenes\`.
+- [ ] Filtro Hechos: un hecho se ve en solo lectura con "Ver depósito"; "Quitar hechos" los saca de la lista.
+- [ ] Campaña cerrada: "Subir lote" deshabilitado; la revisión es de solo lectura.
+- [ ] Tasas → "Subir lote" y "Revisar (N)": Hecho registra la tasa con su imagen; fecha repetida o fin de semana → error y sigue pendiente; cambiar la fecha leída → "La imagen es del …".

@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { FileSpreadsheet, Plus } from "lucide-react";
+import { Link } from "react-router";
+import { FileSpreadsheet, Images, ListChecks, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
@@ -11,6 +12,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { getDb } from "@/db";
 import { deleteTasa, listTasas, type TasaConUsos } from "@/db/repos/tasas";
+import { contarPendientesTasas } from "@/db/repos/cola";
 import { formatFecha, todayIso } from "@/domain/dates";
 import { formatTasa } from "@/domain/money";
 import { buildTasasWorkbook } from "@/export/tasasWorkbook";
@@ -35,6 +37,7 @@ let vistaRecordada = "calendario";
 
 export function TasasPage() {
   const { data, error } = useData((db) => listTasas(db), []);
+  const { data: pendientes } = useData((db) => contarPendientesTasas(db), []);
   // fecha: tasa nueva de un día elegido en el calendario.
   const [dialog, setDialog] = useState<{ open: boolean; tasa: TasaConUsos | null; fecha?: string }>({ open: false, tasa: null });
   const [borrar, setBorrar] = useState<TasaConUsos | null>(null);
@@ -77,6 +80,16 @@ export function TasasPage() {
               <FileSpreadsheet />
               Exportar a Excel
             </Button>
+            {!!pendientes && (
+              <Link to="/tasas/revision" className={buttonVariants({ variant: "outline" })}>
+                <ListChecks />
+                Revisar ({pendientes})
+              </Link>
+            )}
+            <Link to="/tasas/lote" className={buttonVariants({ variant: "outline" })}>
+              <Images />
+              Subir lote
+            </Link>
             <Button onClick={() => setDialog({ open: true, tasa: null })}>
               <Plus />
               Nueva tasa
