@@ -13,12 +13,14 @@ import { buildCampanaView } from "@/domain/campanaView";
 import { formatPeriodo } from "@/domain/dates";
 import { formatPct, formatUsd } from "@/domain/money";
 import { useData } from "@/hooks/useData";
+import { useAtajo } from "@/hooks/useAtajo";
 import { cn } from "@/lib/utils";
 import { CampanaFormDialog } from "./CampanaFormDialog";
 
 export function CampanasPage() {
   const navigate = useNavigate();
   const [nueva, setNueva] = useState(false);
+  useAtajo("n", () => setNueva(true));
   const { data, error } = useData(async (db) => {
     const campanas = await listCampanas(db);
     return Promise.all(
@@ -34,7 +36,7 @@ export function CampanasPage() {
       <PageHeader
         title="Campañas"
         actions={
-          <Button onClick={() => setNueva(true)}>
+          <Button title="N" onClick={() => setNueva(true)}>
             <Plus />
             Nueva campaña
           </Button>

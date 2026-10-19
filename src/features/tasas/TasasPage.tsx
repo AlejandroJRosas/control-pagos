@@ -19,6 +19,7 @@ import { buildTasasWorkbook } from "@/export/tasasWorkbook";
 import { archivoExcel } from "@/export/fileName";
 import { saveWorkbook } from "@/export/saveWorkbook";
 import { invalidate, useData } from "@/hooks/useData";
+import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { TasaFormDialog } from "./TasaFormDialog";
@@ -46,6 +47,7 @@ export function TasasPage() {
     vistaRecordada = v;
     setVistaState(v);
   };
+  useAtajo("n", () => setDialog({ open: true, tasa: null }));
   const { orden, alternar } = useOrden<Col>();
   const filas = useMemo(() => ordenar(data ?? [], COLUMNAS, orden), [data, orden]);
 
@@ -90,7 +92,7 @@ export function TasasPage() {
               <Images />
               Subir lote
             </Link>
-            <Button onClick={() => setDialog({ open: true, tasa: null })}>
+            <Button title="N" onClick={() => setDialog({ open: true, tasa: null })}>
               <Plus />
               Nueva tasa
             </Button>

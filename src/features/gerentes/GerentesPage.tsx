@@ -10,6 +10,7 @@ import { SortableHead, useOrden } from "@/components/SortableHead";
 import { getDb } from "@/db";
 import { listGerentesConCampanas, setGerenteActivo, type Gerente, type GerenteConCampanas } from "@/db/repos/gerentes";
 import { invalidate, useData } from "@/hooks/useData";
+import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { useFiltrosUrl } from "@/lib/filtrosUrl";
@@ -47,6 +48,7 @@ export function GerentesPage() {
     return ordenar((data ?? []).filter((g) => (verInactivos || g.activo) && coincide(g)), COLUMNAS, orden);
   }, [data, verInactivos, orden, f.q]);
   const nuevo = () => setDialog({ open: true, gerente: null });
+  useAtajo("n", nuevo);
 
   return (
     <div>
@@ -70,7 +72,7 @@ export function GerentesPage() {
               <input type="checkbox" checked={verInactivos} onChange={(e) => setVerInactivos(e.target.checked)} />
               Ver inactivos
             </label>
-            <Button onClick={nuevo}>
+            <Button title="N" onClick={nuevo}>
               <Plus />
               Nuevo gerente
             </Button>

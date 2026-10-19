@@ -1,14 +1,17 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { ChevronLeft } from "lucide-react";
+import { useAtajo } from "@/hooks/useAtajo";
 
 type Props = { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; back?: { to: string; label: string } };
 
 export function PageHeader({ title, subtitle, actions, back }: Props) {
+  const navigate = useNavigate();
+  useAtajo("Escape", () => back && navigate(back.to), { activo: !!back });
   return (
     <div className="mb-6 space-y-1">
       {back && (
-        <Link to={back.to} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link to={back.to} title="Esc" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ChevronLeft className="size-4" />
           {back.label}
         </Link>

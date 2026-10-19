@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { Plus } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -10,6 +10,7 @@ import { loadCampanaData } from "@/db/queries/campanaData";
 import { buildCampanaView, filtrarDepositos } from "@/domain/campanaView";
 import { DomainError } from "@/domain/errors";
 import { useData } from "@/hooks/useData";
+import { useAtajo } from "@/hooks/useAtajo";
 
 export function AsignacionPage() {
   const asignacionId = Number(useParams().asignacionId);
@@ -25,6 +26,9 @@ export function AsignacionPage() {
     },
     [asignacionId],
   );
+
+  const navigate = useNavigate();
+  useAtajo("n", () => navigate(`/asignaciones/${asignacionId}/depositos/nuevo`), { activo: data?.a.campanaEstado === "activa" });
 
   if (!data) return <Cargando error={error} />;
   const { a, resumen, r } = data;
@@ -43,7 +47,7 @@ export function AsignacionPage() {
               Registrar depósito
             </Button>
           ) : (
-            <Link to={`/asignaciones/${a.id}/depositos/nuevo`} className={buttonVariants()}>
+            <Link to={`/asignaciones/${a.id}/depositos/nuevo`} title="N" className={buttonVariants()}>
               <Plus />
               Registrar depósito
             </Link>

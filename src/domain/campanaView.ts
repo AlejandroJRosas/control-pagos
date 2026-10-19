@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { formatNumberVE, toUsd } from "./money";
-import { claveComparacion } from "./texto";
+import { coincideBusqueda } from "./busqueda";
 
 export type AsignacionData = { id: number; gerenteId: number; gerenteNombre: string; saldoUsd: string };
 
@@ -112,17 +112,13 @@ export function estadoGerente(r: Resumen): EstadoGerente {
   return restante.lte(0) ? "completo" : "en-curso";
 }
 
-const soloDigitos = (s: string) => s.replace(/\D/g, "");
-
 /** Búsqueda libre: referencia, banco, cuenta, gerente, observaciones y montos (con o sin separadores). */
 export function coincideTexto(d: DepositoCalculado, texto: string): boolean {
-  const k = claveComparacion(texto);
-  if (!k) return true;
-  const montos = [formatNumberVE(d.montoBs), formatNumberVE(d.usd)];
-  const campos = [d.referencia, d.banco, d.cuentaDestino, d.gerenteNombre, d.observaciones ?? "", ...montos];
-  if (campos.some((c) => claveComparacion(c).includes(k))) return true;
-  const digitos = soloDigitos(texto);
-  return /^[\d.,\s]+$/.test(texto) && digitos !== "" && montos.some((m) => soloDigitos(m).includes(digitos));
+  return coincideBusqueda(
+    [d.referencia, d.banco, d.cuentaDestino, d.gerenteNombre, d.observaciones ?? ""],
+    [formatNumberVE(d.montoBs), formatNumberVE(d.usd)],
+    texto,
+  );
 }
 
 export type FiltroDepositos = {

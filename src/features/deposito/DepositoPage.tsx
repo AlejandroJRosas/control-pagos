@@ -21,6 +21,7 @@ import { autollenadoExistente, autollenadoNuevo } from "@/extraction/autollenado
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
 import { useAvisoSinGuardar } from "@/hooks/useAvisoSinGuardar";
+import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { avisarDepositosEliminados } from "@/lib/deshacer";
 import { sugerenciasBancos } from "./bancos";
@@ -89,6 +90,8 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const [saving, setSaving] = useState(false);
   const huellaInicial = useRef(huella(f.form, imagen));
   const aviso = useAvisoSinGuardar(!cerrada && huella(f.form, imagen) !== huellaInicial.current);
+
+  useAtajo("Enter", () => void guardar(false), { ctrl: true, activo: !cerrada && !saving });
 
   async function onImagen(v: ImagenValue) {
     setImagen(v);
@@ -223,7 +226,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
                 Guardar y nuevo
               </Button>
             )}
-            <Button type="submit" disabled={cerrada || saving}>
+            <Button type="submit" disabled={cerrada || saving} title="Ctrl+Enter">
               Guardar
             </Button>
           </div>

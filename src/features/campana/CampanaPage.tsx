@@ -21,6 +21,7 @@ import { buildCampanaWorkbook } from "@/export/campanaWorkbook";
 import { archivoExcel } from "@/export/fileName";
 import { saveWorkbook } from "@/export/saveWorkbook";
 import { invalidate, useData } from "@/hooks/useData";
+import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { setCampanaActual } from "@/lib/campanaActual";
 import { CampanaFormDialog } from "@/features/campanas/CampanaFormDialog";
@@ -49,6 +50,9 @@ export function CampanaPage() {
   const [confirmEstado, setConfirmEstado] = useState(false);
   const [quitar, setQuitar] = useState<GerenteResumen | null>(null);
   const [eliminar, setEliminar] = useState(false);
+
+  const cerradaAtajo = data?.campana.estado !== "activa";
+  useAtajo("n", () => navigate(`/campanas/${campanaId}/depositos/nuevo`), { activo: !cerradaAtajo });
 
   const existe = data !== undefined;
   useEffect(() => {
@@ -141,7 +145,7 @@ export function CampanaPage() {
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="flex">
-              <Button disabled={cerrada} className="rounded-r-none" onClick={() => navigate(`/campanas/${campanaId}/depositos/nuevo`)}>
+              <Button disabled={cerrada} title="N" className="rounded-r-none" onClick={() => navigate(`/campanas/${campanaId}/depositos/nuevo`)}>
                 <Plus />
                 Registrar depósito
               </Button>
