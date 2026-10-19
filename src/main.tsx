@@ -6,7 +6,7 @@ import { reportError } from "./lib/reportError";
 import { getDb } from "./db";
 import { mantenimientoAlIniciar, marcarArranque } from "./platform/backup";
 import { invalidate } from "./hooks/useData";
-import { buscarActualizacion } from "./platform/actualizacion";
+import { buscarActualizacion, buscarPeriodicamente } from "./platform/actualizacion";
 import { warn } from "@tauri-apps/plugin-log";
 import { aplicarTemaGuardado } from "./lib/tema";
 import { instalarCierre } from "./lib/instalarCierre";
@@ -21,8 +21,13 @@ window.addEventListener("unhandledrejection", (e) => reportError(e.reason));
 
 instalarCierre().catch((e) => reportError(e, "Cierre de la ventana"));
 
-// Sin internet no se avisa nada: solo queda en el log.
-if (!import.meta.env.DEV) buscarActualizacion().catch((e) => warn(`Buscar actualización: ${String(e)}`).catch(() => {}));
+// Al abrir se ofrece el aviso; con la app abierta se vuelve a buscar cada hora y solo aparece el botón de la barra
+// lateral. Sin internet no se avisa nada: solo queda en el log.
+if (!import.meta.env.DEV) {
+  const avisarFallo = (e: unknown) => warn(`Buscar actualización: ${String(e)}`).catch(() => {});
+  buscarActualizacion().catch(avisarFallo);
+  buscarPeriodicamente(60 * 60 * 1000, avisarFallo);
+}
 
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
 const render = (contenido: React.ReactNode) =>
