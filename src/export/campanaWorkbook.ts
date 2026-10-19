@@ -2,7 +2,8 @@ import ExcelJS from "exceljs";
 import Decimal from "decimal.js";
 import type { Campana } from "@/db/repos/campanas";
 import type { CampanaView, DepositoCalculado } from "@/domain/campanaView";
-import { formatPeriodo } from "@/domain/dates";
+import { formatFecha, formatPeriodo, todayIso } from "@/domain/dates";
+import { COLOR, argb, textoRestante } from "./estilo";
 
 const MONEY = "#,##0.00";
 const TASA = "#,##0.0000";
@@ -31,24 +32,90 @@ export function safeSheetName(name: string, used: Set<string>): string {
   return candidate;
 }
 
-function styleHeader(ws: ExcelJS.Worksheet, rowNumber: number, columns: number): void {
-  const row = ws.getRow(rowNumber);
-  for (let c = 1; c <= columns; c++) {
-    const cell = row.getCell(c);
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E78" } };
-  }
-  ws.views = [{ state: "frozen", ySplit: rowNumber }];
-  ws.autoFilter = { from: { row: rowNumber, column: 1 }, to: { row: rowNumber, column: columns } };
+const MONEY_NEG = "#,##0.00;[Red]-#,##0.00";
+const USD_GRANDE = '"$ "#,##0.00;-"$ "#,##0.00';
+
+const solido = (c: string): ExcelJS.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb: argb(c) } });
+const lineaFina: Partial<ExcelJS.Border> = { style: "thin", color: { argb: argb(COLOR.linea) } };
+
+/** Filas 1-2: franja azul combinada a lo ancho con el título y el subtítulo. */
+function franjaTitulo(ws: ExcelJS.Worksheet, columnas: number, titulo: string, subtitulo: string): void {
+  ws.mergeCells(1, 1, 1, columnas);
+  ws.mergeCells(2, 1, 2, columnas);
+  const t = ws.getCell(1, 1);
+  t.value = titulo;
+  t.font = { bold: true, size: 17, color: { argb: argb("ffffff") } };
+  t.alignment = { vertical: "middle" };
+  ws.getRow(1).height = 28;
+  const st = ws.getCell(2, 1);
+  st.value = subtitulo;
+  st.font = { color: { argb: argb("c9d6e8") } };
+  for (const r of [1, 2]) for (let c = 1; c <= columnas; c++) ws.getCell(r, c).fill = solido(COLOR.azul);
 }
 
+/** Encabezado azul, filas alternadas, bordes finos, autofiltro y panel inmovilizado bajo el encabezado. */
+function estilarTabla(ws: ExcelJS.Worksheet, filaEncabezado: number, ultimaFila: number, columnas: number): void {
+  const enc = ws.getRow(filaEncabezado);
+  for (let c = 1; c <= columnas; c++) {
+    const cell = enc.getCell(c);
+    cell.font = { bold: true, color: { argb: argb("ffffff") } };
+    cell.fill = solido(COLOR.azul);
+    cell.alignment = { vertical: "middle" };
+  }
+  enc.height = 20;
+  for (let r = filaEncabezado + 1; r <= ultimaFila; r++) {
+    const banda = (r - filaEncabezado) % 2 === 0;
+    for (let c = 1; c <= columnas; c++) {
+      const cell = ws.getCell(r, c);
+      cell.border = { top: lineaFina, bottom: lineaFina, left: lineaFina, right: lineaFina };
+      if (banda) cell.fill = solido(COLOR.banda);
+    }
+  }
+  ws.views = [{ state: "frozen", ySplit: filaEncabezado }];
+  ws.autoFilter = { from: { row: filaEncabezado, column: 1 }, to: { row: filaEncabezado, column: columnas } };
+}
+
+function estilarTotal(row: ExcelJS.Row, columnas: number): void {
+  for (let c = 1; c <= columnas; c++) {
+    const cell = row.getCell(c);
+    cell.font = { ...cell.font, bold: true };
+    cell.fill = solido(COLOR.total);
+    cell.border = { top: { style: "medium", color: { argb: argb(COLOR.azul) } }, bottom: lineaFina };
+  }
+}
+
+const corte = (generadoEn: Date) => `Corte ${formatFecha(todayIso(generadoEn))}`;
+
 function addResumen(ws: ExcelJS.Worksheet, campana: Campana, view: CampanaView, generadoEn: Date): void {
-  ws.addRow(["Campaña", campana.nombre]);
-  ws.addRow(["Período", formatPeriodo(campana.fechaInicio, campana.fechaFin)]);
-  ws.addRow(["Estado", campana.estado === "activa" ? "Activa" : "Cerrada"]);
-  ws.addRow(["Generado", generadoEn.toLocaleString("es-VE")]);
-  ws.addRow([]);
-  ws.addRow(["Gerente", "Asignado USD", "Pagado USD", "Restante USD", "% avance", "Depósitos", "Último depósito"]);
+  const columnas = 7;
+  const estado = campana.estado === "activa" ? "Activa" : "Cerrada";
+  franjaTitulo(ws, columnas, campana.nombre, `${formatPeriodo(campana.fechaInicio, campana.fechaFin)} · ${estado} · ${corte(generadoEn)}`);
+
+  const { total } = view;
+  ["Asignado", "Pagado", "Restante", "Avance"].forEach((etiqueta, i) => {
+    const cell = ws.getCell(4, i + 1);
+    cell.value = etiqueta;
+    cell.font = { size: 10, color: { argb: argb(COLOR.gris) } };
+  });
+  const colorRestante = textoRestante(total).excedido ? COLOR.textoRojo : COLOR.textoAmbar;
+  const cifras: [ExcelJS.CellValue, string, string | null][] = [
+    [num(total.asignado), USD_GRANDE, null],
+    [num(total.pagado), USD_GRANDE, COLOR.textoVerde],
+    [num(total.restante), USD_GRANDE, colorRestante],
+    [total.pct / 100, PCT, null],
+  ];
+  cifras.forEach(([valor, fmt, color], i) => {
+    const cell = ws.getCell(5, i + 1);
+    cell.value = valor;
+    cell.numFmt = fmt;
+    cell.font = { bold: true, size: 14, ...(color ? { color: { argb: argb(color) } } : {}) };
+    cell.alignment = { horizontal: "left" };
+  });
+  ws.getRow(5).height = 22;
+
+  const filaEncabezado = 7;
+  ws.getRow(filaEncabezado).values = ["Gerente", "Asignado USD", "Pagado USD", "Restante USD", "% avance", "Depósitos", "Último depósito"];
+  const formatos = [null, MONEY, MONEY, MONEY_NEG, PCT, null, FECHA];
   const fila = (nombre: string, r: CampanaView["total"]) => [
     nombre,
     num(r.asignado),
@@ -58,15 +125,39 @@ function addResumen(ws: ExcelJS.Worksheet, campana: Campana, view: CampanaView, 
     r.cantidad,
     r.ultimaFecha ? isoToExcelDate(r.ultimaFecha) : null,
   ];
-  for (const g of view.gerentes) ws.addRow(fila(g.gerenteNombre, g));
-  ws.addRow(fila("TOTAL", view.total)).font = { bold: true };
+  const escribir = (n: number, valores: ExcelJS.CellValue[]) => {
+    const row = ws.getRow(n);
+    row.values = valores;
+    formatos.forEach((f, i) => f && (row.getCell(i + 1).numFmt = f));
+    return row;
+  };
+  view.gerentes.forEach((g, i) => escribir(filaEncabezado + 1 + i, fila(g.gerenteNombre, g)));
+  const ultimaFila = filaEncabezado + view.gerentes.length;
+  estilarTabla(ws, filaEncabezado, ultimaFila, columnas);
+  estilarTotal(escribir(ultimaFila + 1, fila("TOTAL", total)), columnas);
+  if (view.gerentes.length > 0) {
+    ws.addConditionalFormatting({
+      ref: `E${filaEncabezado + 1}:E${ultimaFila}`,
+      rules: [
+        {
+          type: "dataBar",
+          priority: 1,
+          gradient: true,
+          cfvo: [
+            { type: "num", value: 0 },
+            { type: "num", value: 1 },
+          ],
+          color: { argb: argb(COLOR.barraAzul) },
+        } as ExcelJS.DataBarRuleType,
+      ],
+    });
+  }
 
   ws.getColumn(1).width = 28;
-  for (const c of [2, 3, 4]) Object.assign(ws.getColumn(c), { width: 16, numFmt: MONEY });
-  Object.assign(ws.getColumn(5), { width: 12, numFmt: PCT });
+  for (const c of [2, 3, 4]) ws.getColumn(c).width = 16;
+  ws.getColumn(5).width = 14;
   ws.getColumn(6).width = 12;
-  Object.assign(ws.getColumn(7), { width: 16, numFmt: FECHA });
-  styleHeader(ws, 6, 7);
+  ws.getColumn(7).width = 16;
 }
 
 function addDepositos(ws: ExcelJS.Worksheet, deps: DepositoCalculado[], general: boolean): void {
@@ -100,7 +191,7 @@ function addDepositos(ws: ExcelJS.Worksheet, deps: DepositoCalculado[], general:
   }
   const sum = (k: "montoBs" | "usd") => deps.reduce((acc, d) => acc.plus(d[k]), new Decimal(0)).toNumber();
   ws.addRow({ banco: "TOTAL", montoBs: sum("montoBs"), usd: sum("usd") }).font = { bold: true };
-  styleHeader(ws, 1, ws.columns.length);
+  estilarTabla(ws, 1, ws.rowCount - 1, ws.columns.length);
 }
 
 export function buildCampanaWorkbook(campana: Campana, view: CampanaView, generadoEn: Date = new Date()): ExcelJS.Workbook {

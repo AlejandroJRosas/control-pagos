@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { buildCampanaWorkbook, isoToExcelDate, safeSheetName } from "./campanaWorkbook";
 import { archivoExcel } from "./fileName";
+import { COLOR, argb } from "./estilo";
 import { buildCampanaView, type DepositoData } from "@/domain/campanaView";
 import type { Campana } from "@/db/repos/campanas";
 
@@ -75,11 +76,13 @@ it("genera resumen, todos los depósitos y una hoja por gerente", async () => {
   expect(wb.worksheets.map((w) => w.name)).toEqual(["Resumen", "Todos los depósitos", "Ana", "Ana (2)"]);
 
   const resumen = wb.getWorksheet("Resumen")!;
-  expect(resumen.getCell("B1").value).toBe("Marzo");
-  expect(resumen.getRow(6).values).toEqual([, "Gerente", "Asignado USD", "Pagado USD", "Restante USD", "% avance", "Depósitos", "Último depósito"]);
-  expect(resumen.getCell("A7").value).toBe("Ana");
-  expect(resumen.getCell("C7").value).toBe(100);
-  const total = resumen.getRow(9);
+  expect(resumen.getCell("A1").value).toBe("Marzo");
+  expect(String(resumen.getCell("A2").value)).toContain("01/03/2026 – en curso · Activa · Corte 18/10/2026");
+  expect([resumen.getCell("A5").value, resumen.getCell("B5").value, resumen.getCell("C5").value, resumen.getCell("D5").value]).toEqual([150, 120, 30, 0.8]);
+  expect(resumen.getRow(7).values).toEqual([, "Gerente", "Asignado USD", "Pagado USD", "Restante USD", "% avance", "Depósitos", "Último depósito"]);
+  expect(resumen.getCell("A8").value).toBe("Ana");
+  expect(resumen.getCell("C8").value).toBe(100);
+  const total = resumen.getRow(10);
   expect(total.getCell(1).value).toBe("TOTAL");
   expect(total.getCell(2).value).toBe(150);
   expect(total.getCell(3).value).toBe(120);
@@ -99,4 +102,31 @@ it("genera resumen, todos los depósitos y una hoja por gerente", async () => {
   const ana = wb.getWorksheet("Ana")!;
   expect(ana.getCell("H2").value).toBe(0);
   expect(ana.getCell("I2").value).toBe("obs");
+});
+
+const fondo = (c: ExcelJS.Cell) => (c.fill?.type === "pattern" ? c.fill.fgColor?.argb : undefined);
+
+it("resumen con formato: franja, filas alternadas, barra de datos y total", () => {
+  const view = buildCampanaView(
+    [
+      { id: 1, gerenteId: 10, gerenteNombre: "Ana", saldoUsd: "100" },
+      { id: 2, gerenteId: 20, gerenteNombre: "Luis", saldoUsd: "50" },
+    ],
+    [dep(1, 1, "2026-03-02", "3650")],
+  );
+  const ws = buildCampanaWorkbook(campana, view, new Date("2026-10-18T12:00:00Z")).getWorksheet("Resumen")!;
+  expect(ws.getCell("A1").isMerged).toBe(true);
+  expect(fondo(ws.getCell("A1"))).toBe(argb(COLOR.azul));
+  expect(fondo(ws.getCell("A8"))).toBeUndefined();
+  expect(fondo(ws.getCell("A9"))).toBe(argb(COLOR.banda));
+  const reglas = ws.conditionalFormattings.flatMap((cf: ExcelJS.ConditionalFormattingOptions) => cf.rules.map((r) => ({ ref: cf.ref, type: r.type })));
+  expect(reglas).toContainEqual({ ref: "E8:E9", type: "dataBar" });
+  expect(ws.getCell("A10").value).toBe("TOTAL");
+  expect(ws.getCell("A10").font.bold).toBe(true);
+});
+
+it("campaña sin gerentes: el total queda en la primera fila de la tabla", () => {
+  const ws = buildCampanaWorkbook(campana, buildCampanaView([], [])).getWorksheet("Resumen")!;
+  expect(ws.getCell("A8").value).toBe("TOTAL");
+  expect(ws.conditionalFormattings).toHaveLength(0);
 });
