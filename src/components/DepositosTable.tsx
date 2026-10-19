@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import Decimal from "decimal.js";
 import { useNavigate } from "react-router";
 import { Trash2 } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { FilaDeposito } from "@/domain/campanaView";
@@ -12,6 +11,7 @@ import { getDb } from "@/db";
 import { deleteDepositos } from "@/db/repos/depositos";
 import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { avisarDepositosEliminados } from "@/lib/deshacer";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { ComprobanteThumb } from "./ComprobanteThumb";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -71,8 +71,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
 
   async function eliminar(ids: number[]) {
     try {
-      await deleteDepositos(await getDb(), ids);
-      toast.success(ids.length === 1 ? "Depósito eliminado" : `${ids.length} depósitos eliminados`);
+      avisarDepositosEliminados(await deleteDepositos(await getDb(), ids));
       setMarcados((m) => new Set([...m].filter((id) => !ids.includes(id))));
       invalidate();
     } catch (e) {
@@ -87,7 +86,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
       {!soloLectura && elegidos.length > 0 && (
         <div className="flex items-center gap-3 rounded-md border bg-fila-hover px-3 py-2 text-sm">
           <span className="font-medium">{elegidos.length} seleccionado(s)</span>
-          <Button size="sm" variant="destructive" onClick={() => setBorrar(elegidos)}>
+          <Button size="sm" variant="destructive" onClick={() => (elegidos.length === 1 ? void eliminar(elegidos) : setBorrar(elegidos))}>
             <Trash2 />
             Eliminar seleccionados
           </Button>
@@ -158,7 +157,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
               <TableCell>{d.imagenPath ? <ComprobanteThumb path={d.imagenPath} /> : "—"}</TableCell>
               {!soloLectura && (
                 <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Button size="icon-sm" variant="ghost" title="Eliminar depósito" aria-label="Eliminar depósito" onClick={() => setBorrar([d.id])}>
+                  <Button size="icon-sm" variant="ghost" title="Eliminar depósito" aria-label="Eliminar depósito" onClick={() => void eliminar([d.id])}>
                     <Trash2 className="text-destructive" />
                   </Button>
                 </TableCell>
@@ -181,12 +180,8 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
       <ConfirmDialog
         open={borrar !== null}
         onOpenChange={(o) => !o && setBorrar(null)}
-        title={borrar && borrar.length > 1 ? `Eliminar ${borrar.length} depósitos` : "Eliminar depósito"}
-        description={
-          borrar && borrar.length > 1
-            ? `Se eliminarán ${borrar.length} depósitos y los saldos se recalcularán.`
-            : "El depósito se eliminará y los saldos se recalcularán."
-        }
+        title={`Eliminar ${borrar?.length ?? 0} depósitos`}
+        description={`Se eliminarán ${borrar?.length ?? 0} depósitos y los saldos se recalcularán. Podrás deshacerlo desde el aviso.`}
         confirmLabel="Eliminar"
         destructive
         onConfirm={() => (borrar ? eliminar(borrar) : undefined)}

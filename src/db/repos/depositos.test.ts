@@ -4,7 +4,8 @@ import { createTestDb } from "../testing/sqljsDriver";
 import { depositoBase, seedBasico } from "../testing/fixtures";
 import { createTasa } from "./tasas";
 import { setEstadoCampana } from "./campanas";
-import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, getDeposito, listBancosUsados, updateDeposito } from "./depositos";
+import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, getDeposito, listBancosUsados, restaurarDepositos, updateDeposito } from "./depositos";
+import { borradorDepositoVacio, encolarDeposito, getItemColaDeposito } from "./cola";
 
 let db: SqlDriver;
 let s: Awaited<ReturnType<typeof seedBasico>>;
@@ -80,4 +81,36 @@ it("elimina varios depósitos a la vez, o ninguno si alguno es de una campaña c
   await expect(deleteDepositos(db, [c])).rejects.toMatchObject({ code: "CAMPANA_CERRADA" });
   expect(await getDeposito(db, c)).not.toBeNull();
   await deleteDepositos(db, []);
+});
+
+it("restaura los depósitos eliminados con el mismo id, fechas de creación y enlace de la cola", async () => {
+  const a = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { observaciones: "x", imagenPath: "imagenes/a.png" }));
+  const b = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "2" }));
+  const antes = [await getDeposito(db, a), await getDeposito(db, b)];
+  const colaId = await encolarDeposito(db, s.campanaId, { imagenPath: "imagenes/a.png", nombreArchivo: null, borrador: borradorDepositoVacio() });
+  await db.execute("UPDATE cola_depositos SET estado = 'hecho', deposito_id = ? WHERE id = ?", [a, colaId]);
+
+  const eliminados = await deleteDepositos(db, [a, b]);
+  expect(eliminados.depositos).toEqual(antes);
+  await db.execute("UPDATE cola_depositos SET deposito_id = NULL WHERE id = ?", [colaId]);
+
+  await restaurarDepositos(db, eliminados);
+  expect([await getDeposito(db, a), await getDeposito(db, b)]).toEqual(antes);
+  expect((await getItemColaDeposito(db, colaId))?.depositoId).toBe(a);
+});
+
+it("no restaura nada si la campaña se cerró mientras tanto", async () => {
+  const a = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
+  const eliminados = await deleteDepositos(db, [a]);
+  await setEstadoCampana(db, s.campanaId, "cerrada");
+  await expect(restaurarDepositos(db, eliminados)).rejects.toMatchObject({ code: "CAMPANA_CERRADA" });
+  expect(await getDeposito(db, a)).toBeNull();
+});
+
+it("eliminar uno también devuelve lo necesario para restaurarlo", async () => {
+  const a = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
+  const antes = await getDeposito(db, a);
+  const eliminados = await deleteDeposito(db, a);
+  await restaurarDepositos(db, eliminados);
+  expect(await getDeposito(db, a)).toEqual(antes);
 });

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando } from "@/components/Feedback";
 import { ImageDrop } from "@/components/ImageDrop";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { getDb } from "@/db";
 import { getAsignacion, type AsignacionDetalle } from "@/db/repos/asignaciones";
 import { createDeposito, deleteDeposito, getDeposito, listBancosUsados, updateDeposito, type Deposito } from "@/db/repos/depositos";
@@ -23,6 +22,7 @@ import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
 import { useAvisoSinGuardar } from "@/hooks/useAvisoSinGuardar";
 import { reportError } from "@/lib/reportError";
+import { avisarDepositosEliminados } from "@/lib/deshacer";
 import { sugerenciasBancos } from "./bancos";
 import { DepositoCampos } from "./DepositoCampos";
 import { camposOcr, conExtraccion, depositoVacio, SIN_DESTINO, useDepositoForm, type DepositoFormState } from "./useDepositoForm";
@@ -87,7 +87,6 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const [imagen, setImagen] = useState<ImagenValue>(deposito?.imagenPath ? { kind: "stored", path: deposito.imagenPath } : null);
   const [tasaDialog, setTasaDialog] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const huellaInicial = useRef(huella(f.form, imagen));
   const aviso = useAvisoSinGuardar(!cerrada && huella(f.form, imagen) !== huellaInicial.current);
 
@@ -161,14 +160,12 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   async function eliminar() {
     if (!deposito) return;
     try {
-      await deleteDeposito(await getDb(), deposito.id);
-      toast.success("Depósito eliminado");
+      avisarDepositosEliminados(await deleteDeposito(await getDb(), deposito.id));
       aviso.permitirSalida();
       navigate(`/asignaciones/${deposito.asignacionId}`, { replace: true });
       invalidate();
     } catch (e) {
       reportError(e);
-      setConfirmDelete(false);
     }
   }
 
@@ -180,7 +177,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
         subtitle={asignacion ? `${asignacion.gerenteNombre} · ${asignacion.campanaNombre}` : `Campaña ${campana.nombre}`}
         actions={
           deposito && !cerrada ? (
-            <Button variant="outline" className="text-destructive" onClick={() => setConfirmDelete(true)}>
+            <Button variant="outline" className="text-destructive" onClick={() => void eliminar()}>
               <Trash2 />
               Eliminar
             </Button>
@@ -233,15 +230,6 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
         </form>
       </div>
 
-      <ConfirmDialog
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-        title="Eliminar depósito"
-        description="El depósito se eliminará y los saldos se recalcularán."
-        confirmLabel="Eliminar"
-        destructive
-        onConfirm={eliminar}
-      />
       {aviso.dialogo}
     </div>
   );

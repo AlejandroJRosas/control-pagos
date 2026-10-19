@@ -76,17 +76,52 @@ export async function updateDeposito(db: SqlDriver, id: number, v: DepositoGuard
   );
 }
 
-export async function deleteDeposito(db: SqlDriver, id: number): Promise<void> {
-  const actual = await requireDeposito(db, id);
-  await assertEditable(db, actual.asignacionId);
-  await db.execute("DELETE FROM depositos WHERE id = ?", [id]);
-}
+/** Lo que hace falta para deshacer una eliminación: las filas tal cual y los enlaces de la cola de revisión. */
+export type Eliminados = { depositos: Deposito[]; cola: { id: number; depositoId: number }[] };
+
+export const deleteDeposito = (db: SqlDriver, id: number): Promise<Eliminados> => deleteDepositos(db, [id]);
 
 /** Elimina todos o ninguno: primero se comprueba que cada uno exista y sea editable. */
-export async function deleteDepositos(db: SqlDriver, ids: number[]): Promise<void> {
-  if (ids.length === 0) return;
-  for (const id of ids) await assertEditable(db, (await requireDeposito(db, id)).asignacionId);
-  await db.execute(`DELETE FROM depositos WHERE id IN (${ids.map(() => "?").join(", ")})`, ids);
+export async function deleteDepositos(db: SqlDriver, ids: number[]): Promise<Eliminados> {
+  if (ids.length === 0) return { depositos: [], cola: [] };
+  const depositos: Deposito[] = [];
+  for (const id of ids) {
+    const d = await requireDeposito(db, id);
+    await assertEditable(db, d.asignacionId);
+    depositos.push(d);
+  }
+  const marcas = ids.map(() => "?").join(", ");
+  const cola = await db.select<{ id: number; depositoId: number }>(
+    `SELECT id, deposito_id AS depositoId FROM cola_depositos WHERE deposito_id IN (${marcas})`,
+    ids,
+  );
+  await db.execute(`DELETE FROM depositos WHERE id IN (${marcas})`, ids);
+  return { depositos, cola };
+}
+
+/** Deshace `deleteDepositos`: vuelve a insertar las filas con su id. Todos o ninguno. */
+export async function restaurarDepositos(db: SqlDriver, e: Eliminados): Promise<void> {
+  for (const d of e.depositos) {
+    await assertEditable(db, d.asignacionId);
+    if (!(await getTasa(db, d.tasaId))) throw new DomainError("NO_ENCONTRADO", "La tasa del depósito ya no existe");
+    if (await getDeposito(db, d.id)) throw new DomainError("VALIDACION", "El depósito ya fue restaurado");
+  }
+  const insertados: number[] = [];
+  try {
+    for (const d of e.depositos) {
+      await db.execute(
+        `INSERT INTO depositos (id, asignacion_id, tasa_id, fecha, banco, referencia, cuenta_destino, monto_bs, observaciones, imagen_path, creado_en, actualizado_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [d.id, d.asignacionId, d.tasaId, d.fecha, d.banco, d.referencia, d.cuentaDestino, d.montoBs, d.observaciones, d.imagenPath, d.creadoEn, d.actualizadoEn],
+      );
+      insertados.push(d.id);
+    }
+  } catch (err) {
+    if (insertados.length > 0) await db.execute(`DELETE FROM depositos WHERE id IN (${insertados.map(() => "?").join(", ")})`, insertados);
+    throw err;
+  }
+  // El enlace de la cola es informativo: si el elemento ya no existe, no pasa nada.
+  for (const c of e.cola) await db.execute("UPDATE cola_depositos SET deposito_id = ? WHERE id = ? AND deposito_id IS NULL", [c.depositoId, c.id]);
 }
 
 /** Clave de comparación: sin mayúsculas, acentos ni espacios (SQLite `lower` solo pliega ASCII). */
