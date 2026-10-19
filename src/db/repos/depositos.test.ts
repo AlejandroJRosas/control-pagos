@@ -4,7 +4,7 @@ import { createTestDb } from "../testing/sqljsDriver";
 import { depositoBase, seedBasico } from "../testing/fixtures";
 import { createTasa } from "./tasas";
 import { setEstadoCampana } from "./campanas";
-import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, getDeposito, listBancosUsados, restaurarDepositos, updateDeposito } from "./depositos";
+import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, getDeposito, listBancosUsados, listCuentasDestinoUsadas, restaurarDepositos, updateDeposito } from "./depositos";
 import { borradorDepositoVacio, encolarDeposito, getItemColaDeposito } from "./cola";
 
 let db: SqlDriver;
@@ -119,4 +119,11 @@ it("detecta duplicados con alias de banco y sin ceros iniciales", async () => {
   const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Banco de Venezuela", referencia: "000777" }));
   expect((await findDuplicados(db, "BDV", "777")).map((d) => d.id)).toEqual([id]);
   expect(await findDuplicados(db, "Banesco", "777")).toEqual([]);
+});
+
+it("lista las cuentas destino usadas sin repetir", async () => {
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: "A", referencia: "1" }));
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: " A ", referencia: "2" }));
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: "B", referencia: "3" }));
+  expect(await listCuentasDestinoUsadas(db)).toEqual(["A", "B"]);
 });

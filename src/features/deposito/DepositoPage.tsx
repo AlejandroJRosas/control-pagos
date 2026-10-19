@@ -8,7 +8,7 @@ import { Aviso, Cargando } from "@/components/Feedback";
 import { ImageDrop } from "@/components/ImageDrop";
 import { getDb } from "@/db";
 import { getAsignacion, type AsignacionDetalle } from "@/db/repos/asignaciones";
-import { createDeposito, deleteDeposito, getDeposito, listBancosUsados, updateDeposito, type Deposito } from "@/db/repos/depositos";
+import { createDeposito, deleteDeposito, getDeposito, listBancosUsados, listCuentasDestinoUsadas, updateDeposito, type Deposito } from "@/db/repos/depositos";
 import { listGerentes, type Gerente } from "@/db/repos/gerentes";
 import { registrarDepositoEnCampana } from "@/db/operaciones/destino";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
@@ -17,6 +17,7 @@ import { DomainError } from "@/domain/errors";
 import { toInputVE } from "@/domain/money";
 import type { DepositoDraft } from "@/domain/validation";
 import { extractor } from "@/extraction/extractor";
+import { ajustarCuentaDestino } from "@/extraction/cuentaConocida";
 import { autollenadoExistente, autollenadoNuevo } from "@/extraction/autollenado";
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
@@ -111,8 +112,9 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
     setLeyendo(true);
     try {
       const r = await extractor.extraerDeposito(file);
+      const fields = ajustarCuentaDestino(r.fields, await listCuentasDestinoUsadas(await getDb()));
       if (imagenVigente.current !== file) return;
-      f.setForm((s) => conExtraccion(s, r.fields, fechaInicial.current));
+      f.setForm((s) => conExtraccion(s, fields, fechaInicial.current));
       if (r.formato === null) toast.info("No se reconoció el formato del comprobante; completa los datos a mano");
     } catch (e) {
       if (imagenVigente.current === file) reportError(e, "Lectura del comprobante");

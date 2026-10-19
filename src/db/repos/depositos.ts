@@ -150,3 +150,8 @@ export async function listBancosUsados(db: SqlDriver): Promise<string[]> {
   const rows = await db.select<{ banco: string }>("SELECT DISTINCT trim(banco) AS banco FROM depositos ORDER BY banco COLLATE NOCASE");
   return rows.map((r) => r.banco);
 }
+
+export async function listCuentasDestinoUsadas(db: SqlDriver): Promise<string[]> {
+  const rows = await db.select<{ cuenta: string }>("SELECT DISTINCT trim(cuenta_destino) AS cuenta FROM depositos ORDER BY cuenta");
+  return rows.map((r) => r.cuenta);
+}
