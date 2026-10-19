@@ -2,13 +2,15 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TasaConUsos } from "@/db/repos/tasas";
+import type { Feriado } from "@/db/repos/feriados";
 import { calendarioTasas, mesSiguiente, type DiaCalendario } from "@/domain/calendarioTasas";
-import { formatFecha, todayIso } from "@/domain/dates";
+import { formatFecha, nombreDia, todayIso } from "@/domain/dates";
 import { formatTasa } from "@/domain/money";
 import { cn } from "@/lib/utils";
 
 type Props = {
   tasas: TasaConUsos[];
+  feriados: Feriado[];
   onRegistrar: (fecha: string) => void;
   onEditar: (t: TasaConUsos) => void;
 };
@@ -20,14 +22,15 @@ const nombreMes = (mes: string) =>
 /** Mes visto durante la sesión, para no perderlo al ir a otra pantalla y volver. */
 let mesRecordado: string | null = null;
 
-export function CalendarioTasas({ tasas, onRegistrar, onEditar }: Props) {
+export function CalendarioTasas({ tasas, feriados, onRegistrar, onEditar }: Props) {
   const hoy = todayIso();
   const [mes, setMesState] = useState(() => mesRecordado ?? hoy.slice(0, 7));
   const setMes = (m: string) => {
     mesRecordado = m;
     setMesState(m);
   };
-  const { semanas, faltan } = useMemo(() => calendarioTasas(mes, tasas, hoy), [mes, tasas, hoy]);
+  const nombres = useMemo(() => new Map(feriados.map((f) => [f.fecha, f.nombre])), [feriados]);
+  const { semanas, faltan } = useMemo(() => calendarioTasas(mes, tasas, hoy, new Set(nombres.keys())), [mes, tasas, hoy, nombres]);
 
   return (
     <div className="space-y-3">
@@ -48,7 +51,7 @@ export function CalendarioTasas({ tasas, onRegistrar, onEditar }: Props) {
         <div className="ml-auto flex flex-wrap gap-3 text-xs text-muted-foreground">
           <Leyenda className="border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950" texto="Con tasa" />
           <Leyenda className="border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" texto="Falta la tasa" />
-          <Leyenda className="border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900" texto="Fin de semana (usa la del viernes)" />
+          <Leyenda className="border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900" texto="Fin de semana o feriado (usa la del día hábil anterior)" />
         </div>
       </div>
       <div className="grid grid-cols-7 gap-1.5">
@@ -58,7 +61,7 @@ export function CalendarioTasas({ tasas, onRegistrar, onEditar }: Props) {
           </div>
         ))}
         {semanas.flat().map((d) => (
-          <Dia key={d.fecha} d={d} hoy={d.fecha === hoy} onRegistrar={onRegistrar} onEditar={onEditar} />
+          <Dia key={d.fecha} d={d} hoy={d.fecha === hoy} feriado={nombres.get(d.fecha)} onRegistrar={onRegistrar} onEditar={onEditar} />
         ))}
       </div>
     </div>
@@ -74,9 +77,16 @@ function Leyenda({ className, texto }: { className: string; texto: string }) {
   );
 }
 
-type DiaProps = { d: DiaCalendario<TasaConUsos>; hoy: boolean; onRegistrar: (fecha: string) => void; onEditar: (t: TasaConUsos) => void };
+type DiaProps = {
+  d: DiaCalendario<TasaConUsos>;
+  hoy: boolean;
+  /** Nombre del feriado (null si no tiene; undefined si no es feriado). */
+  feriado: string | null | undefined;
+  onRegistrar: (fecha: string) => void;
+  onEditar: (t: TasaConUsos) => void;
+};
 
-function Dia({ d, hoy, onRegistrar, onEditar }: DiaProps) {
+function Dia({ d, hoy, feriado, onRegistrar, onEditar }: DiaProps) {
   const base = cn(
     "flex h-20 flex-col rounded-md border p-1.5 text-left text-xs transition-colors",
     !d.delMes && "opacity-40",
@@ -99,17 +109,24 @@ function Dia({ d, hoy, onRegistrar, onEditar }: DiaProps) {
       </button>
     );
   }
-  if (d.estado === "finde") {
+  if (d.estado === "finde" || d.estado === "feriado") {
+    const etiqueta = d.estado === "feriado" ? "Feriado" : null;
     return (
-      <div className={cn(base, "border-slate-200 bg-slate-100 text-muted-foreground dark:border-slate-800 dark:bg-slate-900")}>
-        {numero}
+      <div
+        className={cn(base, "border-slate-200 bg-slate-100 text-muted-foreground dark:border-slate-800 dark:bg-slate-900")}
+        title={etiqueta ? `Feriado${feriado ? `: ${feriado}` : ""}` : undefined}
+      >
+        <span className="flex items-baseline gap-1">
+          {numero}
+          {etiqueta && <span className="truncate font-medium">{feriado ?? etiqueta}</span>}
+        </span>
         {d.tasa ? (
           <>
             <span className="mt-auto tabular-nums">{formatTasa(d.tasa.valor)}</span>
-            <span>la del viernes</span>
+            <span>la del {nombreDia(d.tasa.fecha)}</span>
           </>
         ) : (
-          <span className="mt-auto text-amber-700 dark:text-amber-400">falta la del viernes</span>
+          <span className="mt-auto text-amber-700 dark:text-amber-400">falta la del día hábil anterior</span>
         )}
       </div>
     );

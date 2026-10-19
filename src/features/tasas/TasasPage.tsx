@@ -24,6 +24,8 @@ import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { TasaFormDialog } from "./TasaFormDialog";
 import { CalendarioTasas } from "./CalendarioTasas";
+import { FeriadosCard } from "./FeriadosCard";
+import { listFeriados } from "@/db/repos/feriados";
 
 type Col = "fecha" | "valor" | "notas" | "usos";
 const COLUMNAS: Columnas<TasaConUsos, Col> = {
@@ -39,6 +41,7 @@ let vistaRecordada = "calendario";
 export function TasasPage() {
   const { data, error } = useData((db) => listTasas(db), []);
   const { data: pendientes } = useData((db) => contarPendientesTasas(db), []);
+  const { data: feriados } = useData((db) => listFeriados(db), []);
   // fecha: tasa nueva de un día elegido en el calendario.
   const [dialog, setDialog] = useState<{ open: boolean; tasa: TasaConUsos | null; fecha?: string }>({ open: false, tasa: null });
   const [borrar, setBorrar] = useState<TasaConUsos | null>(null);
@@ -106,10 +109,12 @@ export function TasasPage() {
           <TabsList>
             <TabsTrigger value="calendario">Calendario</TabsTrigger>
             <TabsTrigger value="lista">Lista ({data.length})</TabsTrigger>
+            <TabsTrigger value="feriados">Feriados</TabsTrigger>
           </TabsList>
           <TabsContent value="calendario">
             <CalendarioTasas
               tasas={data}
+              feriados={feriados ?? []}
               onRegistrar={(fecha) => setDialog({ open: true, tasa: null, fecha })}
               onEditar={(tasa) => setDialog({ open: true, tasa })}
             />
@@ -175,6 +180,9 @@ export function TasasPage() {
                 </TableBody>
               </Table>
             )}
+          </TabsContent>
+          <TabsContent value="feriados">
+            <FeriadosCard feriados={feriados ?? []} />
           </TabsContent>
         </Tabs>
       )}

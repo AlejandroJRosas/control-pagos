@@ -59,3 +59,8 @@ export function mascaraFecha(texto: string): string {
   const d = texto.replace(/\D/g, "").slice(0, 8);
   return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join("/");
 }
+
+const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+
+/** Nombre del día de la semana en español ("lunes"). */
+export const nombreDia = (iso: string): string => DIAS[diaSemana(iso)];

@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { confClass } from "@/lib/confianza";
 import type { TasaDraft } from "@/domain/validation";
 import { formatTasa, parseTasa } from "@/domain/money";
-import { esFinDeSemana, fechaDeTasa, formatFecha, isValidIsoDate } from "@/domain/dates";
+import { esFinDeSemana, fechaDeTasa, formatFecha, isValidIsoDate, nombreDia } from "@/domain/dates";
+import { useFeriados } from "@/hooks/useFeriados";
 import type { Autollenado } from "@/extraction/autollenado";
 import type { CamposTasa } from "@/extraction/extractor";
 
@@ -28,6 +29,7 @@ type Props = {
 export function TasaCampos({ form, set, errors, fechaBloqueada, fechaImagen, avisoFinDeSemana = true, avisosExtra }: Props) {
   const draft = form.draft;
   const nuevoValor = parseTasa(draft.valor);
+  const feriados = useFeriados();
   return (
     <>
       <div className="grid grid-cols-2 gap-4">
@@ -53,7 +55,14 @@ export function TasaCampos({ form, set, errors, fechaBloqueada, fechaImagen, avi
       </div>
       {avisoFinDeSemana && isValidIsoDate(draft.fecha) && esFinDeSemana(draft.fecha) && (
         <Aviso tono="warning">
-          Los sábados y domingos no llevan tasa propia: usan la del viernes {formatFecha(fechaDeTasa(draft.fecha))}. Registra la tasa en esa fecha.
+          Los sábados y domingos no llevan tasa propia: usan la del {nombreDia(fechaDeTasa(draft.fecha, feriados))}{" "}
+          {formatFecha(fechaDeTasa(draft.fecha, feriados))}. Registra la tasa en esa fecha.
+        </Aviso>
+      )}
+      {avisoFinDeSemana && isValidIsoDate(draft.fecha) && feriados.has(draft.fecha) && (
+        <Aviso tono="warning">
+          El {formatFecha(draft.fecha)} es feriado: usa la tasa del {nombreDia(fechaDeTasa(draft.fecha, feriados))}{" "}
+          {formatFecha(fechaDeTasa(draft.fecha, feriados))}. Registra la tasa en esa fecha.
         </Aviso>
       )}
       {avisosExtra}

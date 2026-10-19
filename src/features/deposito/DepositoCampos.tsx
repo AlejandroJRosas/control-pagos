@@ -10,7 +10,8 @@ import { DestinoGerente } from "@/components/DestinoGerente";
 import type { AsignacionDetalle } from "@/db/repos/asignaciones";
 import type { Gerente } from "@/db/repos/gerentes";
 import type { CampanaData } from "@/db/queries/campanaData";
-import { fechaDeTasa, formatFecha, isValidIsoDate } from "@/domain/dates";
+import { fechaDeTasa, formatFecha, isValidIsoDate, nombreDia } from "@/domain/dates";
+import { useFeriados } from "@/hooks/useFeriados";
 import { formatBs, formatTasa, formatUsd, parseMonto, toInputVE } from "@/domain/money";
 import { cn } from "@/lib/utils";
 import { confClass } from "@/lib/confianza";
@@ -41,6 +42,10 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
   const draft = form.draft;
   const { usd, restanteGerente, restanteGeneral } = f.calculo;
   const fechaValida = isValidIsoDate(draft.fecha);
+  const feriados = useFeriados();
+  // Día cuya tasa rige: sábado, domingo y feriados usan la del último día hábil anterior.
+  const fechaTasa = fechaValida ? fechaDeTasa(draft.fecha, feriados) : draft.fecha;
+  const motivo = feriados.has(draft.fecha) ? "Feriado: " : "";
 
   return (
     <>
@@ -59,15 +64,19 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
               ) : tasa ? (
                 <span className="font-medium tabular-nums">
                   {formatTasa(tasa.valor)} Bs/USD
-                  {tasa.fecha !== draft.fecha && <span className="ml-1 font-normal text-muted-foreground">(la del viernes {formatFecha(tasa.fecha)})</span>}
+                  {tasa.fecha !== draft.fecha && (
+                    <span className="ml-1 font-normal text-muted-foreground">
+                      ({motivo}la del {nombreDia(tasa.fecha)} {formatFecha(tasa.fecha)})
+                    </span>
+                  )}
                 </span>
               ) : (
                 <>
                   <span className="text-amber-700 dark:text-amber-400">
                     {!fechaValida
                       ? "Elige una fecha"
-                      : fechaDeTasa(draft.fecha) !== draft.fecha
-                        ? `Sin tasa del viernes ${formatFecha(fechaDeTasa(draft.fecha))}`
+                      : fechaTasa !== draft.fecha
+                        ? `${motivo ? "Feriado: sin" : "Sin"} tasa del ${nombreDia(fechaTasa)} ${formatFecha(fechaTasa)}`
                         : `Sin tasa para el ${formatFecha(draft.fecha)}`}
                   </span>
                   <Button type="button" size="sm" variant="outline" disabled={!fechaValida} onClick={() => setTasaDialog(true)}>
@@ -158,7 +167,7 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
 
       <TasaFormDialog
         tasa={null}
-        fechaFija={fechaValida ? fechaDeTasa(draft.fecha) : draft.fecha}
+        fechaFija={fechaTasa}
         open={tasaDialog}
         onOpenChange={setTasaDialog}
         onSaved={f.setTasa}

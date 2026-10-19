@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { esDiaHabil, esFinDeSemana, fechaDeTasa, formatFecha, formatPeriodo, isValidIsoDate, mascaraFecha, parseFechaVE, sumarDias, todayIso } from "./dates";
+import { esDiaHabil, nombreDia, esFinDeSemana, fechaDeTasa, formatFecha, formatPeriodo, isValidIsoDate, mascaraFecha, parseFechaVE, sumarDias, todayIso } from "./dates";
 
 it("formatFecha", () => {
   expect(formatFecha("2026-10-18")).toBe("18/10/2026");
@@ -73,4 +73,11 @@ it("esDiaHabil: ni fin de semana ni feriado", () => {
   expect(esDiaHabil("2026-10-19")).toBe(true);
   expect(esDiaHabil("2026-10-18")).toBe(false);
   expect(esDiaHabil("2026-10-12", new Set(["2026-10-12"]))).toBe(false);
+});
+
+it("nombreDia en español", () => {
+  expect(nombreDia("2026-10-19")).toBe("lunes");
+  expect(nombreDia("2026-10-16")).toBe("viernes");
+  expect(nombreDia("2026-10-14")).toBe("miércoles");
+  expect(nombreDia("2026-10-17")).toBe("sábado");
 });
