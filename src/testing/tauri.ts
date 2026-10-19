@@ -7,6 +7,8 @@ export const tauri = {
   /** Respuesta de `invoke` por comando; lo que no esté da null. */
   invoke: vi.fn(async (_cmd: string, _args?: unknown): Promise<unknown> => null),
   openUrl: vi.fn(async (_url: string) => {}),
+  /** Lo que devuelve `check()` del updater (null = al día). */
+  update: null as unknown,
 };
 
 export function reiniciarTauri() {
@@ -14,4 +16,5 @@ export function reiniciarTauri() {
   tauri.invoke.mockReset();
   tauri.invoke.mockImplementation(async () => null);
   tauri.openUrl.mockReset();
+  tauri.update = null;
 }

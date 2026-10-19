@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router";
-import { FolderKanban, FolderOpen, Keyboard, LineChart, PanelLeftClose, PanelLeftOpen, Search, Settings, Users } from "lucide-react";
+import { Download, FolderKanban, FolderOpen, Keyboard, LineChart, PanelLeftClose, PanelLeftOpen, Search, Settings, Users } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { BusquedaGlobal } from "@/components/BusquedaGlobal";
 import { AyudaAtajos, Tecla } from "@/components/AyudaAtajos";
@@ -12,6 +12,7 @@ import { getCampana } from "@/db/repos/campanas";
 import { useData } from "@/hooks/useData";
 import { useBarraLateral } from "@/lib/barraLateral";
 import { useZoomApp } from "@/lib/zoomApp";
+import { abrirAvisoActualizacion, useActualizacion } from "@/platform/actualizacion";
 import { useCampanaActual } from "@/lib/campanaActual";
 import { cn } from "@/lib/utils";
 import { avisarErrorDeCierre } from "@/lib/instalarCierre";
@@ -40,6 +41,7 @@ export function AppLayout() {
   const [ayuda, setAyuda] = useState(false);
   const barra = useBarraLateral();
   useZoomApp();
+  const { update } = useActualizacion();
   useEffect(() => {
     avisarErrorDeCierre().catch(reportError);
   }, []);
@@ -103,12 +105,27 @@ export function AppLayout() {
             <span className={textoClass(c)}>{label}</span>
           </NavLink>
         ))}
+        {update && (
+          <button
+            type="button"
+            onClick={abrirAvisoActualizacion}
+            title={c ? `Actualizar a la versión ${update.version}` : undefined}
+            className={cn(
+              "mt-auto flex items-center gap-2 rounded-md bg-primary px-2 py-2 text-sm font-medium whitespace-nowrap text-primary-foreground shadow-sm transition-opacity hover:opacity-90",
+              c && "justify-center",
+            )}
+          >
+            <Download className="size-4 shrink-0" />
+            <span className={textoClass(c)}>Actualizar a {update.version}</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setAyuda(true)}
           title={c ? "Atajos de teclado (?)" : undefined}
           className={cn(
-            "mt-auto flex items-center gap-2 rounded-md px-2 py-2 text-xs whitespace-nowrap text-muted-foreground transition-colors hover:bg-fila-hover",
+            "flex items-center gap-2 rounded-md px-2 py-2 text-xs whitespace-nowrap text-muted-foreground transition-colors hover:bg-fila-hover",
+            !update && "mt-auto",
             c && "justify-center",
           )}
         >

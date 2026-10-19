@@ -46,7 +46,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
 }));
 vi.mock("@tauri-apps/plugin-log", () => ({ error: async () => {}, warn: async () => {} }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: (u: string) => tauri.openUrl(u), openPath: async () => {} }));
-vi.mock("@tauri-apps/plugin-updater", () => ({ check: async () => null }));
+vi.mock("@tauri-apps/plugin-updater", () => ({ check: async () => tauri.update }));
 vi.mock("@tauri-apps/plugin-sql", () => ({ default: { load: async () => ({}) } }));
 
 afterEach(() => {

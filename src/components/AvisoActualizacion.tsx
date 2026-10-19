@@ -3,12 +3,12 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { instalarActualizacion, posponerActualizacion, useActualizacionDisponible } from "@/platform/actualizacion";
+import { instalarActualizacion, posponerActualizacion, useActualizacion } from "@/platform/actualizacion";
 import { reportError } from "@/lib/reportError";
 
-/** Aviso de versión nueva: aparece al abrir la app (si hay internet) o al buscar desde Configuración. */
+/** Aviso de versión nueva: aparece al abrir la app (si hay internet), al buscar desde Configuración o con el botón de la barra lateral. */
 export function AvisoActualizacion() {
-  const update = useActualizacionDisponible();
+  const { update, abierto } = useActualizacion();
   const [instalando, setInstalando] = useState(false);
   const [progreso, setProgreso] = useState<number | null>(null);
 
@@ -26,7 +26,7 @@ export function AvisoActualizacion() {
 
   return (
     <Dialog
-      open={update !== null}
+      open={abierto && update !== null}
       onOpenChange={(o) => {
         if (!o && !instalando) posponerActualizacion();
       }}

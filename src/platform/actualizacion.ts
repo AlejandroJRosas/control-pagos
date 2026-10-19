@@ -8,33 +8,43 @@ import { respaldoAntesDe } from "./backup";
  * Si hay una versión nueva queda aquí y `AvisoActualizacion` la ofrece; el instalador viene firmado y el
  * plugin rechaza cualquier archivo que no lleve la firma de la clave del proyecto.
  */
-let disponible: Update | null = null;
+/** `update`: la versión nueva encontrada (queda aunque se posponga, para el botón de la barra lateral); `abierto`: el aviso. */
+export type EstadoActualizacion = { update: Update | null; abierto: boolean };
+
+let estado: EstadoActualizacion = { update: null, abierto: false };
 const oyentes = new Set<() => void>();
 
-function fijar(u: Update | null): void {
-  if (disponible && disponible !== u) void disponible.close().catch(() => {});
-  disponible = u;
+function fijar(nuevo: EstadoActualizacion): void {
+  if (estado.update && estado.update !== nuevo.update) void estado.update.close().catch(() => {});
+  estado = nuevo;
   oyentes.forEach((l) => l());
 }
 
-export function useActualizacionDisponible(): Update | null {
+export const estadoActualizacion = (): EstadoActualizacion => estado;
+
+export function useActualizacion(): EstadoActualizacion {
   return useSyncExternalStore(
     (l) => {
       oyentes.add(l);
       return () => oyentes.delete(l);
     },
-    () => disponible,
+    estadoActualizacion,
   );
 }
 
-/** Devuelve la versión nueva (y deja abierto el aviso) o `null` si ya está al día. Falla sin internet. */
+/** Devuelve la versión nueva (y abre el aviso) o `null` si ya está al día. Falla sin internet. */
 export async function buscarActualizacion(): Promise<Update | null> {
   const u = await check();
-  fijar(u);
+  fijar({ update: u, abierto: u !== null });
   return u;
 }
 
-export const posponerActualizacion = () => fijar(null);
+/** "Más tarde": cierra el aviso; la versión sigue disponible desde el botón "Actualizar" de la barra lateral. */
+export const posponerActualizacion = () => fijar({ ...estado, abierto: false });
+
+export const abrirAvisoActualizacion = () => {
+  if (estado.update) fijar({ ...estado, abierto: true });
+};
 
 /**
  * Descarga, respalda los datos (`antes-de-actualizar-*`), cierra la BD y lanza el instalador, que cierra la app
