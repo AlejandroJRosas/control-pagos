@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useBlocker } from "react-router";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { reportError } from "@/lib/reportError";
+import { registrarBloqueador } from "@/lib/cierre";
 
 /**
  * Pide confirmación antes de salir de una pantalla con cambios sin guardar: al navegar dentro de la app
- * y al cerrar la ventana. Llamar a `permitirSalida()` justo antes de navegar tras guardar.
+ * y al cerrar la ventana (como bloqueador del cierre, ver `lib/cierre.ts`). Llamar a `permitirSalida()` justo
+ * antes de navegar tras guardar.
  */
 export function useAvisoSinGuardar(sucio: boolean) {
   const sucioRef = useRef(sucio);
@@ -15,25 +15,23 @@ export function useAvisoSinGuardar(sucio: boolean) {
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) => sucioRef.current && !libre.current && currentLocation.pathname !== nextLocation.pathname,
   );
-  const [cerrando, setCerrando] = useState(false);
+  // Al cerrar la ventana con cambios: el cierre espera la respuesta del diálogo.
+  const [cierre, setCierre] = useState<((cerrar: boolean) => void) | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    let unlisten: (() => void) | undefined;
-    getCurrentWindow()
-      .onCloseRequested((e) => {
-        if (sucioRef.current && !libre.current) {
-          e.preventDefault();
-          setCerrando(true);
-        }
-      })
-      .then((u) => (alive ? (unlisten = u) : u()))
-      .catch(reportError);
-    return () => {
-      alive = false;
-      unlisten?.();
-    };
-  }, []);
+  useEffect(
+    () =>
+      registrarBloqueador(() => {
+        if (!sucioRef.current || libre.current) return Promise.resolve(true);
+        return new Promise<boolean>((resolve) => setCierre(() => resolve));
+      }),
+    [],
+  );
+
+  const cerrando = cierre !== null;
+  const responderCierre = (cerrar: boolean) => {
+    cierre?.(cerrar);
+    setCierre(null);
+  };
 
   const bloqueado = blocker.state === "blocked";
   const dialogo = (
@@ -42,7 +40,7 @@ export function useAvisoSinGuardar(sucio: boolean) {
       onOpenChange={(open) => {
         if (open) return;
         if (blocker.state === "blocked") blocker.reset();
-        setCerrando(false);
+        if (cerrando) responderCierre(false);
       }}
       title="Cambios sin guardar"
       description={
@@ -52,7 +50,7 @@ export function useAvisoSinGuardar(sucio: boolean) {
       destructive
       onConfirm={() => {
         libre.current = true;
-        if (cerrando) void getCurrentWindow().destroy().catch(reportError);
+        if (cerrando) responderCierre(true);
         else if (blocker.state === "blocked") blocker.proceed();
       }}
     />

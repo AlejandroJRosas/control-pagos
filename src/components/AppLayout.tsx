@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { FolderKanban, FolderOpen, Keyboard, LineChart, PanelLeftClose, PanelLeftOpen, Search, Settings, Users } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
@@ -14,6 +14,8 @@ import { useBarraLateral } from "@/lib/barraLateral";
 import { useZoomApp } from "@/lib/zoomApp";
 import { useCampanaActual } from "@/lib/campanaActual";
 import { cn } from "@/lib/utils";
+import { avisarErrorDeCierre } from "@/lib/instalarCierre";
+import { reportError } from "@/lib/reportError";
 
 const items = [
   { to: "/campanas", label: "Campañas", icon: FolderKanban },
@@ -38,6 +40,9 @@ export function AppLayout() {
   const [ayuda, setAyuda] = useState(false);
   const barra = useBarraLateral();
   useZoomApp();
+  useEffect(() => {
+    avisarErrorDeCierre().catch(reportError);
+  }, []);
   const c = barra.colapsada;
   useAtajo("k", () => setBuscar(true), { ctrl: true });
   useAtajo("b", barra.alternar, { ctrl: true });

@@ -8,11 +8,15 @@ import { mantenimientoAlIniciar } from "./platform/backup";
 import { buscarActualizacion } from "./platform/actualizacion";
 import { warn } from "@tauri-apps/plugin-log";
 import { aplicarTemaGuardado } from "./lib/tema";
+import { instalarCierre } from "./lib/instalarCierre";
+import { OverlayCierre } from "./components/OverlayCierre";
 import "./index.css";
 
 aplicarTemaGuardado();
 
 window.addEventListener("unhandledrejection", (e) => reportError(e.reason));
+
+instalarCierre().catch((e) => reportError(e, "Cierre de la ventana"));
 
 getDb()
   .then(mantenimientoAlIniciar)
@@ -24,5 +28,6 @@ if (!import.meta.env.DEV) buscarActualizacion().catch((e) => warn(`Buscar actual
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <RouterProvider router={router} />
+    <OverlayCierre />
   </React.StrictMode>,
 );

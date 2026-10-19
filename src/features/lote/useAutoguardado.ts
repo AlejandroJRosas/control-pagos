@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { reportError } from "@/lib/reportError";
+import { registrarBloqueador } from "@/lib/cierre";
 
 /**
  * Guarda `valor` (serializado, para comparar por contenido) unos `ms` después del último cambio y al desmontar,
@@ -31,6 +32,17 @@ export function useAutoguardado(valor: string, guardar: (v: string) => Promise<v
     timer.current = setTimeout(() => void flush(), ms);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [valor, ms]);
+
+  // Al cerrar la ventana se guarda ya lo pendiente (si no, una edición de menos de `ms` se perdería).
+  useEffect(
+    () =>
+      registrarBloqueador(async () => {
+        await flush();
+        return true;
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   useEffect(
     () => () => {
