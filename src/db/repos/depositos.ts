@@ -3,6 +3,7 @@ import { nowIso } from "../clock";
 import { assertCampanaActiva } from "./campanas";
 import { getAsignacion } from "./asignaciones";
 import { getTasa } from "./tasas";
+import { feriadosSet } from "./feriados";
 import type { DepositoValido } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
 import { fechaDeTasa, formatFecha } from "@/domain/dates";
@@ -44,7 +45,7 @@ async function assertEditable(db: SqlDriver, asignacionId: number): Promise<void
 async function assertTasaDeLaFecha(db: SqlDriver, v: DepositoGuardar): Promise<void> {
   const tasa = await getTasa(db, v.tasaId);
   if (!tasa) throw new DomainError("VALIDACION", "La tasa seleccionada no existe");
-  if (tasa.fecha !== v.fecha && tasa.fecha !== fechaDeTasa(v.fecha)) {
+  if (tasa.fecha !== v.fecha && tasa.fecha !== fechaDeTasa(v.fecha, await feriadosSet(db))) {
     throw new DomainError("VALIDACION", `La tasa es del ${formatFecha(tasa.fecha)} y el depósito del ${formatFecha(v.fecha)}`);
   }
 }

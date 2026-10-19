@@ -4,6 +4,7 @@ import type { SqlDriver } from "@/db/driver";
 import { closeDb } from "@/db";
 import { todayIso } from "@/domain/dates";
 import { imagenesUsadas } from "@/db/queries/imagenesUsadas";
+import { precargarFeriados } from "@/db/repos/feriados";
 
 export type DataPaths = { dbPath: string; imagesDir: string; backupsDir: string };
 export type BackupInfo = { name: string; path: string; sizeBytes: number; modifiedMs: number };
@@ -47,6 +48,7 @@ export async function runAutoBackup(db: SqlDriver): Promise<void> {
  */
 export async function mantenimientoAlIniciar(db: SqlDriver): Promise<void> {
   await runAutoBackup(db);
+  await precargarFeriados(db, todayIso());
   await invoke("prune_safety_backups");
   await invoke("clean_orphan_images", { usadas: await imagenesUsadas(db) });
 }

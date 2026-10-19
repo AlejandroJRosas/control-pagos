@@ -10,6 +10,7 @@ import { loadCampanaData } from "../queries/campanaData";
 import { buildCampanaView } from "@/domain/campanaView";
 import type { CuadroPagos, FilaCuadro } from "@/import/cuadroPagos";
 import { importarPagos, planificarImportacion } from "./importarPagos";
+import { createFeriado } from "../repos/feriados";
 
 let db: SqlDriver;
 let s: Awaited<ReturnType<typeof seedBasico>>;
@@ -259,5 +260,18 @@ describe("importarPagos", () => {
     ).rejects.toThrow("disco lleno");
     expect((await getAsignacion(db, s.asignacionId))?.saldoUsd).toBe("100");
     expect(await contar("tasas")).toBe(2);
+  });
+});
+
+describe("importarPagos con feriados", () => {
+  it("una fila de un feriado crea la tasa en el día hábil anterior", async () => {
+    await createFeriado(db, { fecha: "2026-03-16", nombre: null }); // lunes
+    const r = await importarPagos(db, s.campanaId, {
+      destino: { kind: "asignacion", asignacionId: s.asignacionId },
+      saldoUsd: null,
+      filas: [fila({ fecha: "2026-03-16", tasa: "41" })],
+    });
+    expect(r).toMatchObject({ depositos: 1, tasasCreadas: 1 });
+    expect((await listTasas(db)).map((t) => t.fecha)).toContain("2026-03-13");
   });
 });

@@ -5,6 +5,7 @@ import { assertCampanaActiva } from "../repos/campanas";
 import { getAsignacion, updateSaldoAsignacion } from "../repos/asignaciones";
 import { listGerentes } from "../repos/gerentes";
 import { createTasa, getTasaParaFecha } from "../repos/tasas";
+import { feriadosSet } from "../repos/feriados";
 import { claveComparacion, createDeposito, findDuplicados, type Duplicado } from "../repos/depositos";
 import { resolverDestino } from "./destino";
 import { aplicarEdicion, camposFaltantes, type CampoEditable, type CuadroPagos, type EdicionFila, type FilaCuadro } from "@/import/cuadroPagos";
@@ -57,6 +58,7 @@ export async function planificarImportacion(
   cuadro: CuadroPagos,
   ediciones: ReadonlyMap<number, EdicionFila> = new Map(),
 ): Promise<PlanImportacion> {
+  const feriados = await feriadosSet(db);
   const tasas = new Map<string, { valor: string; registrada: boolean }>();
   const vistas = new Map<string, number>();
   const filas: FilaPlan[] = [];
@@ -68,9 +70,9 @@ export async function planificarImportacion(
     let tasaAplicada: string | null = null;
     let tasaEnApp = false;
     if (f.fecha) {
-      // Clave = fecha donde vive la tasa (sábado y domingo comparten la del viernes).
+      // Clave = fecha donde vive la tasa (sábado, domingo y feriados comparten la del día hábil anterior).
       const t = await getTasaParaFecha(db, f.fecha);
-      const clave = t?.fecha ?? fechaDeTasa(f.fecha);
+      const clave = t?.fecha ?? fechaDeTasa(f.fecha, feriados);
       if (t && !tasas.has(clave)) tasas.set(clave, { valor: t.valor, registrada: true });
       tasaEnApp = t !== null;
       const previa = tasas.get(clave);
@@ -144,6 +146,7 @@ export async function importarPagos(
   }
 
   const { asignacionId, deshacer } = await resolverDestino(db, campanaId, imp.destino);
+  const feriados = await feriadosSet(db);
   const depositos: number[] = [];
   const tasasCreadas: number[] = [];
   let saldoAnterior: string | null = null;
@@ -156,7 +159,7 @@ export async function importarPagos(
       const fecha = f.fecha as string;
       let tasaId = (await getTasaParaFecha(db, fecha))?.id;
       if (tasaId === undefined) {
-        tasaId = await createTasa(db, { fecha: fechaDeTasa(fecha), valor: f.tasa as string, notas: "Importada de Excel", imagenPath: null });
+        tasaId = await createTasa(db, { fecha: fechaDeTasa(fecha, feriados), valor: f.tasa as string, notas: "Importada de Excel", imagenPath: null });
         tasasCreadas.push(tasaId);
       }
       depositos.push(

@@ -48,3 +48,13 @@ it("el respaldo previo a una eliminación va a la carpeta de respaldos", async (
   expect(dest).toMatch(/^C:\\resp\\antes-de-eliminar-\d+\.zip$/);
   expect(invoke).toHaveBeenCalledWith("create_backup", { snapshotPath: expect.stringMatching(/^C:\\resp\\snapshot-/), destPath: dest });
 });
+
+it("mantenimientoAlIniciar precarga los feriados del año", async () => {
+  const { createTestDb } = await import("@/db/testing/sqljsDriver");
+  const { listFeriados } = await import("@/db/repos/feriados");
+  const { mantenimientoAlIniciar } = await import("./backup");
+  const db = await createTestDb();
+  invoke.mockResolvedValue(null);
+  await mantenimientoAlIniciar(db);
+  expect((await listFeriados(db)).length).toBeGreaterThan(0);
+});
