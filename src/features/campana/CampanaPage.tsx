@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { ChevronDown, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Lock, LockOpen, Pencil, Plus, Settings2, Trash2, UserPlus } from "lucide-react";
+import { ChevronDown, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Pencil, Plus, Settings2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -20,7 +20,7 @@ import { formatPeriodo, todayIso } from "@/domain/dates";
 import { buildCampanaWorkbook } from "@/export/campanaWorkbook";
 import { buildCampanaPdf } from "@/export/campanaPdf";
 import { archivoExcel, archivoPdf } from "@/export/fileName";
-import { savePdf } from "@/export/savePdf";
+import { precargarPdfMake, savePdf } from "@/export/savePdf";
 import { saveWorkbook } from "@/export/saveWorkbook";
 import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
@@ -91,11 +91,14 @@ export function CampanaPage() {
   }
 
   /** Mientras se exporta, el menú queda deshabilitado: generar el PDF tarda unos segundos la primera vez. */
-  async function conExportando(guardar: () => Promise<boolean>, mensaje: string) {
+  async function conExportando(guardar: (avisar: (texto: string) => void) => Promise<boolean>, mensaje: string) {
     setExportando(true);
+    let aviso: string | number | undefined;
     try {
-      if (await guardar()) toast.success(mensaje);
+      const guardado = await guardar((texto) => (aviso = toast.loading(texto)));
+      if (guardado) toast.success(mensaje, { id: aviso });
     } catch (e) {
+      if (aviso !== undefined) toast.dismiss(aviso);
       reportError(e, "Exportar");
     } finally {
       setExportando(false);
@@ -103,7 +106,11 @@ export function CampanaPage() {
   }
 
   const exportar = () => conExportando(() => saveWorkbook(buildCampanaWorkbook(campana, view), archivoExcel(campana.nombre, todayIso())), "Excel guardado");
-  const exportarPdf = () => conExportando(() => savePdf(buildCampanaPdf(campana, view), archivoPdf(campana.nombre, todayIso())), "PDF guardado");
+  const exportarPdf = () =>
+    conExportando(
+      (avisar) => savePdf(buildCampanaPdf(campana, view), archivoPdf(campana.nombre, todayIso()), () => avisar("Generando PDF…")),
+      "PDF guardado",
+    );
 
   return (
     <div className="space-y-6">
@@ -124,9 +131,10 @@ export function CampanaPage() {
                 Revisar pendientes ({pendientes})
               </Link>
             )}
-            <DropdownMenu>
+            {/* Al abrir el menú se va cargando pdfmake, para que el PDF salga más rápido. */}
+            <DropdownMenu onOpenChange={(abierto) => abierto && void precargarPdfMake().catch(() => {})}>
               <DropdownMenuTrigger render={<Button variant="outline" disabled={exportando} />}>
-                <Download />
+                {exportando ? <Loader2 className="animate-spin" /> : <Download />}
                 {exportando ? "Exportando…" : "Exportar"}
                 <ChevronDown data-icon="inline-end" />
               </DropdownMenuTrigger>
