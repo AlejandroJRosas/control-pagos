@@ -15,7 +15,6 @@ const items = [
   { to: "/campanas", label: "Campañas", icon: FolderKanban },
   { to: "/gerentes", label: "Gerentes", icon: Users },
   { to: "/tasas", label: "Tasas", icon: LineChart },
-  { to: "/configuracion", label: "Configuración", icon: Settings },
 ];
 
 const linkClass = (colapsada: boolean) => ({ isActive }: { isActive: boolean }) =>
@@ -107,6 +106,10 @@ export function AppLayout() {
           <span className={textoClass(c)}>Atajos de teclado</span>
           {!c && <Tecla>?</Tecla>}
         </button>
+        <NavLink to="/configuracion" className={linkClass(c)} title={c ? "Configuración" : undefined}>
+          <Settings className="size-4 shrink-0" />
+          <span className={textoClass(c)}>Configuración</span>
+        </NavLink>
       </aside>
       <main className="flex-1 overflow-auto p-6">
         <Outlet />
