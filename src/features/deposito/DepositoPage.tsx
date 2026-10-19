@@ -97,7 +97,9 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const huellaInicial = useRef(huella(f.form, imagen));
   const aviso = useAvisoSinGuardar(!cerrada && huella(f.form, imagen) !== huellaInicial.current);
 
-  useAtajo("Enter", () => void guardar(false), { ctrl: true, activo: !cerrada && !saving });
+  // Mientras se busca la tasa de la fecha no se puede guardar: el depósito saldría sin tasa o con la anterior.
+  const buscandoTasa = f.tasa === undefined;
+  useAtajo("Enter", () => void guardar(false), { ctrl: true, activo: !cerrada && !saving && !buscandoTasa });
 
   async function onImagen(v: ImagenValue) {
     setImagen(v);
@@ -124,6 +126,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   }
 
   async function guardar(yNuevo: boolean) {
+    if (buscandoTasa) return;
     const r = f.validar();
     if (!r) return;
     setSaving(true);
@@ -229,11 +232,11 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
               Cancelar
             </Button>
             {!deposito && (
-              <Button type="button" variant="secondary" disabled={cerrada || saving} onClick={() => void guardar(true)}>
+              <Button type="button" variant="secondary" disabled={cerrada || saving || buscandoTasa} onClick={() => void guardar(true)}>
                 Guardar y nuevo
               </Button>
             )}
-            <Button type="submit" disabled={cerrada || saving} title="Ctrl+Enter">
+            <Button type="submit" disabled={cerrada || saving || buscandoTasa} title="Ctrl+Enter">
               Guardar
             </Button>
           </div>

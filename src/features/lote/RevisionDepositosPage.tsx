@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
 import { Check, Images, SkipForward, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ import { duplicadosEnCola, siguientePendiente } from "@/domain/cola";
 import type { DestinoDraft } from "@/domain/validation";
 import { deleteImage } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
+import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { conVolver } from "@/lib/volver";
 import { sugerenciasBancos } from "@/domain/bancos";
@@ -242,7 +243,7 @@ function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, editor, 
   }, [items, item.id, draft.banco, draft.referencia]);
 
   async function marcarHecho() {
-    if (hecho || cerrada || saving) return;
+    if (hecho || cerrada || saving || f.tasa === undefined) return;
     const r = f.validar();
     if (!r) return;
     setSaving(true);
@@ -271,21 +272,13 @@ function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, editor, 
     } catch (e) {
       reportError(e);
       setConfirmDescartar(false);
+      // Lo que se estaba editando sigue siendo el borrador: se vuelve a autoguardar.
+      void auto.guardar();
     }
   }
 
-  const marcarHechoRef = useRef(marcarHecho);
-  marcarHechoRef.current = marcarHecho;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === "Enter") {
-        e.preventDefault();
-        void marcarHechoRef.current();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  // useAtajo no actúa con un diálogo abierto (p. ej. la confirmación de Descartar).
+  useAtajo("Enter", () => void marcarHecho(), { ctrl: true });
 
   return (
     <form
@@ -334,7 +327,7 @@ function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, editor, 
             <SkipForward />
             Saltar
           </Button>
-          <Button type="submit" disabled={cerrada || saving} title="Ctrl+Enter">
+          <Button type="submit" disabled={cerrada || saving || f.tasa === undefined} title="Ctrl+Enter">
             <Check />
             Hecho
           </Button>

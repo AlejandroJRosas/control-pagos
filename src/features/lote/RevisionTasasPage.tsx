@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { Check, Images, SkipForward, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { validateTasa, type TasaDraft } from "@/domain/validation";
 import { marcarTocado } from "@/extraction/autollenado";
 import { deleteImage } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
+import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { TasaCampos } from "@/features/tasas/TasaCampos";
 import { ListaCola, RevisionLayout, type Filtro } from "./RevisionLayout";
@@ -141,21 +142,13 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
     } catch (e) {
       reportError(e);
       setConfirmDescartar(false);
+      // Lo que se estaba editando sigue siendo el borrador: se vuelve a autoguardar.
+      void auto.guardar();
     }
   }
 
-  const marcarHechoRef = useRef(marcarHecho);
-  marcarHechoRef.current = marcarHecho;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === "Enter") {
-        e.preventDefault();
-        void marcarHechoRef.current();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  // useAtajo no actúa con un diálogo abierto (p. ej. la confirmación de Descartar).
+  useAtajo("Enter", () => void marcarHecho(), { ctrl: true });
 
   return (
     <form
