@@ -72,3 +72,17 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Filtro Hechos: un hecho se ve en solo lectura con "Ver depósito"; "Quitar hechos" los saca de la lista.
 - [ ] Campaña cerrada: "Subir lote" deshabilitado; la revisión es de solo lectura.
 - [ ] Tasas → "Subir lote" y "Revisar (N)": Hecho registra la tasa con su imagen; fecha repetida o fin de semana → error y sigue pendiente; cambiar la fecha leída → "La imagen es del …".
+
+## Usabilidad (búsqueda, atajos, deshacer, WhatsApp)
+
+- [ ] Editar un depósito y hacer clic en la barra lateral o pulsar Esc: pide "Cambios sin guardar"; Cancelar se queda, "Salir sin guardar" sale. Cerrar la ventana con cambios también pregunta. Guardar no pregunta.
+- [ ] Borrar un depósito con la papelera: sin confirmación, aviso con "Deshacer" que lo devuelve con los mismos datos y saldos. Varios seleccionados: pide confirmación y también se pueden deshacer.
+- [ ] Campaña → Todos los depósitos: buscar por referencia, por monto ("1.234" y "1234") y por gerente; cambiar de pestaña, abrir un depósito, volver y reiniciar la app: los filtros siguen.
+- [ ] Filtro de gerente y gerente del depósito: se puede escribir para buscar (sin acentos); el depósito muestra "En la campaña" / "Agregar a la campaña".
+- [ ] Por gerente: chips Sin pagos / En curso / Completo / Pagado de más con conteos; filtran la tabla.
+- [ ] Estados vacíos: campaña sin depósitos ofrece Registrar / Subir lote; sin gerentes, Agregar gerentes; filtros sin resultados, Limpiar filtros.
+- [ ] Ctrl+K: buscar una referencia de otra campaña y abrirla con Enter; buscar un gerente lleva a su página en cada campaña.
+- [ ] Atajos: `/` enfoca el buscador de la tabla, `N` abre el nuevo registro de la pantalla, Ctrl+Enter guarda el depósito, `?` muestra la ayuda. No se disparan mientras se escribe en un campo.
+- [ ] Gerente sin teléfono: "Agregar teléfono…" abre su ficha. Con teléfono "0414-1234567": "Recordatorio por WhatsApp" abre el chat con el resumen.
+- [ ] Estado de cuenta: Copiar imagen y pegarla en otro programa; Guardar imagen… crea el PNG; "Copiar y abrir WhatsApp" abre el chat con la imagen lista para Ctrl+V.
+- [ ] Al abrir la app: los `antes-de-*.zip` de más de 30 días se borran (quedan al menos 5) y las imágenes sin registro de más de un día desaparecen de `imagenes\`, después del respaldo del día.

@@ -7,7 +7,9 @@ App de escritorio local (Windows) para que una persona de gerencia registre dep�
 ## Comandos
 
 ```powershell
-pnpm tauri dev               # app en desarrollo (puerto 1420; si queda un vite colgado, matarlo)
+pnpm tauri dev               # app en desarrollo (puerto 1420; si queda un vite colgado, matarlo). OJO: usa los datos reales de %APPDATA%
+# Instancia aislada para probar (otros datos, puerto y target):
+# CARGO_TARGET_DIR=<tmp> pnpm tauri dev --config '{"identifier":"com.controlpagos.dev","build":{"devUrl":"http://localhost:1431","beforeDevCommand":"pnpm vite --port 1431 --strictPort"}}' 
 pnpm test                    # vitest: dominio, BD (sql.js en memoria), Excel, plataforma con mocks
 pnpm build                   # tsc + vite build — única verificación de tipos de la UI
 cd src-tauri; cargo test --lib   # pruebas de respaldo/restauración y OCR en Rust
@@ -24,12 +26,18 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - `src/db/operaciones/` — escrituras de varios pasos con reversión manual (el plugin SQL no da transacciones entre llamadas): `destino.ts` (gerente/asignación al registrar desde la campaña), `importarPagos.ts` (plan + importación).
 - `src/import/cuadroPagos.ts` — lee la hoja "CUADRO DE PAGOS" de las facturas por gerente (busca el encabezado por texto, no por celda fija).
 - Tablas ordenables con `SortableHead` + `useOrden` y `ordenar` (`lib/orden.ts`: montos como `decimal`, nunca como texto).
+- Filtros de tablas en la URL con `useFiltrosUrl(clave, keys)` (`lib/filtrosUrl.ts`): se recuerdan por pantalla/campaña en localStorage. La búsqueda libre usa `coincideBusqueda` (`domain/busqueda.ts`: sin acentos y montos con o sin separadores). El campo de búsqueda de cada tabla lleva `data-buscar-tabla` (lo enfoca la tecla `/`).
+- Búsqueda global Ctrl+K: `components/BusquedaGlobal.tsx` + `db/queries/busqueda.ts`. Atajos con `useAtajo` (`hooks/useAtajo.ts`; la lista de la ayuda `?` está en `ATAJOS`). `PageHeader` con `back` vuelve con Esc.
+- Selector con buscador: `components/BuscadorSelect.tsx` (combobox de Base UI, `ui/combobox.tsx`).
+- Formularios con cambios sin guardar: `useAvisoSinGuardar(sucio)` (bloquea la navegación y el cierre de ventana; llamar `permitirSalida()` antes de navegar tras guardar).
+- Eliminar depósitos devuelve `Eliminados`; `avisarDepositosEliminados` (`lib/deshacer.ts`) muestra el aviso con Deshacer (`restaurarDepositos` reinserta con el mismo id).
+- Estado de cuenta y WhatsApp en `features/asignacion/` (`EstadoCuentaDialog`: imagen con html-to-image) y `domain/whatsapp.ts` (número venezolano → wa.me). El plugin opener solo puede abrir `https://wa.me/*`.
 - `src/features/*` — pantallas; las rutas se registran en `src/App.tsx` (hash router). La última campaña abierta se recuerda en `lib/campanaActual.ts` (localStorage) y `/` redirige a ella.
 - `src/features/lote/` — subida en lote y revisión uno a uno (depósitos por campaña y tasas). La cola vive en `db/repos/cola.ts` (tablas `cola_depositos`/`cola_tasas`, borrador en JSON, autoguardado); "Hecho" en `db/operaciones/revision.ts` (guarda con los mismos repos y revierte si falla). Los formularios se comparten con el registro individual: `deposito/useDepositoForm.ts` + `DepositoCampos.tsx`, `tasas/TasaCampos.tsx`.
 - `components/ZoomableImage.tsx` + `lib/zoom.ts` — zoom con la rueda hacia el cursor, arrastre y doble clic; lo usan `ImageDrop`, `ImageViewer` y la revisión.
 - `src/platform/` — imágenes en AppData (plugin-fs) y respaldos (invoca comandos Rust).
 - `src/extraction/` — OCR de comprobantes y tasas. `ocr/` = motor intercambiable (`OcrEngine`; hoy `windowsOcr.ts` → comando `ocr_imagen`), `filas.ts` agrupa líneas por altura, `formatos/` = un reconocedor por formato (registro en `formatos/index.ts`), `normalizar.ts` valida y asigna confianza, `autollenado.ts` decide qué campos llena (sin tocar / OCR / tocado), `extractor.ts` lo une.
-- `src-tauri/src/backup.rs` — crear/restaurar/podar/listar zips; `ocr.rs` — OCR de Windows (`Windows.Media.Ocr`, amplía la imagen a 2000 px); `lib.rs` — comandos y plugins.
+- `src-tauri/src/backup.rs` — crear/restaurar/podar/listar zips, podar `antes-de-*` (30 días, quedan 5) y borrar imágenes huérfanas (`mantenimientoAlIniciar` en `platform/backup.ts`, siempre después del respaldo automático); `ocr.rs` — OCR de Windows (`Windows.Media.Ocr`, amplía la imagen a 2000 px); `lib.rs` — comandos y plugins.
 - Datos en `%APPDATA%\com.controlpagos.app\`: `control-pagos.db` (modo WAL), `imagenes\`, `respaldos\`.
 
 ## Reglas del dominio (no romper)
@@ -75,4 +83,4 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 
 ## Pendientes conocidos (menores)
 
-`"0.500"` se acepta como 500; imágenes huérfanas no se borran; `antes-de-restaurar-*.zip` y `antes-de-eliminar-*.zip` sin poda; respaldo automático solo al abrir; Guardar habilitado mientras se busca la tasa; el aviso de duplicados no relaciona referencias sin ceros iniciales ni alias de banco ("BDV") de depósitos importados de Excel; en capturas borrosas el OCR puede leer mal el nombre y aun así marcarlo en verde. En la revisión en lote: cerrar la ventana menos de 0,5 s después de editar pierde esa última edición (el autoguardado no escucha el cierre); Ctrl+Enter da Hecho aunque haya un diálogo abierto; si falla Descartar, la edición en curso no se autoguarda.
+`"0.500"` se acepta como 500; respaldo automático solo al abrir; Guardar habilitado mientras se busca la tasa; el aviso de duplicados no relaciona referencias sin ceros iniciales ni alias de banco ("BDV") de depósitos importados de Excel; en capturas borrosas el OCR puede leer mal el nombre y aun así marcarlo en verde. En la revisión en lote: cerrar la ventana menos de 0,5 s después de editar pierde esa última edición (el autoguardado no escucha el cierre); Ctrl+Enter da Hecho aunque haya un diálogo abierto; si falla Descartar, la edición en curso no se autoguarda.
