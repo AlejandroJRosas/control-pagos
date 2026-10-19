@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Image as ImageIcon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ImageViewer } from "@/components/ImageViewer";
 import type { TasaConUsos } from "@/db/repos/tasas";
 import type { Feriado } from "@/db/repos/feriados";
 import { calendarioTasas, mesSiguiente, type DiaCalendario } from "@/domain/calendarioTasas";
@@ -29,6 +30,7 @@ export function CalendarioTasas({ tasas, feriados, onRegistrar, onEditar }: Prop
     mesRecordado = m;
     setMesState(m);
   };
+  const [captura, setCaptura] = useState<string | null>(null);
   const nombres = useMemo(() => new Map(feriados.map((f) => [f.fecha, f.nombre])), [feriados]);
   const { semanas, faltan } = useMemo(() => calendarioTasas(mes, tasas, hoy, new Set(nombres.keys())), [mes, tasas, hoy, nombres]);
 
@@ -61,9 +63,10 @@ export function CalendarioTasas({ tasas, feriados, onRegistrar, onEditar }: Prop
           </div>
         ))}
         {semanas.flat().map((d) => (
-          <Dia key={d.fecha} d={d} hoy={d.fecha === hoy} feriado={nombres.get(d.fecha)} onRegistrar={onRegistrar} onEditar={onEditar} />
+          <Dia key={d.fecha} d={d} hoy={d.fecha === hoy} feriado={nombres.get(d.fecha)} onRegistrar={onRegistrar} onEditar={onEditar} onVerCaptura={setCaptura} />
         ))}
       </div>
+      <ImageViewer path={captura} open={captura !== null} onOpenChange={(o) => !o && setCaptura(null)} />
     </div>
   );
 }
@@ -84,9 +87,10 @@ type DiaProps = {
   feriado: string | null | undefined;
   onRegistrar: (fecha: string) => void;
   onEditar: (t: TasaConUsos) => void;
+  onVerCaptura: (path: string) => void;
 };
 
-function Dia({ d, hoy, feriado, onRegistrar, onEditar }: DiaProps) {
+function Dia({ d, hoy, feriado, onRegistrar, onEditar, onVerCaptura }: DiaProps) {
   const base = cn(
     "flex h-20 flex-col rounded-md border p-1.5 text-left text-xs transition-colors",
     !d.delMes && "opacity-40",
@@ -96,17 +100,31 @@ function Dia({ d, hoy, feriado, onRegistrar, onEditar }: DiaProps) {
 
   if (d.estado === "tasa" && d.tasa) {
     const t = d.tasa;
+    const imagen = t.imagenPath;
     return (
-      <button
-        type="button"
-        className={cn(base, "border-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:hover:bg-emerald-900")}
-        title={`Editar la tasa del ${formatFecha(d.fecha)}`}
-        onClick={() => onEditar(t)}
-      >
-        {numero}
-        <span className="mt-auto text-sm font-semibold tabular-nums text-emerald-900 dark:text-emerald-200">{formatTasa(t.valor)}</span>
-        <span className="text-muted-foreground">{t.usos > 0 ? `${t.usos} depósito(s)` : "sin depósitos"}</span>
-      </button>
+      <div className="relative">
+        <button
+          type="button"
+          className={cn(base, "w-full border-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:hover:bg-emerald-900")}
+          title={`Editar la tasa del ${formatFecha(d.fecha)}`}
+          onClick={() => onEditar(t)}
+        >
+          {numero}
+          <span className="mt-auto text-sm font-semibold tabular-nums text-emerald-900 dark:text-emerald-200">{formatTasa(t.valor)}</span>
+          <span className="text-muted-foreground">{t.usos > 0 ? `${t.usos} depósito(s)` : "sin depósitos"}</span>
+        </button>
+        {imagen && (
+          <button
+            type="button"
+            className="absolute top-1 right-1 rounded p-1 text-emerald-800 transition-colors hover:bg-emerald-200 dark:text-emerald-200 dark:hover:bg-emerald-800"
+            title={`Ver la captura de la tasa del ${formatFecha(d.fecha)}`}
+            aria-label={`Ver la captura de la tasa del ${formatFecha(d.fecha)}`}
+            onClick={() => onVerCaptura(imagen)}
+          >
+            <ImageIcon className="size-3.5" />
+          </button>
+        )}
+      </div>
     );
   }
   if (d.estado === "finde" || d.estado === "feriado") {

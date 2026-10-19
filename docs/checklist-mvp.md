@@ -111,3 +111,6 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Configuración → Mensajes de WhatsApp: editar, ver la vista previa, un `{campo}` mal escrito avisa; Guardar; el estado de cuenta individual usa el texto nuevo; "Restaurar el texto original".
 - [ ] Campaña → menú Campaña → "Enviar estados de cuenta": marcados por defecto los que deben y tienen teléfono; "Agregar teléfono…" en los que no; Empezar recorre uno a uno ("N de M") con "Copiar y abrir WhatsApp", Siguiente/Omitir y el resumen final.
 - [ ] Monto "0.500" en un depósito: "Monto inválido". Referencia "000123" de "BDV" avisa como duplicada de "123" de "Banco de Venezuela".
+- [ ] Copia en Drive: los respaldos quedan en una subcarpeta con el nombre del equipo (la instancia de prueba usa otra); un `auto-*.zip.part` viejo de esa subcarpeta desaparece en la siguiente copia y no se tocan las de otros equipos.
+- [ ] Filtro Banco (Campaña → Todos los depósitos), año en Tasas → Feriados y "Banco de origen" del depósito: mismo buscador desplegable que el filtro de Gerente. En "Banco de origen" se puede escribir un banco que no está en la lista.
+- [ ] Calendario de tasas: un día con captura muestra el ícono de imagen arriba a la derecha y abre la captura; el resto del cuadro sigue editando la tasa.
