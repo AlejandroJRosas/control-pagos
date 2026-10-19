@@ -21,12 +21,17 @@ import { extractor } from "@/extraction/extractor";
 import { autollenadoExistente, autollenadoNuevo } from "@/extraction/autollenado";
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
+import { useAvisoSinGuardar } from "@/hooks/useAvisoSinGuardar";
 import { reportError } from "@/lib/reportError";
 import { sugerenciasBancos } from "./bancos";
 import { DepositoCampos } from "./DepositoCampos";
-import { camposOcr, conExtraccion, depositoVacio, SIN_DESTINO, useDepositoForm } from "./useDepositoForm";
+import { camposOcr, conExtraccion, depositoVacio, SIN_DESTINO, useDepositoForm, type DepositoFormState } from "./useDepositoForm";
 
 /** `asignacion` es null al registrar desde la campaña: el gerente se elige (o se crea) en el formulario. */
+/** Lo que el usuario puede cambiar; la tasa no cuenta porque se deriva de la fecha. */
+const huella = (s: DepositoFormState, imagen: ImagenValue) =>
+  JSON.stringify({ ...s.draft, tasaId: null, destino: s.destino, imagen: imagen?.kind === "stored" ? imagen.path : imagen ? imagen.previewUrl : null });
+
 type Ctx = { deposito: Deposito | null; asignacion: AsignacionDetalle | null; data: CampanaData; bancos: string[]; gerentes: Gerente[] };
 
 export function DepositoPage() {
@@ -83,6 +88,8 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const [tasaDialog, setTasaDialog] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const huellaInicial = useRef(huella(f.form, imagen));
+  const aviso = useAvisoSinGuardar(!cerrada && huella(f.form, imagen) !== huellaInicial.current);
 
   async function onImagen(v: ImagenValue) {
     setImagen(v);
@@ -128,16 +135,19 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
       if (yNuevo) {
         if (imagen?.kind === "new") URL.revokeObjectURL(imagen.previewUrl);
         fechaInicial.current = draft.fecha;
-        f.reiniciar({
+        const siguiente: DepositoFormState = {
           draft: { ...depositoVacio(draft.fecha), tasaId: draft.tasaId },
           auto: autollenadoNuevo(),
           destino: asignacion ? SIN_DESTINO : { ...SIN_DESTINO, sel: `a:${asignacionId}` },
-        });
+        };
+        huellaInicial.current = huella(siguiente, null);
+        f.reiniciar(siguiente);
         imagenVigente.current = null;
         setLeyendo(false);
         setImagen(null);
         invalidate();
       } else {
+        aviso.permitirSalida();
         navigate(asignacion ? `/asignaciones/${asignacionId}` : `/campanas/${campana.id}`);
         invalidate();
       }
@@ -153,6 +163,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
     try {
       await deleteDeposito(await getDb(), deposito.id);
       toast.success("Depósito eliminado");
+      aviso.permitirSalida();
       navigate(`/asignaciones/${deposito.asignacionId}`, { replace: true });
       invalidate();
     } catch (e) {
@@ -231,6 +242,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
         destructive
         onConfirm={eliminar}
       />
+      {aviso.dialogo}
     </div>
   );
 }
