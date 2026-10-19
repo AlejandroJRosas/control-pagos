@@ -1,7 +1,7 @@
 import { diaSemana, esFinDeSemana, fechaDeTasa, sumarDias } from "./dates";
 
 /** tasa: con tasa propia · finde: sábado o domingo (usa la del viernes) · falta: día hábil sin tasa · futuro: aún no llega. */
-export type EstadoDia = "tasa" | "finde" | "falta" | "futuro";
+export type EstadoDia = "tasa" | "finde" | "feriado" | "falta" | "futuro";
 
 export type DiaCalendario<T> = { fecha: string; dia: number; delMes: boolean; estado: EstadoDia; tasa: T | null };
 
@@ -17,6 +17,7 @@ export function calendarioTasas<T extends { fecha: string }>(
   mes: string,
   tasas: T[],
   hoy: string,
+  feriados: ReadonlySet<string> = new Set(),
 ): { semanas: DiaCalendario<T>[][]; faltan: number } {
   const porFecha = new Map(tasas.map((t) => [t.fecha, t]));
   const primero = `${mes}-01`;
@@ -32,9 +33,9 @@ export function calendarioTasas<T extends { fecha: string }>(
       let tasa = propia;
       if (propia) estado = "tasa";
       else if (fecha > hoy) estado = "futuro";
-      else if (esFinDeSemana(fecha)) {
-        estado = "finde";
-        tasa = porFecha.get(fechaDeTasa(fecha)) ?? null;
+      else if (esFinDeSemana(fecha) || feriados.has(fecha)) {
+        estado = esFinDeSemana(fecha) ? "finde" : "feriado";
+        tasa = porFecha.get(fechaDeTasa(fecha, feriados)) ?? null;
       } else estado = "falta";
       const delMes = fecha.startsWith(mes);
       if (delMes && estado === "falta") faltan++;

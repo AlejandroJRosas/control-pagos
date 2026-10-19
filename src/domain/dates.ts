@@ -32,10 +32,15 @@ export function sumarDias(iso: string, dias: number): string {
 
 export const esFinDeSemana = (iso: string): boolean => diaSemana(iso) === 0 || diaSemana(iso) === 6;
 
-/** Fecha cuya tasa rige ese día: sábado y domingo usan la del viernes anterior. */
-export function fechaDeTasa(iso: string): string {
-  const dia = diaSemana(iso);
-  return dia === 6 ? sumarDias(iso, -1) : dia === 0 ? sumarDias(iso, -2) : iso;
+const SIN_FERIADOS: ReadonlySet<string> = new Set();
+
+export const esDiaHabil = (iso: string, feriados: ReadonlySet<string> = SIN_FERIADOS): boolean => !esFinDeSemana(iso) && !feriados.has(iso);
+
+/** Fecha cuya tasa rige ese día: sábado, domingo y feriados usan la del último día hábil anterior. */
+export function fechaDeTasa(iso: string, feriados: ReadonlySet<string> = SIN_FERIADOS): string {
+  let f = iso;
+  while (!esDiaHabil(f, feriados)) f = sumarDias(f, -1);
+  return f;
 }
 
 /** Fecha escrita como dd/mm/aaaa (acepta "-" o "." y año de 2 dígitos) → ISO, o null si no es válida. */

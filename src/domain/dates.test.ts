@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { esFinDeSemana, fechaDeTasa, formatFecha, formatPeriodo, isValidIsoDate, mascaraFecha, parseFechaVE, sumarDias, todayIso } from "./dates";
+import { esDiaHabil, esFinDeSemana, fechaDeTasa, formatFecha, formatPeriodo, isValidIsoDate, mascaraFecha, parseFechaVE, sumarDias, todayIso } from "./dates";
 
 it("formatFecha", () => {
   expect(formatFecha("2026-10-18")).toBe("18/10/2026");
@@ -58,4 +58,19 @@ it("mascaraFecha agrega las barras al escribir solo dígitos", () => {
   expect(mascaraFecha("18/")).toBe("18");
   // Si el usuario escribe sus propias barras, se respeta.
   expect(mascaraFecha("1/5/2026")).toBe("1/5/2026");
+});
+
+it("fechaDeTasa: un feriado usa la tasa del último día hábil anterior", () => {
+  const fer = new Set(["2026-04-02", "2026-04-03"]);
+  expect(fechaDeTasa("2026-04-05", fer)).toBe("2026-04-01"); // domingo de Pascua → Miércoles Santo
+  expect(fechaDeTasa("2026-04-02", fer)).toBe("2026-04-01");
+  expect(fechaDeTasa("2026-04-06", fer)).toBe("2026-04-06");
+  expect(fechaDeTasa("2026-12-25", new Set(["2026-12-24", "2026-12-25"]))).toBe("2026-12-23");
+  expect(fechaDeTasa("2026-10-12", new Set(["2026-10-12"]))).toBe("2026-10-09"); // lunes feriado → viernes
+});
+
+it("esDiaHabil: ni fin de semana ni feriado", () => {
+  expect(esDiaHabil("2026-10-19")).toBe(true);
+  expect(esDiaHabil("2026-10-18")).toBe(false);
+  expect(esDiaHabil("2026-10-12", new Set(["2026-10-12"]))).toBe(false);
 });
