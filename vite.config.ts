@@ -27,5 +27,11 @@ export default defineConfig(() => ({
       ignored: ["**/src-tauri/**"],
     },
   },
-  test: { environment: "node", include: ["src/**/*.test.ts"] },
+  test: {
+    projects: [
+      { extends: true, test: { name: "logica", environment: "node", include: ["src/**/*.test.ts"] } },
+      // Pruebas de interfaz: la app real con la BD de sql.js en memoria y Tauri simulado (src/testing/setupUi.ts).
+      { extends: true, test: { name: "ui", environment: "jsdom", include: ["src/**/*.ui.test.tsx"], setupFiles: ["src/testing/setupUi.ts"] } },
+    ],
+  },
 }));
