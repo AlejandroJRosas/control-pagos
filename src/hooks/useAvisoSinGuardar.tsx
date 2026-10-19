@@ -17,19 +17,28 @@ export function useAvisoSinGuardar(sucio: boolean) {
   );
   // Al cerrar la ventana con cambios: el cierre espera la respuesta del diálogo.
   const [cierre, setCierre] = useState<((cerrar: boolean) => void) | null>(null);
+  const pendiente = useRef<((cerrar: boolean) => void) | null>(null);
 
-  useEffect(
-    () =>
-      registrarBloqueador(() => {
-        if (!sucioRef.current || libre.current) return Promise.resolve(true);
-        return new Promise<boolean>((resolve) => setCierre(() => resolve));
-      }),
-    [],
-  );
+  useEffect(() => {
+    const quitar = registrarBloqueador(() => {
+      if (!sucioRef.current || libre.current) return Promise.resolve(true);
+      return new Promise<boolean>((resolve) => {
+        pendiente.current = resolve;
+        setCierre(() => resolve);
+      });
+    });
+    return () => {
+      quitar();
+      // Si el formulario se va con el diálogo abierto, ya no hay cambios que proteger: el cierre sigue.
+      pendiente.current?.(true);
+      pendiente.current = null;
+    };
+  }, []);
 
   const cerrando = cierre !== null;
   const responderCierre = (cerrar: boolean) => {
     cierre?.(cerrar);
+    pendiente.current = null;
     setCierre(null);
   };
 
