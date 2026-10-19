@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import Decimal from "decimal.js";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,6 +12,7 @@ import { deleteDepositos } from "@/db/repos/depositos";
 import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { avisarDepositosEliminados } from "@/lib/deshacer";
+import { conVolver } from "@/lib/volver";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { ComprobanteThumb } from "./ComprobanteThumb";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -28,6 +29,8 @@ type Props = {
   soloLectura?: boolean;
   /** Qué mostrar si no hay filas (por defecto, "No hay depósitos."). */
   vacio?: ReactNode;
+  /** Nombre de esta pantalla en el botón de volver del depósito. */
+  volverLabel: string;
 };
 
 type Col = "fecha" | "gerente" | "banco" | "referencia" | "cuenta" | "montoBs" | "tasa" | "usd" | "saldo" | "observaciones";
@@ -44,8 +47,9 @@ const COLUMNAS: Columnas<FilaDeposito, Col> = {
   observaciones: { tipo: "texto", valor: (d) => d.observaciones },
 };
 
-export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, soloLectura = false, vacio }: Props) {
+export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, soloLectura = false, vacio, volverLabel }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { orden, alternar } = useOrden<Col>();
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
   const [borrar, setBorrar] = useState<number[] | null>(null);
@@ -130,7 +134,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
               key={d.id}
               className="cursor-pointer"
               data-state={marcados.has(d.id) ? "selected" : undefined}
-              onClick={() => navigate(`/depositos/${d.id}`)}
+              onClick={() => navigate(`/depositos/${d.id}`, { state: conVolver(location, volverLabel) })}
             >
               {!soloLectura && (
                 <TableCell onClick={(e) => e.stopPropagation()}>

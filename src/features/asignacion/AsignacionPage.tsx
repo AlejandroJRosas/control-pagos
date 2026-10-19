@@ -111,6 +111,7 @@ export function AsignacionPage() {
         saldoLabel="Saldo restante"
         totales={r}
         soloLectura={cerrada}
+        volverLabel={a.gerenteNombre}
         vacio={
           <Vacio texto={`${a.gerenteNombre} todavía no tiene depósitos en esta campaña.`}>
             {!cerrada && (

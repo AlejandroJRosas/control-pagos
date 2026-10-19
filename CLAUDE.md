@@ -27,6 +27,8 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - `src/import/cuadroPagos.ts` — lee la hoja "CUADRO DE PAGOS" de las facturas por gerente (busca el encabezado por texto, no por celda fija).
 - Tablas ordenables con `SortableHead` + `useOrden` y `ordenar` (`lib/orden.ts`: montos como `decimal`, nunca como texto).
 - Filtros de tablas en la URL con `useFiltrosUrl(clave, keys)` (`lib/filtrosUrl.ts`): se recuerdan por pantalla/campaña en localStorage. La búsqueda libre usa `coincideBusqueda` (`domain/busqueda.ts`: sin acentos y montos con o sin separadores). El campo de búsqueda de cada tabla lleva `data-buscar-tabla` (lo enfoca la tecla `/`).
+- Volver a la lista de origen: quien abre un detalle pasa `state: conVolver(location, etiqueta)` (`lib/volver.ts`; `DepositosTable` lo hace con `volverLabel`) y el depósito lo lee con `leerVolver`; sin él vuelve al gerente o a la campaña.
+- Barra lateral colapsable (`lib/barraLateral.ts`): automática según el ancho (≤ 1100 px) salvo que el usuario la cierre (se recuerda en localStorage); Ctrl+B.
 - Búsqueda global Ctrl+K: `components/BusquedaGlobal.tsx` + `db/queries/busqueda.ts`. Atajos con `useAtajo` (`hooks/useAtajo.ts`; la lista de la ayuda `?` está en `ATAJOS`). `PageHeader` con `back` vuelve con Esc.
 - Selector con buscador: `components/BuscadorSelect.tsx` (combobox de Base UI, `ui/combobox.tsx`).
 - Formularios con cambios sin guardar: `useAvisoSinGuardar(sucio)` (bloquea la navegación y el cierre de ventana; llamar `permitirSalida()` antes de navegar tras guardar).

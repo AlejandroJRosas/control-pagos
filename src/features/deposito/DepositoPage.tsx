@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import { useAvisoSinGuardar } from "@/hooks/useAvisoSinGuardar";
 import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { avisarDepositosEliminados } from "@/lib/deshacer";
+import { leerVolver } from "@/lib/volver";
 import { sugerenciasBancos } from "./bancos";
 import { DepositoCampos } from "./DepositoCampos";
 import { camposOcr, conExtraccion, depositoVacio, SIN_DESTINO, useDepositoForm, type DepositoFormState } from "./useDepositoForm";
@@ -60,6 +61,10 @@ export function DepositoPage() {
 function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const navigate = useNavigate();
   const campana = data.campana;
+  // Vuelve a la lista desde la que se abrió (con sus filtros); si no se sabe, al gerente o a la campaña.
+  const volver =
+    leerVolver(useLocation().state) ??
+    (asignacion ? { to: `/asignaciones/${asignacion.id}`, label: asignacion.gerenteNombre } : { to: `/campanas/${campana.id}`, label: campana.nombre });
   const cerrada = campana.estado === "cerrada";
   const f = useDepositoForm({
     data,
@@ -150,7 +155,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
         invalidate();
       } else {
         aviso.permitirSalida();
-        navigate(asignacion ? `/asignaciones/${asignacionId}` : `/campanas/${campana.id}`);
+        navigate(volver.to);
         invalidate();
       }
     } catch (e) {
@@ -165,7 +170,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
     try {
       avisarDepositosEliminados(await deleteDeposito(await getDb(), deposito.id));
       aviso.permitirSalida();
-      navigate(`/asignaciones/${deposito.asignacionId}`, { replace: true });
+      navigate(volver.to, { replace: true });
       invalidate();
     } catch (e) {
       reportError(e);
@@ -175,7 +180,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   return (
     <div className="space-y-4">
       <PageHeader
-        back={asignacion ? { to: `/asignaciones/${asignacion.id}`, label: asignacion.gerenteNombre } : { to: `/campanas/${campana.id}`, label: campana.nombre }}
+        back={volver}
         title={deposito ? "Editar depósito" : "Registrar depósito"}
         subtitle={asignacion ? `${asignacion.gerenteNombre} · ${asignacion.campanaNombre}` : `Campaña ${campana.nombre}`}
         actions={

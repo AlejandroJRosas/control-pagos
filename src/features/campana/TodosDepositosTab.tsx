@@ -13,7 +13,9 @@ import { useFiltrosUrl } from "@/lib/filtrosUrl";
 
 const FILTROS = ["q", "gerente", "banco", "desde", "hasta"] as const;
 
-export function TodosDepositosTab({ campanaId, view, cerrada }: { campanaId: number; view: CampanaView; cerrada: boolean }) {
+type Props = { campanaId: number; campanaNombre: string; view: CampanaView; cerrada: boolean };
+
+export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: Props) {
   const { valores: f, set, limpiar, activos } = useFiltrosUrl(`campana-${campanaId}`, FILTROS);
   const bancos = useMemo(
     () => Array.from(new Set(view.depositos.map((d) => d.banco.trim()))).sort((a, b) => a.localeCompare(b, "es")),
@@ -112,6 +114,7 @@ export function TodosDepositosTab({ campanaId, view, cerrada }: { campanaId: num
         totales={r}
         soloLectura={cerrada}
         vacio={vacio}
+        volverLabel={campanaNombre}
       />
     </div>
   );

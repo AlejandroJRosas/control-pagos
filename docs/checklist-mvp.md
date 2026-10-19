@@ -78,6 +78,8 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Editar un depósito y hacer clic en la barra lateral o pulsar Esc: pide "Cambios sin guardar"; Cancelar se queda, "Salir sin guardar" sale. Cerrar la ventana con cambios también pregunta. Guardar no pregunta.
 - [ ] Borrar un depósito con la papelera: sin confirmación, aviso con "Deshacer" que lo devuelve con los mismos datos y saldos. Varios seleccionados: pide confirmación y también se pueden deshacer.
 - [ ] Campaña → Todos los depósitos: buscar por referencia, por monto ("1.234" y "1234") y por gerente; cambiar de pestaña, abrir un depósito, volver y reiniciar la app: los filtros siguen.
+- [ ] Abrir un depósito desde Campaña → Todos los depósitos (con un filtro puesto): el botón de volver, Esc, Guardar y Eliminar regresan a la campaña con el filtro, no al gerente. Abierto desde la página del gerente, regresan al gerente; desde "Ver depósito" en la revisión, a la revisión.
+- [ ] Barra lateral: al angostar la ventana (≤ 1100 px) se colapsa a íconos y al ensancharla se expande sola. El botón de arriba (o Ctrl+B) la colapsa con cualquier ancho y queda así al reiniciar; volver a expandirla devuelve el modo automático. Colapsada, cada ícono muestra su nombre al pasar el ratón.
 - [ ] Filtro de gerente y gerente del depósito: se puede escribir para buscar (sin acentos); el depósito muestra "En la campaña" / "Agregar a la campaña".
 - [ ] Por gerente: chips Sin pagos / En curso / Completo / Pagado de más con conteos; filtran la tabla.
 - [ ] Estados vacíos: campaña sin depósitos ofrece Registrar / Subir lote; sin gerentes, Agregar gerentes; filtros sin resultados, Limpiar filtros.

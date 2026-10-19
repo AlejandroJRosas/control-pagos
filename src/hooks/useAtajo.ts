@@ -43,5 +43,6 @@ export const ATAJOS: { teclas: string[]; que: string }[] = [
   { teclas: ["N"], que: "Nuevo: depósito en la campaña o gerente, tasa, gerente o campaña según la pantalla" },
   { teclas: ["Ctrl", "Enter"], que: "Guardar el depósito (o Hecho en la revisión en lote)" },
   { teclas: ["Esc"], que: "Volver a la pantalla anterior" },
+  { teclas: ["Ctrl", "B"], que: "Colapsar o expandir la barra lateral" },
   { teclas: ["?"], que: "Mostrar esta ayuda" },
 ];

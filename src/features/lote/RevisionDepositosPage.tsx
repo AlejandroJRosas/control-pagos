@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 import { Check, Images, SkipForward, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import type { DestinoDraft } from "@/domain/validation";
 import { deleteImage } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { conVolver } from "@/lib/volver";
 import { sugerenciasBancos } from "@/features/deposito/bancos";
 import { DepositoCampos } from "@/features/deposito/DepositoCampos";
 import { useDepositoForm } from "@/features/deposito/useDepositoForm";
@@ -208,6 +209,7 @@ type EditorProps = {
 };
 
 function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, editor, onSiguiente, onSaltar }: EditorProps) {
+  const location = useLocation();
   const hecho = item.estado === "hecho";
   const f = useDepositoForm({
     data,
@@ -297,7 +299,7 @@ function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, editor, 
         <Aviso>
           Ya está hecho.{" "}
           {item.depositoId ? (
-            <Link to={`/depositos/${item.depositoId}`} className="underline">
+            <Link to={`/depositos/${item.depositoId}`} state={conVolver(location, "Revisión")} className="underline">
               Ver depósito
             </Link>
           ) : (
