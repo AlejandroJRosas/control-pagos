@@ -11,6 +11,7 @@ import type { Destino, DestinoDraft } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
 import { toInputVE, toUsd } from "@/domain/money";
 import { fechaDeTasa, formatFecha } from "@/domain/dates";
+import { claveDuplicado } from "@/domain/bancos";
 
 /**
  * existente: ya hay tasa ese día y coincide · nueva: se registrará · distinta: se usará la ya registrada (o la de una fila anterior)
@@ -88,7 +89,7 @@ export async function planificarImportacion(
     let repetidaEnArchivo: number | null = null;
     if (f.banco && f.referencia) {
       duplicados = await findDuplicados(db, f.banco, f.referencia);
-      const clave = `${claveComparacion(f.banco)}\u001f${claveComparacion(f.referencia)}`;
+      const clave = claveDuplicado(f.banco, f.referencia);
       repetidaEnArchivo = vistas.get(clave) ?? null;
       if (repetidaEnArchivo === null) vistas.set(clave, f.fila);
     }

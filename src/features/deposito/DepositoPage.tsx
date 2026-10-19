@@ -25,7 +25,7 @@ import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { avisarDepositosEliminados } from "@/lib/deshacer";
 import { leerVolver } from "@/lib/volver";
-import { sugerenciasBancos } from "./bancos";
+import { sugerenciasBancos } from "@/domain/bancos";
 import { DepositoCampos } from "./DepositoCampos";
 import { camposOcr, conExtraccion, depositoVacio, SIN_DESTINO, useDepositoForm, type DepositoFormState } from "./useDepositoForm";
 

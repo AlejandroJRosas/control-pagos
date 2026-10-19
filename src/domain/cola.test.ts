@@ -35,3 +35,8 @@ it("no cuenta referencias o bancos vacíos", () => {
   expect(duplicadosEnCola(items, 1)).toEqual([]);
   expect(duplicadosEnCola(items, 3)).toEqual([]);
 });
+
+it("duplicados en la cola con alias de banco y sin ceros iniciales", () => {
+  const items = [d(1, "BDV", "0045"), d(2, "Banco de Venezuela", "45"), d(3, "Mercantil", "45")];
+  expect(duplicadosEnCola(items, 1)).toEqual([2]);
+});

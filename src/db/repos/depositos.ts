@@ -7,6 +7,7 @@ import type { DepositoValido } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
 import { fechaDeTasa, formatFecha } from "@/domain/dates";
 import { claveComparacion } from "@/domain/texto";
+import { claveDuplicado } from "@/domain/bancos";
 
 export type Deposito = {
   id: number;
@@ -138,10 +139,10 @@ export async function findDuplicados(db: SqlDriver, banco: string, referencia: s
      ORDER BY d.fecha`,
     [excludeId ?? -1],
   );
-  const kBanco = claveComparacion(banco);
-  const kRef = claveComparacion(referencia);
+  const clave = claveDuplicado(banco, referencia);
+  if (!clave) return [];
   return rows
-    .filter((r) => claveComparacion(r.banco) === kBanco && claveComparacion(r.referencia) === kRef)
+    .filter((r) => claveDuplicado(r.banco, r.referencia) === clave)
     .map(({ id, fecha, montoBs, gerenteNombre, campanaNombre }) => ({ id, fecha, montoBs, gerenteNombre, campanaNombre }));
 }
 

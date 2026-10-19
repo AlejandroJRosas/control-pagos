@@ -26,7 +26,7 @@ import { deleteImage } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { conVolver } from "@/lib/volver";
-import { sugerenciasBancos } from "@/features/deposito/bancos";
+import { sugerenciasBancos } from "@/domain/bancos";
 import { DepositoCampos } from "@/features/deposito/DepositoCampos";
 import { useDepositoForm } from "@/features/deposito/useDepositoForm";
 import { ListaCola, RevisionLayout, type Filtro } from "./RevisionLayout";

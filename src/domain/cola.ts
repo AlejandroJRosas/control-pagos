@@ -1,4 +1,4 @@
-import { claveComparacion } from "./texto";
+import { claveDuplicado } from "./bancos";
 
 /** El siguiente pendiente después de `actualId` en el orden de la cola, volviendo al inicio; null si no queda otro. */
 export function siguientePendiente(items: { id: number; estado: "pendiente" | "hecho" }[], actualId: number | null): number | null {
@@ -11,10 +11,9 @@ export function siguientePendiente(items: { id: number; estado: "pendiente" | "h
 export function duplicadosEnCola(items: { id: number; estado: string; banco: string; referencia: string }[], id: number): number[] {
   const yo = items.find((x) => x.id === id);
   if (!yo) return [];
-  const banco = claveComparacion(yo.banco);
-  const ref = claveComparacion(yo.referencia);
-  if (!banco || !ref) return [];
+  const clave = claveDuplicado(yo.banco, yo.referencia);
+  if (!clave) return [];
   return items
-    .filter((x) => x.id !== id && x.estado === "pendiente" && claveComparacion(x.banco) === banco && claveComparacion(x.referencia) === ref)
+    .filter((x) => x.id !== id && x.estado === "pendiente" && claveDuplicado(x.banco, x.referencia) === clave)
     .map((x) => x.id);
 }

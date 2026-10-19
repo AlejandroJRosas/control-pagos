@@ -114,3 +114,9 @@ it("eliminar uno también devuelve lo necesario para restaurarlo", async () => {
   await restaurarDepositos(db, eliminados);
   expect(await getDeposito(db, a)).toEqual(antes);
 });
+
+it("detecta duplicados con alias de banco y sin ceros iniciales", async () => {
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Banco de Venezuela", referencia: "000777" }));
+  expect((await findDuplicados(db, "BDV", "777")).map((d) => d.id)).toEqual([id]);
+  expect(await findDuplicados(db, "Banesco", "777")).toEqual([]);
+});
