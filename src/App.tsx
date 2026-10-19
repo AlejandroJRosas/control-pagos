@@ -4,6 +4,7 @@ import { ResumenPage } from "@/features/resumen/ResumenPage";
 import { CampanasPage } from "@/features/campanas/CampanasPage";
 import { Inicio } from "@/features/campanas/Inicio";
 import { CampanaPage } from "@/features/campana/CampanaPage";
+import { DuplicadosPage } from "@/features/campana/DuplicadosPage";
 import { ImportarPage } from "@/features/importar/ImportarPage";
 import { AsignacionPage } from "@/features/asignacion/AsignacionPage";
 import { DepositoPage } from "@/features/deposito/DepositoPage";
@@ -26,6 +27,7 @@ export const routes: RouteObject[] = [
       { path: "campanas", element: <CampanasPage /> },
       { path: "campanas/:campanaId", element: <CampanaPage /> },
       { path: "campanas/:campanaId/depositos/nuevo", element: <DepositoPage /> },
+      { path: "campanas/:campanaId/duplicados", element: <DuplicadosPage /> },
       { path: "campanas/:campanaId/importar", element: <ImportarPage /> },
       { path: "campanas/:campanaId/lote", element: <SubirLoteDepositosPage /> },
       { path: "campanas/:campanaId/revision", element: <RevisionDepositosPage /> },

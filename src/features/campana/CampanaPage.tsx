@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { ChevronDown, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Pencil, Plus, MessageCircle, Settings2, Trash2, UserPlus } from "lucide-react";
+import { ChevronDown, CopyX, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Pencil, Plus, MessageCircle, Settings2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -16,6 +16,7 @@ import { loadCampanaData } from "@/db/queries/campanaData";
 import { setEstadoCampana } from "@/db/repos/campanas";
 import { deleteAsignacion } from "@/db/repos/asignaciones";
 import { contarPendientesDepositos } from "@/db/repos/cola";
+import { loadDuplicadosCampana } from "@/db/queries/duplicados";
 import { buildCampanaView, type GerenteResumen } from "@/domain/campanaView";
 import { formatPeriodo, todayIso } from "@/domain/dates";
 import { buildCampanaWorkbook } from "@/export/campanaWorkbook";
@@ -44,6 +45,7 @@ export function CampanaPage() {
     [campanaId],
   );
   const { data: pendientes } = useData((db) => contarPendientesDepositos(db, campanaId), [campanaId]);
+  const { data: duplicados } = useData(async (db) => (await loadDuplicadosCampana(db, campanaId)).length, [campanaId]);
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") === "gerentes" ? "gerentes" : "depositos";
   const [editar, setEditar] = useState(false);
@@ -107,6 +109,8 @@ export function CampanaPage() {
     }
   }
 
+  // Con duplicados sin resolver (o mientras se cuentan) no se exporta: los totales saldrían inflados.
+  const exportable = duplicados === 0;
   const exportar = () => conExportando(() => saveWorkbook(buildCampanaWorkbook(campana, view), archivoExcel(campana.nombre, todayIso())), "Excel guardado");
   const exportarPdf = () =>
     conExportando(
@@ -135,7 +139,9 @@ export function CampanaPage() {
             )}
             {/* Al abrir el menú se va cargando pdfmake, para que el PDF salga más rápido. */}
             <DropdownMenu onOpenChange={(abierto) => abierto && void precargarPdfMake().catch(() => {})}>
-              <DropdownMenuTrigger render={<Button variant="outline" disabled={exportando} />}>
+              <DropdownMenuTrigger
+                render={<Button variant="outline" disabled={exportando || !exportable} title={duplicados ? "Resuelve los depósitos duplicados para exportar" : undefined} />}
+              >
                 {exportando ? <Loader2 className="animate-spin" /> : <Download />}
                 {exportando ? "Exportando…" : "Exportar"}
                 <ChevronDown data-icon="inline-end" />
@@ -147,7 +153,7 @@ export function CampanaPage() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => void exportarPdf()}>
                   <FileText />
-                  PDF para compartir
+                  PDF (.pdf)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -210,6 +216,20 @@ export function CampanaPage() {
         }
       />
       {cerrada && <Aviso>La campaña está cerrada: solo lectura. Reábrela para hacer cambios.</Aviso>}
+      {!!duplicados && (
+        <Aviso tono="warning">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>
+              Hay {duplicados === 1 ? "1 grupo" : `${duplicados} grupos`} de depósitos duplicados (mismo banco y referencia). Deja uno solo en cada grupo para poder
+              exportar.
+            </span>
+            <Link to={`/campanas/${campanaId}/duplicados`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              <CopyX />
+              Revisar duplicados
+            </Link>
+          </div>
+        </Aviso>
+      )}
       <ResumenCards resumen={view.total} etiquetaAsignado="Saldo general" />
       <Tabs
         value={tab}

@@ -1,8 +1,11 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ATAJOS } from "@/hooks/useAtajo";
+import { cn } from "@/lib/utils";
 
-export function Tecla({ children }: { children: string }) {
-  return <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border bg-muted px-1 font-sans text-[11px] font-medium">{children}</kbd>;
+export function Tecla({ children, className }: { children: string; className?: string }) {
+  return (
+    <kbd className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded border bg-muted px-1 font-sans text-[11px] font-medium", className)}>{children}</kbd>
+  );
 }
 
 export function AyudaAtajos({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {

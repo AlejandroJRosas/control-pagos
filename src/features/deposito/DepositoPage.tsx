@@ -199,14 +199,14 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
       />
       {cerrada && <Aviso>La campaña está cerrada: el depósito no se puede modificar.</Aviso>}
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-6">
         <ImageDrop
           label="Comprobante"
           value={imagen}
           onChange={onImagen}
           pasteEnabled={!tasaDialog}
           disabled={cerrada}
-          className="h-[calc(100vh-11rem)] min-h-96"
+          className="sticky top-4 h-[min(calc(100vh-11rem),40rem)] min-h-80"
         />
 
         <form

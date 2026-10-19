@@ -5,7 +5,7 @@ type Props = { id: string; label: string; error?: string; hint?: string; childre
 
 export function Field({ id, label, error, hint, children }: Props) {
   return (
-    <div className="grid gap-1.5">
+    <div className="grid content-start gap-1.5">
       <Label htmlFor={id}>{label}</Label>
       {children}
       {error ? <p className="text-sm text-destructive">{error}</p> : hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}

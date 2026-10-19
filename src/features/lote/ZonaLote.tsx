@@ -154,7 +154,7 @@ export function BarraIrARevisar({ to, filas }: { to: string; filas: FilaLote[] }
       <Button variant={esperando ? "outline" : "default"} onClick={ir}>
         {esperando ? <Loader2 className="animate-spin" /> : <ListChecks />}
         {esperando ? "Esperando la lectura (clic para cancelar)" : "Ir a revisar"}
-        {!esperando && <Tecla>Enter</Tecla>}
+        {!esperando && <Tecla className="border-primary-foreground/25 bg-primary-foreground/10 text-primary-foreground">Enter</Tecla>}
       </Button>
     </div>
   );
