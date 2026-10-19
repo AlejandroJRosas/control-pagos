@@ -30,10 +30,10 @@ function aItems(texto: string, r: ResultadoBusqueda | undefined): Item[] {
     icono: Receipt,
     ir: `/depositos/${d.id}`,
   }));
-  // Un gerente aparece una vez por campaña en la que está; sin campañas, lleva a la lista de gerentes.
+  // Un gerente aparece una vez por campaña en la que está; sin campañas, lleva a su ficha.
   const gerentes: Item[] = r.gerentes.flatMap((g) =>
     g.asignaciones.length === 0
-      ? [{ key: `g-${g.id}`, grupo: "Gerentes", titulo: g.nombre, detalle: g.telefono ?? "Sin campañas", icono: User, ir: `/gerentes?q=${encodeURIComponent(g.nombre)}` }]
+      ? [{ key: `g-${g.id}`, grupo: "Gerentes", titulo: g.nombre, detalle: g.telefono ?? "Sin campañas", icono: User, ir: `/gerentes/${g.id}` }]
       : g.asignaciones.map((a) => ({ key: `a-${a.asignacionId}`, grupo: "Gerentes", titulo: g.nombre, detalle: a.campanaNombre, icono: User, ir: `/asignaciones/${a.asignacionId}` })),
   );
   const campanas: Item[] = r.campanas.map((c) => ({

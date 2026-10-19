@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { FileImage, MessageCircle, Plus } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { todayIso } from "@/domain/dates";
 import { mensajeEstadoCuenta, numeroWhatsApp, urlWhatsApp } from "@/domain/whatsapp";
 import { EstadoGerenteBadge } from "@/components/EstadoGerenteBadge";
 import { reportError } from "@/lib/reportError";
+import { leerVolver } from "@/lib/volver";
 import { GerenteFormDialog } from "@/features/gerentes/GerenteFormDialog";
 import { EstadoCuentaDialog } from "./EstadoCuentaDialog";
 import { DomainError } from "@/domain/errors";
@@ -38,6 +39,8 @@ export function AsignacionPage() {
   );
 
   const navigate = useNavigate();
+  // Abierta desde la ficha del gerente vuelve a ella; si no, a la campaña.
+  const volver = leerVolver(useLocation().state);
   const [estadoCuenta, setEstadoCuenta] = useState(false);
   const [editarGerente, setEditarGerente] = useState<Gerente | null>(null);
   useAtajo("n", () => navigate(`/asignaciones/${asignacionId}/depositos/nuevo`), { activo: data?.a.campanaEstado === "activa" });
@@ -67,10 +70,12 @@ export function AsignacionPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        back={{ to: `/campanas/${a.campanaId}`, label: a.campanaNombre }}
+        back={volver ?? { to: `/campanas/${a.campanaId}`, label: a.campanaNombre }}
         title={
           <span className="flex items-center gap-3">
-            {a.gerenteNombre}
+            <Link to={`/gerentes/${a.gerenteId}`} className="hover:underline" title="Ver todas sus campañas">
+              {a.gerenteNombre}
+            </Link>
             <EstadoGerenteBadge estado={estadoGerente(resumen)} />
           </span>
         }

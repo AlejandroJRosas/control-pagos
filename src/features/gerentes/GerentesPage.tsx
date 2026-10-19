@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,7 @@ export function GerentesPage() {
       claveComparacion(g.nombre).includes(k) || claveComparacion(g.telefono ?? "").includes(k) || g.campanas.some((c) => claveComparacion(c).includes(k));
     return ordenar((data ?? []).filter((g) => (verInactivos || g.activo) && coincide(g)), COLUMNAS, orden);
   }, [data, verInactivos, orden, f.q]);
+  const navigate = useNavigate();
   const nuevo = () => setDialog({ open: true, gerente: null });
   useAtajo("n", nuevo);
 
@@ -124,7 +126,7 @@ export function GerentesPage() {
           </TableHeader>
           <TableBody>
             {filas.map((g) => (
-              <TableRow key={g.id}>
+              <TableRow key={g.id} className="cursor-pointer" onClick={() => navigate(`/gerentes/${g.id}`)}>
                 <TableCell className="font-medium">{g.nombre}</TableCell>
                 <TableCell>{g.telefono ?? "—"}</TableCell>
                 <TableCell className="max-w-80">
@@ -139,7 +141,7 @@ export function GerentesPage() {
                   </div>
                 </TableCell>
                 <TableCell>{g.activo ? <Badge>Activo</Badge> : <Badge variant="secondary">Inactivo</Badge>}</TableCell>
-                <TableCell className="space-x-2 text-right">
+                <TableCell className="space-x-2 text-right" onClick={(e) => e.stopPropagation()}>
                   <Button size="sm" variant="outline" onClick={() => setDialog({ open: true, gerente: g })}>
                     Editar
                   </Button>

@@ -4,9 +4,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Aviso } from "@/components/Feedback";
 import { ImageDrop } from "@/components/ImageDrop";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TasaCampos } from "./TasaCampos";
 import { getDb } from "@/db";
-import { createTasa, getTasa, updateTasa, type Tasa, type TasaConUsos } from "@/db/repos/tasas";
+import { createTasa, deleteTasa, getTasa, updateTasa, type Tasa, type TasaConUsos } from "@/db/repos/tasas";
 import { validateTasa, type TasaDraft } from "@/domain/validation";
 import { parseTasa, toInputVE } from "@/domain/money";
 import { formatFecha, todayIso } from "@/domain/dates";
@@ -37,6 +38,7 @@ export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }:
   const imagenVigente = useRef<Blob | null>(null);
   const [errors, setErrors] = useState<Partial<Record<keyof TasaDraft, string>>>({});
   const [saving, setSaving] = useState(false);
+  const [borrar, setBorrar] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -121,37 +123,74 @@ export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }:
     }
   }
 
+  async function eliminar() {
+    if (!tasa) return;
+    try {
+      await deleteTasa(await getDb(), tasa.id);
+      toast.success("Tasa eliminada");
+      invalidate();
+      onOpenChange(false);
+    } catch (err) {
+      reportError(err);
+    } finally {
+      setBorrar(false);
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <form onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{tasa ? "Editar tasa" : "Registrar tasa del día"}</DialogTitle>
-          </DialogHeader>
-          <TasaCampos
-            form={form}
-            set={set}
-            errors={errors}
-            fechaBloqueada={tasa != null || fechaFija != null}
-            fechaImagen={null}
-            avisoFinDeSemana={!tasa}
-            avisosExtra={afectados > 0 && <Aviso tono="warning">Cambiar esta tasa recalcula {afectados} depósito(s).</Aviso>}
-          />
-          <ImageDrop label="Captura de la tasa (opcional)" value={imagen} onChange={onImagen} pasteEnabled={open} className="h-56" />
-          {leyendo && <p className="text-sm text-muted-foreground">Leyendo imagen…</p>}
-          {fechaImagen && fechaImagen !== draft.fecha && form.auto.estado.fecha === "tocado" && (
-            <Aviso tono="warning">La imagen es del {formatFecha(fechaImagen)}.</Aviso>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {afectados > 0 ? `Guardar (afecta ${afectados})` : "Guardar"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-xl">
+          <form onSubmit={onSubmit} className="grid gap-4">
+            <DialogHeader>
+              <DialogTitle>{tasa ? "Editar tasa" : "Registrar tasa del día"}</DialogTitle>
+            </DialogHeader>
+            <TasaCampos
+              form={form}
+              set={set}
+              errors={errors}
+              fechaBloqueada={tasa != null || fechaFija != null}
+              fechaImagen={null}
+              avisoFinDeSemana={!tasa}
+              avisosExtra={afectados > 0 && <Aviso tono="warning">Cambiar esta tasa recalcula {afectados} depósito(s).</Aviso>}
+            />
+            <ImageDrop label="Captura de la tasa (opcional)" value={imagen} onChange={onImagen} pasteEnabled={open} className="h-56" />
+            {leyendo && <p className="text-sm text-muted-foreground">Leyendo imagen…</p>}
+            {fechaImagen && fechaImagen !== draft.fecha && form.auto.estado.fecha === "tocado" && (
+              <Aviso tono="warning">La imagen es del {formatFecha(fechaImagen)}.</Aviso>
+            )}
+            <DialogFooter>
+              {tasa && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-destructive sm:mr-auto"
+                  disabled={tasa.usos > 0}
+                  title={tasa.usos > 0 ? `La usan ${tasa.usos} depósito(s): elimínalos o muévelos de fecha antes` : undefined}
+                  onClick={() => setBorrar(true)}
+                >
+                  Eliminar
+                </Button>
+              )}
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {afectados > 0 ? `Guardar (afecta ${afectados})` : "Guardar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <ConfirmDialog
+        open={borrar}
+        onOpenChange={setBorrar}
+        title="Eliminar tasa"
+        description={tasa ? `Se eliminará la tasa del ${formatFecha(tasa.fecha)}.` : ""}
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={eliminar}
+      />
+    </>
   );
 }

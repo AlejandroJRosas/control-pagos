@@ -11,6 +11,8 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Aviso y saldo en rojo al pagar de más.
 - [ ] Editar la tasa de un día avisa "afecta N depósitos" y recalcula los saldos.
 - [ ] No se puede eliminar una tasa en uso.
+- [ ] Tasas → Calendario → clic en un día con tasa → "Eliminar": pide confirmar y la borra; con depósitos que la usan, el botón está deshabilitado y explica por qué.
+- [ ] Gerentes → clic en una fila abre su ficha: totales de todas sus campañas y una fila por campaña (cerrada marcada); clic en una campaña abre su página y el volver regresa a la ficha. Editar y Activar/Desactivar funcionan desde la ficha. En la página del gerente en una campaña, el nombre lleva a la ficha. Ctrl+K con un gerente sin campañas abre su ficha.
 - [ ] "Todos los depósitos": orden cronológico, filtros por gerente/banco/fechas y totales.
 - [ ] Ordenar la pestaña "Por gerente" por % avance.
 - [ ] Campaña → "Cerrar campaña" → todo de solo lectura ("Registrar depósito" y su menú deshabilitados); reabrir.

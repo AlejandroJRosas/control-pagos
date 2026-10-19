@@ -8,6 +8,7 @@ import { AsignacionPage } from "@/features/asignacion/AsignacionPage";
 import { DepositoPage } from "@/features/deposito/DepositoPage";
 import { ConfiguracionPage } from "@/features/configuracion/ConfiguracionPage";
 import { GerentesPage } from "@/features/gerentes/GerentesPage";
+import { GerentePage } from "@/features/gerentes/GerentePage";
 import { TasasPage } from "@/features/tasas/TasasPage";
 import { SubirLoteDepositosPage } from "@/features/lote/SubirLoteDepositosPage";
 import { SubirLoteTasasPage } from "@/features/lote/SubirLoteTasasPage";
@@ -29,6 +30,7 @@ export const router = createHashRouter([
       { path: "asignaciones/:asignacionId/depositos/nuevo", element: <DepositoPage /> },
       { path: "depositos/:depositoId", element: <DepositoPage /> },
       { path: "gerentes", element: <GerentesPage /> },
+      { path: "gerentes/:gerenteId", element: <GerentePage /> },
       { path: "tasas", element: <TasasPage /> },
       { path: "tasas/lote", element: <SubirLoteTasasPage /> },
       { path: "tasas/revision", element: <RevisionTasasPage /> },
