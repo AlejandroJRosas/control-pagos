@@ -42,6 +42,7 @@ export const ATAJOS: { teclas: string[]; que: string }[] = [
   { teclas: ["/"], que: "Ir al buscador de la tabla" },
   { teclas: ["N"], que: "Nuevo: depósito en la campaña o gerente, tasa, gerente o campaña según la pantalla" },
   { teclas: ["Ctrl", "Enter"], que: "Guardar el depósito (o Hecho en la revisión en lote)" },
+  { teclas: ["Ctrl", "A"], que: "En la revisión en lote: marcar todos los pendientes (Ctrl o Shift + clic para marcar varios)" },
   { teclas: ["Esc"], que: "Volver a la pantalla anterior" },
   { teclas: ["Ctrl", "B"], que: "Colapsar o expandir la barra lateral" },
   { teclas: ["Ctrl", "Rueda"], que: "Agrandar o achicar la app (también Ctrl + / Ctrl − ; Ctrl 0 vuelve al 100 %)" },
