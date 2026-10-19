@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Aviso } from "@/components/Feedback";
 import { Field } from "@/components/Field";
 import { DestinoGerente } from "@/components/DestinoGerente";
+import { BuscadorTexto } from "@/components/BuscadorTexto";
 import type { AsignacionDetalle } from "@/db/repos/asignaciones";
 import type { Gerente } from "@/db/repos/gerentes";
 import type { CampanaData } from "@/db/queries/campanaData";
@@ -88,12 +89,14 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
           </Field>
         </div>
         <Field id="d-banco" label="Banco de origen" error={errors.banco}>
-          <Input id="d-banco" list="bancos" className={confClass(form.auto.confianza.banco)} value={draft.banco} onChange={(e) => set("banco", e.target.value)} />
-          <datalist id="bancos">
-            {bancos.map((b) => (
-              <option key={b} value={b} />
-            ))}
-          </datalist>
+          <BuscadorTexto
+            id="d-banco"
+            className={confClass(form.auto.confianza.banco)}
+            value={draft.banco}
+            onChange={(v) => set("banco", v)}
+            sugerencias={bancos}
+            disabled={disabled}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-4">
           <Field id="d-ref" label="Referencia bancaria" error={errors.referencia}>

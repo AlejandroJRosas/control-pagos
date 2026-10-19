@@ -5,7 +5,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { FechaInput } from "@/components/FechaInput";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/NativeSelect";
 import { BuscadorSelect } from "@/components/BuscadorSelect";
 import { DepositosTable } from "@/components/DepositosTable";
 import { Vacio } from "@/components/Feedback";
@@ -22,6 +21,7 @@ export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: P
     () => Array.from(new Set(view.depositos.map((d) => d.banco.trim()))).sort((a, b) => a.localeCompare(b, "es")),
     [view],
   );
+  const opcionesBanco = useMemo(() => [{ value: "", label: "Todos" }, ...bancos.map((b) => ({ value: b, label: b }))], [bancos]);
   const gerentes = useMemo(
     () => [{ value: "", label: "Todos" }, ...view.gerentes.map((g) => ({ value: String(g.gerenteId), label: g.gerenteNombre }))],
     [view],
@@ -87,14 +87,7 @@ export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: P
         </div>
         <div className="grid w-44 gap-1.5">
           <Label htmlFor="f-banco">Banco</Label>
-          <NativeSelect id="f-banco" value={f.banco} onChange={(e) => set({ banco: e.target.value })}>
-            <option value="">Todos</option>
-            {bancos.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </NativeSelect>
+          <BuscadorSelect id="f-banco" value={f.banco} onChange={(banco) => set({ banco })} opciones={opcionesBanco} placeholder="Todos" />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="f-desde">Desde</Label>

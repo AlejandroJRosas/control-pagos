@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FechaInput } from "@/components/FechaInput";
-import { NativeSelect } from "@/components/NativeSelect";
+import { BuscadorSelect } from "@/components/BuscadorSelect";
 import { Vacio } from "@/components/Feedback";
 import { getDb } from "@/db";
 import { createFeriado, deleteFeriado, type Feriado } from "@/db/repos/feriados";
@@ -73,13 +73,9 @@ export function FeriadosCard({ feriados }: { feriados: Feriado[] }) {
             <Plus />
             Agregar feriado
           </Button>
-          <NativeSelect aria-label="Año" className="ml-auto w-28" value={anio} onChange={(e) => setAnio(e.target.value)}>
-            {anios.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </NativeSelect>
+          <div className="ml-auto w-28">
+            <BuscadorSelect value={anio} onChange={(a) => a && setAnio(a)} opciones={anios.map((a) => ({ value: a, label: a }))} placeholder="Año" />
+          </div>
         </form>
         {delAnio.length === 0 ? (
           <Vacio texto={`No hay feriados registrados en ${anio}.`} />
