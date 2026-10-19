@@ -62,7 +62,8 @@
     --primary: oklch(0.205 0 0);
     --primary-foreground: oklch(0.985 0 0);
     --primary-intenso: var(--primary);
-    --fila-par: var(--muted);
+    /* Rayado de las tablas: apenas distinto del fondo para no hacer ruido. */
+    --fila-par: oklch(0.985 0 0);
     --fila-hover: oklch(0.94 0 0);
     --fila-sel: oklch(0.9 0 0);
     --secondary: oklch(0.97 0 0);
@@ -101,6 +102,7 @@
     --primary: oklch(0.922 0 0);
     --primary-foreground: oklch(0.205 0 0);
     --primary-intenso: var(--primary);
+    --fila-par: oklch(0.175 0 0);
     --fila-hover: oklch(0.25 0 0);
     --fila-sel: oklch(0.31 0 0);
     --secondary: oklch(0.269 0 0);
@@ -177,7 +179,7 @@
     --sidebar-primary: var(--primary);
     --sidebar-primary-foreground: var(--primary-foreground);
     /* Croma explícito con el tono del tema: mezclar el pastel con blanco lo dejaba casi gris. */
-    --fila-par: oklch(0.97 0.03 var(--tono));
+    --fila-par: oklch(0.985 0.012 var(--tono));
     --fila-hover: oklch(0.93 0.055 var(--tono));
     --fila-sel: oklch(0.88 0.08 var(--tono));
     /* Hover de botones, menús y listas (hover:bg-accent) con el color del tema. */
@@ -187,7 +189,7 @@
 /* Modo oscuro con tema de color: el pastel se mantiene en botones y barra lateral; las filas
    y el hover pasan a tonos oscuros del mismo matiz y --primary-intenso se aclara para leerse sobre fondo oscuro. */
 .dark[data-tema]:not([data-tema="neutro"]) {
-    --fila-par: oklch(0.2 0.015 var(--tono));
+    --fila-par: oklch(0.175 0.01 var(--tono));
     --fila-hover: oklch(0.26 0.035 var(--tono));
     --fila-sel: oklch(0.32 0.055 var(--tono));
     --primary-intenso: oklch(0.78 0.12 var(--tono));
