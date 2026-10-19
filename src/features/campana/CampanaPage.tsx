@@ -52,6 +52,7 @@ export function CampanaPage() {
   const [confirmEstado, setConfirmEstado] = useState(false);
   const [quitar, setQuitar] = useState<GerenteResumen | null>(null);
   const [eliminar, setEliminar] = useState(false);
+  const [exportando, setExportando] = useState(false);
 
   const cerradaAtajo = data?.campana.estado !== "activa";
   useAtajo("n", () => navigate(`/campanas/${campanaId}/depositos/nuevo`), { activo: !cerradaAtajo });
@@ -89,21 +90,20 @@ export function CampanaPage() {
     }
   }
 
-  async function exportar() {
+  /** Mientras se exporta, el menú queda deshabilitado: generar el PDF tarda unos segundos la primera vez. */
+  async function conExportando(guardar: () => Promise<boolean>, mensaje: string) {
+    setExportando(true);
     try {
-      if (await saveWorkbook(buildCampanaWorkbook(campana, view), archivoExcel(campana.nombre, todayIso()))) toast.success("Excel guardado");
+      if (await guardar()) toast.success(mensaje);
     } catch (e) {
       reportError(e, "Exportar");
+    } finally {
+      setExportando(false);
     }
   }
 
-  async function exportarPdf() {
-    try {
-      if (await savePdf(buildCampanaPdf(campana, view), archivoPdf(campana.nombre, todayIso()))) toast.success("PDF guardado");
-    } catch (e) {
-      reportError(e, "Exportar");
-    }
-  }
+  const exportar = () => conExportando(() => saveWorkbook(buildCampanaWorkbook(campana, view), archivoExcel(campana.nombre, todayIso())), "Excel guardado");
+  const exportarPdf = () => conExportando(() => savePdf(buildCampanaPdf(campana, view), archivoPdf(campana.nombre, todayIso())), "PDF guardado");
 
   return (
     <div className="space-y-6">
@@ -125,9 +125,9 @@ export function CampanaPage() {
               </Link>
             )}
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="outline" />}>
+              <DropdownMenuTrigger render={<Button variant="outline" disabled={exportando} />}>
                 <Download />
-                Exportar
+                {exportando ? "Exportando…" : "Exportar"}
                 <ChevronDown data-icon="inline-end" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-auto min-w-48">

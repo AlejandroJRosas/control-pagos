@@ -31,6 +31,13 @@ export function colorBarra(r: Resumen): string {
 
 export const anchoBarra = (r: Resumen): number => Math.min(Math.max(r.ratio, 0), 1);
 
+/** Verde si ya no falta nada, rojo si se pagó de más, ámbar si aún falta. */
+export function colorTextoRestante(r: Resumen): string {
+  const restante = new Decimal(r.restante);
+  if (restante.isNegative() && !restante.isZero()) return COLOR.textoRojo;
+  return restante.lte(0) ? COLOR.textoVerde : COLOR.textoAmbar;
+}
+
 export function textoRestante(r: Resumen): { etiqueta: "Faltan" | "Pagado de más"; monto: string; excedido: boolean } {
   const restante = new Decimal(r.restante);
   const excedido = restante.isNegative() && !restante.isZero();

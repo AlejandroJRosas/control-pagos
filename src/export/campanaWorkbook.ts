@@ -1,10 +1,10 @@
 import ExcelJS from "exceljs";
 import Decimal from "decimal.js";
 import type { Campana } from "@/db/repos/campanas";
-import type { CampanaView, DepositoCalculado, GerenteResumen } from "@/domain/campanaView";
+import type { CampanaView, DepositoCalculado, GerenteResumen, Resumen } from "@/domain/campanaView";
 import { formatPct, formatUsd } from "@/domain/money";
 import { formatFecha, formatPeriodo, todayIso } from "@/domain/dates";
-import { COLOR, argb, textoRestante } from "./estilo";
+import { COLOR, argb, colorTextoRestante, textoRestante } from "./estilo";
 
 const MONEY = "#,##0.00";
 const TASA = "#,##0.0000";
@@ -55,6 +55,8 @@ function franjaTitulo(ws: ExcelJS.Worksheet, columnas: number, titulo: string, s
   st.value = subtitulo;
   st.font = { color: { argb: argb("c9d6e8") } };
   for (const r of [1, 2]) for (let c = 1; c <= columnas; c++) ws.getCell(r, c).fill = solido(COLOR.azul);
+  // Las columnas de fecha tienen numFmt propio: los títulos son texto.
+  for (const r of [1, 2, 3]) ws.getCell(r, 1).numFmt = "General";
 }
 
 /** Encabezado azul, filas alternadas, bordes finos, autofiltro y panel inmovilizado bajo el encabezado. */
@@ -101,11 +103,10 @@ function addResumen(ws: ExcelJS.Worksheet, campana: Campana, view: CampanaView, 
     cell.value = etiqueta;
     cell.font = { size: 10, color: { argb: argb(COLOR.gris) } };
   });
-  const colorRestante = textoRestante(total).excedido ? COLOR.textoRojo : COLOR.textoAmbar;
   const cifras: [ExcelJS.CellValue, string, string | null][] = [
     [num(total.asignado), USD_GRANDE, null],
     [num(total.pagado), USD_GRANDE, COLOR.textoVerde],
-    [num(total.restante), USD_GRANDE, colorRestante],
+    [num(total.restante), USD_GRANDE, colorTextoRestante(total)],
     [total.pct / 100, PCT, null],
   ];
   cifras.forEach(([valor, fmt, color], i) => {
@@ -180,7 +181,7 @@ function imprimir(ws: ExcelJS.Worksheet, filaEncabezado: number): void {
 
 type HojaDepositos = { titulo: string; resumen?: GerenteResumen };
 
-function addDepositos(ws: ExcelJS.Worksheet, campana: Campana, deps: DepositoCalculado[], hoja: HojaDepositos, generadoEn: Date): void {
+function addDepositos(ws: ExcelJS.Worksheet, campana: Campana, totalCampana: Resumen, deps: DepositoCalculado[], hoja: HojaDepositos, generadoEn: Date): void {
   const general = !hoja.resumen;
   ws.columns = [
     { key: "fecha", width: 12, style: { numFmt: FECHA } },
@@ -203,6 +204,7 @@ function addDepositos(ws: ExcelJS.Worksheet, campana: Campana, deps: DepositoCal
     const cell = ws.getCell(3, 1);
     cell.value = `Asignado ${formatUsd(r.asignado)} · Pagado ${formatUsd(r.pagado)} · ${restante.etiqueta} ${restante.monto} · Avance ${formatPct(r.pct)}`;
     cell.font = { bold: true, color: { argb: argb(restante.excedido ? COLOR.textoRojo : COLOR.azul) } };
+    cell.numFmt = "General";
   }
 
   const filaEncabezado = 5;
@@ -238,7 +240,8 @@ function addDepositos(ws: ExcelJS.Worksheet, campana: Campana, deps: DepositoCal
   estilarTabla(ws, filaEncabezado, ultimaFila, columnas);
   const sum = (k: "montoBs" | "usd") => deps.reduce((acc, d) => acc.plus(d[k]), new Decimal(0)).toNumber();
   const total = ws.getRow(ultimaFila + 1);
-  total.values = { banco: "TOTAL", montoBs: sum("montoBs"), usd: sum("usd") };
+  const saldoFinal = hoja.resumen?.restante ?? totalCampana.restante;
+  total.values = { banco: "TOTAL", montoBs: sum("montoBs"), usd: sum("usd"), saldo: num(saldoFinal) };
   estilarTotal(total, columnas);
   imprimir(ws, filaEncabezado);
 }
@@ -249,11 +252,12 @@ export function buildCampanaWorkbook(campana: Campana, view: CampanaView, genera
   wb.created = generadoEn;
   const used = new Set<string>();
   addResumen(wb.addWorksheet(safeSheetName("Resumen", used)), campana, view, generadoEn);
-  addDepositos(wb.addWorksheet(safeSheetName("Todos los depósitos", used)), campana, view.depositos, { titulo: "Todos los depósitos" }, generadoEn);
+  addDepositos(wb.addWorksheet(safeSheetName("Todos los depósitos", used)), campana, view.total, view.depositos, { titulo: "Todos los depósitos" }, generadoEn);
   for (const g of view.gerentes) {
     addDepositos(
       wb.addWorksheet(safeSheetName(g.gerenteNombre, used)),
       campana,
+      view.total,
       view.depositos.filter((d) => d.asignacionId === g.asignacionId),
       { titulo: g.gerenteNombre, resumen: g },
       generadoEn,

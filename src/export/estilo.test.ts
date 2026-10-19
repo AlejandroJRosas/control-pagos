@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcResumen } from "@/domain/campanaView";
-import { COLOR, anchoBarra, argb, colorBarra, hex, textoRestante } from "./estilo";
+import { COLOR, anchoBarra, argb, colorBarra, colorTextoRestante, hex, textoRestante } from "./estilo";
 
 const res = (asignado: string, pagado: string, cantidad: number) =>
   calcResumen(asignado, cantidad === 0 ? [] : [pagado], cantidad === 0 ? [] : ["2026-03-01"]);
@@ -29,4 +29,11 @@ it("textoRestante distingue lo que falta de lo pagado de más", () => {
 it("convierte colores para Excel y pdfmake", () => {
   expect(argb("1f3a5f")).toBe("FF1F3A5F");
   expect(hex("1f3a5f")).toBe("#1f3a5f");
+});
+
+it("colorTextoRestante: verde si ya no falta nada, rojo si se pasó y ámbar si falta", () => {
+  expect(colorTextoRestante(res("100", "100", 1))).toBe(COLOR.textoVerde);
+  expect(colorTextoRestante(res("100", "120", 1))).toBe(COLOR.textoRojo);
+  expect(colorTextoRestante(res("100", "30", 1))).toBe(COLOR.textoAmbar);
+  expect(colorTextoRestante(res("0", "0", 0))).toBe(COLOR.textoVerde);
 });

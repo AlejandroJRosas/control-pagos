@@ -110,6 +110,8 @@ it("genera resumen, todos los depósitos y una hoja por gerente", async () => {
   expect(String(ana.getCell("A3").value)).toContain("Asignado $ 100,00 · Pagado $ 100,00 · Faltan $ 0,00 · Avance 100,0 %");
   expect(ana.getCell("H6").value).toBe(0);
   expect(ana.getCell("I6").value).toBe("obs");
+  expect(ana.getCell("H7").value).toBe(0);
+  expect(todos.getCell("I8").value).toBe(30);
 });
 
 const formatosCondicionales = (ws: ExcelJS.Worksheet) =>
@@ -176,4 +178,10 @@ it("la barra de datos usa el formato moderno de Excel (x14, sin degradado)", () 
   const regla = formatosCondicionales(ws)[0].rules[0] as ExcelJS.DataBarRuleType;
   expect(regla.type).toBe("dataBar");
   expect(regla.gradient).toBe(false);
+});
+
+it("las celdas de título no heredan el formato de fecha de la columna", () => {
+  const view = buildCampanaView([{ id: 1, gerenteId: 10, gerenteNombre: "Ana", saldoUsd: "100" }], []);
+  const ws = buildCampanaWorkbook(campana, view).getWorksheet("Ana")!;
+  for (const ref of ["A1", "A2", "A3"]) expect(ws.getCell(ref).numFmt ?? "General").toBe("General");
 });

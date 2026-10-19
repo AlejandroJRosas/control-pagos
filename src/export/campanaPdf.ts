@@ -4,7 +4,7 @@ import type { Campana } from "@/db/repos/campanas";
 import type { CampanaView, DepositoCalculado, GerenteResumen, Resumen } from "@/domain/campanaView";
 import { formatFecha, formatPeriodo, todayIso } from "@/domain/dates";
 import { formatNumberVE, formatPct, formatTasa, formatUsd } from "@/domain/money";
-import { COLOR, anchoBarra, colorBarra, hex, textoRestante } from "./estilo";
+import { COLOR, anchoBarra, colorBarra, colorTextoRestante, hex, textoRestante } from "./estilo";
 
 /** Ancho útil de una hoja carta (612 pt) con márgenes de 40 pt. */
 const ANCHO = 532;
@@ -66,7 +66,7 @@ function avance(r: Resumen, deTexto: string, color: string, cola: string): Conte
       text: [
         { text: restante.etiqueta },
         " ",
-        { text: restante.monto, bold: true, color: hex(restante.excedido ? COLOR.textoRojo : COLOR.textoAmbar) },
+        { text: restante.monto, bold: true, color: hex(colorTextoRestante(r)) },
         ` · ${cola}`,
       ],
       color: hex(COLOR.gris),
@@ -143,8 +143,8 @@ function tablaDepositos(g: GerenteResumen, deps: DepositoCalculado[]): Content {
       body.push([
         formatFecha(d.fecha),
         d.banco,
-        d.referencia,
-        d.cuentaDestino,
+        { text: d.referencia, wordBreak: "break-all" },
+        { text: d.cuentaDestino, fontSize: 7, wordBreak: "break-all" },
         monto(d.montoBs),
         { text: formatTasa(d.tasaValor), alignment: "right" },
         monto(d.usd),
@@ -162,7 +162,7 @@ function tablaDepositos(g: GerenteResumen, deps: DepositoCalculado[]): Content {
     ]);
   }
   return {
-    table: { headerRows: 1, widths: [46, 55, 52, "*", 62, 40, 50, 52], body },
+    table: { headerRows: 1, widths: [46, 52, 70, "*", 62, 38, 50, 52], body },
     layout: layoutTabla(deps.length > 0),
     fontSize: 8,
     margin: [0, 14, 0, 0],

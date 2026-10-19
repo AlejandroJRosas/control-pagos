@@ -82,6 +82,26 @@ describe("buildCampanaPdf", () => {
     expect(textos(dd)).not.toContain("nota interna");
   });
 
+  it("referencia y cuenta destino se parten si no caben; la cuenta va más pequeña", () => {
+    const ana = bloquesGerente(dd)[0];
+    const ref = buscar(ana, (o) => o.text === "001")[0];
+    const cuenta = buscar(ana, (o) => o.text === "0102")[0];
+    expect(ref.wordBreak).toBe("break-all");
+    expect(cuenta.wordBreak).toBe("break-all");
+    expect(cuenta.fontSize).toBe(7);
+  });
+
+  it("gerente al día: lo restante en verde", () => {
+    const alDia = buildCampanaPdf(
+      campana,
+      buildCampanaView([{ id: 1, gerenteId: 10, gerenteNombre: "Ana", saldoUsd: "100" }], [dep(1, 1, "2026-03-02", "3650")]),
+      generadoEn,
+    );
+    const montos = buscar(bloquesGerente(alDia)[0], (o) => o.text === "$ 0,00");
+    expect(montos.length).toBeGreaterThan(0);
+    expect(montos.every((o) => o.color === "#047857")).toBe(true);
+  });
+
   it("gerente sin depósitos", () => {
     const t = textos(bloquesGerente(dd)[1]);
     expect(t).toContain("Sin depósitos registrados");
