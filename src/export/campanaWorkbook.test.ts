@@ -161,3 +161,19 @@ it("gerente sin depósitos: su hoja solo tiene el total en cero", async () => {
   expect(ws.getCell("E6").value).toBe(0);
   expect(ws.getCell("G6").value).toBe(0);
 });
+
+it("un apóstrofo dentro del nombre no rompe los títulos de impresión", async () => {
+  const used = new Set<string>();
+  expect(safeSheetName("Ana D'Ambrosio", used)).toBe("Ana D’Ambrosio");
+  const view = buildCampanaView([{ id: 1, gerenteId: 10, gerenteNombre: "Ana D'Ambrosio", saldoUsd: "10" }], []);
+  const wb = await roundTrip(buildCampanaWorkbook(campana, view));
+  expect(wb.worksheets.map((w) => w.name)).toContain("Ana D’Ambrosio");
+});
+
+it("la barra de datos usa el formato moderno de Excel (x14, sin degradado)", () => {
+  const view = buildCampanaView([{ id: 1, gerenteId: 10, gerenteNombre: "Ana", saldoUsd: "100" }], []);
+  const ws = buildCampanaWorkbook(campana, view).getWorksheet("Resumen")!;
+  const regla = formatosCondicionales(ws)[0].rules[0] as ExcelJS.DataBarRuleType;
+  expect(regla.type).toBe("dataBar");
+  expect(regla.gradient).toBe(false);
+});

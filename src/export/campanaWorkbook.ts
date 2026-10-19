@@ -21,7 +21,10 @@ export function isoToExcelDate(iso: string): Date {
 const sinApostrofesNiEspaciosEnBordes = (s: string) => s.replace(/^[\s']+|[\s']+$/g, "");
 
 export function safeSheetName(name: string, used: Set<string>): string {
-  const base = sinApostrofesNiEspaciosEnBordes(sinApostrofesNiEspaciosEnBordes(name.replace(/[[\]:*?/\\]/g, " ")).slice(0, 31)) || "Hoja";
+  const limpio = sinApostrofesNiEspaciosEnBordes(name.replace(/[[\]:*?/\\]/g, " "))
+    // ExcelJS no escapa el apóstrofo en las referencias a la hoja (títulos de impresión): se usa el tipográfico.
+    .replace(/'/g, "’");
+  const base = sinApostrofesNiEspaciosEnBordes(limpio.slice(0, 31)) || "Hoja";
   // "History" es un nombre reservado por Excel.
   if (base.toLowerCase() === "history") used.add("history");
   let candidate = base;
@@ -143,7 +146,8 @@ function addResumen(ws: ExcelJS.Worksheet, campana: Campana, view: CampanaView, 
         {
           type: "dataBar",
           priority: 1,
-          gradient: true,
+          // Sin degradado, ExcelJS escribe la barra x14 completa (con su id) y Excel la abre sin reparar.
+          gradient: false,
           cfvo: [
             { type: "num", value: 0 },
             { type: "num", value: 1 },
