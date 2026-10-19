@@ -97,3 +97,17 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Campaña → Todos los depósitos: "Columnas" oculta y reordena columnas (flechas); el pie de totales sigue bajo Monto Bs y USD aunque se muevan; no deja ocultar la última; Restablecer vuelve al orden original. Se recuerda al reiniciar, aparte para la campaña, la página del gerente y Por gerente.
 - [ ] Campos de fecha (depósito, tasa, campaña, filtros Desde/Hasta): se ven como dd/mm/aaaa; al escribir "18102026" se ponen las barras; el ícono abre el calendario en español; una fecha inválida ("31/02/2026") queda en rojo y no se guarda.
 - [ ] Ctrl + rueda agranda o achica toda la app (aviso con el %); Ctrl + / Ctrl − también; Ctrl 0 vuelve al 100 %. Sobre un comprobante, Ctrl + rueda sigue haciendo zoom de la imagen. El zoom se mantiene al reiniciar.
+
+## Respaldos en Drive, feriados, aviso de tasa y WhatsApp en lote (0.3.0)
+
+- [ ] Configuración → Copia en Google Drive → "Elegir carpeta…" (una carpeta de `G:\Mi unidad`): copia el último `auto-*.zip` y muestra "Última copia". Quedan como mucho 7 `auto-*.zip` allí; otros archivos de la carpeta no se tocan.
+- [ ] Con Google Drive cerrado (o la carpeta borrada), "Copiar ahora": error claro; el respaldo local existe igual y arriba aparece la franja roja con "Reintentar". Con más de 3 días sin copia exitosa, franja ámbar.
+- [ ] Hacer un cambio y cerrar la ventana: "Respaldando antes de cerrar…" y `auto-<hoy>.zip` queda con la hora del cierre (y en Drive). Cerrar sin cambios: cierra al instante. Formulario sin guardar + cerrar: primero el diálogo; Cancelar deja la app abierta.
+- [ ] En la revisión en lote, editar un campo y cerrar la ventana enseguida: al volver la edición sigue ahí. Abrir "Descartar" y pulsar Ctrl+Enter: no se da Hecho.
+- [ ] Tasas → Feriados: aparecen los nacionales del año (Carnaval y Semana Santa en sus fechas); agregar uno bancario; no deja marcar un día con tasa ni quitar uno con depósitos. En el calendario el feriado sale en gris con su nombre y la tasa del día hábil anterior.
+- [ ] Depósito con fecha de un feriado: toma la tasa del día hábil anterior ("Feriado: la del viernes …"); registrar una tasa en un feriado da error.
+- [ ] Abrir la app un día hábil sin tasa: franja "Falta la tasa de hoy"; "Registrar tasa" la guarda y la franja se va; "Hoy es feriado" la marca como feriado. Un pendiente de la cola con fecha sin tasa: "Faltan tasas de N día(s)…".
+- [ ] Copiar un `control-pagos.db` dañado (o con una referencia rota) en la instancia aislada: al abrir aparece "La base de datos parece dañada" con los respaldos para restaurar, sin hacer el respaldo automático.
+- [ ] Configuración → Mensajes de WhatsApp: editar, ver la vista previa, un `{campo}` mal escrito avisa; Guardar; el estado de cuenta individual usa el texto nuevo; "Restaurar el texto original".
+- [ ] Campaña → menú Campaña → "Enviar estados de cuenta": marcados por defecto los que deben y tienen teléfono; "Agregar teléfono…" en los que no; Empezar recorre uno a uno ("N de M") con "Copiar y abrir WhatsApp", Siguiente/Omitir y el resumen final.
+- [ ] Monto "0.500" en un depósito: "Monto inválido". Referencia "000123" de "BDV" avisa como duplicada de "123" de "Banco de Venezuela".

@@ -10,7 +10,7 @@ App de escritorio local (Windows) para que una persona de gerencia registre dep�
 pnpm tauri dev               # app en desarrollo (puerto 1420; si queda un vite colgado, matarlo). OJO: usa los datos reales de %APPDATA%
 # Instancia aislada para probar (otros datos, puerto y target):
 # CARGO_TARGET_DIR=<tmp> pnpm tauri dev --config '{"identifier":"com.controlpagos.dev","build":{"devUrl":"http://localhost:1431","beforeDevCommand":"pnpm vite --port 1431 --strictPort"}}' 
-pnpm test                    # vitest: dominio, BD (sql.js en memoria), Excel, plataforma con mocks
+pnpm test                    # vitest: proyecto "logica" (dominio, BD sql.js, Excel, plataforma con mocks) y "ui" (*.ui.test.tsx en jsdom)
 pnpm build                   # tsc + vite build — única verificación de tipos de la UI
 cd src-tauri; cargo test --lib   # pruebas de respaldo/restauración y OCR en Rust
 cd src-tauri; cargo run --example ocr -- <imagen>   # JSON del OCR de una imagen (para fixtures)
@@ -36,9 +36,15 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - Búsqueda global Ctrl+K: `components/BusquedaGlobal.tsx` + `db/queries/busqueda.ts`. Atajos con `useAtajo` (`hooks/useAtajo.ts`; la lista de la ayuda `?` está en `ATAJOS`). `PageHeader` con `back` vuelve con Esc.
 - Selector con buscador: `components/BuscadorSelect.tsx` (combobox de Base UI, `ui/combobox.tsx`).
 - Formularios con cambios sin guardar: `useAvisoSinGuardar(sucio)` (bloquea la navegación y el cierre de ventana; llamar `permitirSalida()` antes de navegar tras guardar).
+- Cierre de la ventana en un solo lugar: `lib/cierre.ts` (`registrarBloqueador` + `pedirCierre`, puro) y `lib/instalarCierre.ts` (Tauri). Bloqueadores: `useAvisoSinGuardar` (diálogo) y `useAutoguardado` (guarda lo pendiente). Luego el respaldo de cierre, solo si hubo escrituras (contador en `db/tauriDriver.ts`, se reinicia tras el respaldo al abrir), con tope de 20 s (`OverlayCierre`); si falla se avisa al abrir. No registrar otro `onCloseRequested`.
+- Arranque (`main.tsx`): abre la BD, `verificarIntegridad` (`db/integridad.ts`: `quick_check` + `foreign_key_check`) y recién entonces muestra la app y corre `mantenimientoAlIniciar`; si falla, `components/BdDanada.tsx` (restaurar respaldo, sin respaldo automático ni limpieza).
+- Copia espejo (Google Drive): `platform/espejo.ts` + comando `mirror_backup` (`backup::mirror`, solo `auto-*.zip`, poda a 7). `runAutoBackup` copia cada respaldo automático; nunca lanza por el espejo, guarda el resultado en `ajustes` y `components/AvisoEspejo.tsx` avisa (error o más de 3 días sin copia, `domain/espejo.ts`). Tarjeta `CopiaDrive` en Configuración.
+- Ajustes que viajan en los respaldos: tabla `ajustes` (`db/repos/ajustes.ts`; clave → texto).
+- Feriados: `domain/feriados.ts` (Pascua y feriados nacionales), `db/repos/feriados.ts` (CRUD y `precargarFeriados`, una vez por año, en `mantenimientoAlIniciar`), `hooks/useFeriados.ts`, pestaña Feriados en Tasas (`FeriadosCard`).
+- Aviso de tasa faltante arriba de cada pantalla: `components/AvisoTasaFaltante.tsx` + `db/queries/tasaFaltante.ts` + `domain/tasaFaltante.ts` (hoy si es hábil; días anteriores solo si los necesita la cola).
 - Eliminar depósitos devuelve `Eliminados`; `avisarDepositosEliminados` (`lib/deshacer.ts`) muestra el aviso con Deshacer (`restaurarDepositos` reinserta con el mismo id).
 - Exportación de la campaña en `src/export/`: `campanaWorkbook.ts` (Excel con ExcelJS), `campanaPdf.ts` (definición de pdfmake, pura y probada) + `savePdf.ts` (pdfmake con import dinámico; pesa ~1,6 MB con las fuentes) y colores/reglas comunes en `estilo.ts`.
-- Estado de cuenta y WhatsApp en `features/asignacion/` (`EstadoCuentaDialog`: imagen con html-to-image) y `domain/whatsapp.ts` (número venezolano → wa.me). El plugin opener solo puede abrir `https://wa.me/*`.
+- Estado de cuenta y WhatsApp en `features/asignacion/` (`HojaEstadoCuenta` + `imagenDeHoja`/`copiarImagen` con html-to-image; `EstadoCuentaDialog`) y `domain/whatsapp.ts` (número venezolano → wa.me; plantillas con `{campo}`, `aplicarPlantilla`, `mensajeEstadoCuenta(e, plantillas)`). Plantillas editables en Configuración (`MensajesWhatsApp`, guardadas con `db/repos/plantillas.ts`). Envío en lote: menú Campaña → `features/campana/EnvioLoteDialog.tsx` (`domain/envioLote.ts`). El plugin opener solo puede abrir `https://wa.me/*` y rutas de `$APPDATA`.
 - `src/features/*` — pantallas; las rutas se registran en `src/App.tsx` (hash router). La última campaña abierta se recuerda en `lib/campanaActual.ts` (localStorage) y `/` redirige a ella.
 - `src/features/lote/` — subida en lote y revisión uno a uno (depósitos por campaña y tasas). La cola vive en `db/repos/cola.ts` (tablas `cola_depositos`/`cola_tasas`, borrador en JSON, autoguardado); "Hecho" en `db/operaciones/revision.ts` (guarda con los mismos repos y revierte si falla). Los formularios se comparten con el registro individual: `deposito/useDepositoForm.ts` + `DepositoCampos.tsx`, `tasas/TasaCampos.tsx`.
 - `components/ZoomableImage.tsx` + `lib/zoom.ts` — zoom con la rueda hacia el cursor, arrastre y doble clic; lo usan `ImageDrop`, `ImageViewer` y la revisión.
@@ -54,19 +60,21 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - **No se guardan derivados** (USD, saldos, %): siempre se calculan con `buildCampanaView`.
 - La cola de lote **no cuenta** en saldos, Excel ni totales: solo "Hecho" crea el depósito o la tasa. Si el OCR no lee la fecha, el borrador queda sin fecha (no la de hoy).
 - Orden cronológico: `fecha`, luego `creado_en`, luego `id`.
-- **Una tasa por fecha**, y la tasa de un depósito debe ser la de su misma fecha (lo valida `depositos.ts`). Sábado y domingo no llevan tasa propia: usan la del viernes (`fechaDeTasa` en `domain/dates.ts`, `getTasaParaFecha` en el repo); `createTasa` rechaza fines de semana.
+- **Una tasa por fecha**, y la tasa de un depósito debe ser la de su misma fecha (lo valida `depositos.ts`). Sábado, domingo y feriados no llevan tasa propia: usan la del último día hábil anterior (`fechaDeTasa(fecha, feriados)` en `domain/dates.ts`, `getTasaParaFecha` en el repo); `createTasa` rechaza fines de semana y feriados. No se puede marcar feriado un día con tasa propia ni quitar uno con depósitos (cambiaría la tasa de lo registrado).
+- Cada registro (`gerentes`, `campanas`, `asignaciones`, `tasas`, `depositos`) lleva `uuid` v4 y `actualizado_en`, que ponen los repos (`crypto.randomUUID()`, `nowIso()`): preparación para la fase 3 (`docs/superpowers/specs/2026-10-19-fase-3-notas.md`).
 - Campaña `cerrada` = solo lectura; los repos lanzan `DomainError('CAMPANA_CERRADA')`. Eliminar una campaña (`db/operaciones/eliminarCampana.ts`) exige que esté activa, borra asignaciones, depósitos y cola (no gerentes ni tasas) y la UI crea antes un respaldo `antes-de-eliminar-*`.
 - Formato venezolano: `parseMonto` para montos ("1.234" = mil); `parseTasa` para tasas (un único punto es decimal: "36.500" = 36,5).
-- Duplicados: mismo banco + referencia comparando con `claveComparacion` (sin mayúsculas, acentos ni espacios). Es aviso, no bloqueo.
+- Duplicados: mismo banco + referencia con `claveDuplicado` (`domain/bancos.ts`: sin mayúsculas, acentos ni espacios, referencia sin ceros iniciales y alias de banco como "BDV" → Banco de Venezuela). Es aviso, no bloqueo.
+- `parseMonto` rechaza un grupo de miles que empieza en 0 ("0.500").
 - Errores de negocio con `DomainError` (mensaje en español, se muestra tal cual en el toast).
 
 ## Convenciones
 
 - UI y mensajes en **español**; fechas `dd/mm/aaaa` en pantalla, `YYYY-MM-DD` en BD.
 - SQL solo con parámetros posicionales `?`. Columnas snake_case, alias camelCase en el SELECT.
-- Migraciones en `db/migrations.ts`: **agregar** una nueva versión (no editar las existentes), una sentencia por elemento, con `IF NOT EXISTS`; se controla con `PRAGMA user_version`.
+- Migraciones en `db/migrations.ts`: **agregar** una nueva versión (no editar las existentes), una sentencia por elemento, con `IF NOT EXISTS`; se controla con `PRAGMA user_version`. `ADD COLUMN` no tiene `IF NOT EXISTS`: `migrate` ignora "duplicate column" para que una migración a medias se pueda volver a correr. `migrate(db, hasta)` sirve para probar sobre una versión anterior.
 - Datos en la UI: `useData(load, deps)`; después de cualquier escritura llamar `invalidate()`. Errores: `reportError(e)`.
-- TDD: la lógica nueva va en `domain/` o `db/` con su prueba primero. La UI no tiene pruebas automáticas; verificar con `pnpm build` y `docs/checklist-mvp.md`.
+- TDD: la lógica nueva va en `domain/` o `db/` con su prueba primero. Flujos de la UI: `*.ui.test.tsx` con `renderApp(ruta, { db, hoy })` (`src/testing/`: BD sql.js, `@/db` y Tauri simulados en `setupUi.ts`, respuestas de `invoke` en `tauri.invoke`). Lo que no cubren, con `pnpm build` y `docs/checklist-mvp.md`.
 - Commits en español con prefijo (`feat:`, `fix:`, `docs:`…).
 
 ## Agregar un formato de comprobante (OCR)
@@ -87,8 +95,8 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - Un `<form>` dentro de un diálogo abierto desde otro formulario (p. ej. `TasaFormDialog` en el depósito) propaga `submit` por el árbol de React a través del portal: usar `stopPropagation`.
 - Windows OCR no da confianza: se deduce en `normalizar.ts` (etiqueta 0,9, heurística 0,7, constante 0,95). Pierde etiquetas en gris y confunde caracteres ("15110/2026", "17.200.00"): los reconocedores los recuperan como heurística (ámbar).
 - El OCR necesita el idioma español con reconocimiento de texto instalado en Windows; si falta, `ocr.rs` devuelve un error que lo explica.
-- Al escribir archivos con barras invertidas (`̀`, `\0`, regex), usar la herramienta de escritura de archivos y no heredocs del shell: el shell de este entorno interpreta los escapes.
+- Al escribir archivos con barras invertidas (`̀`, `\0`, regex), usar la herramienta de escritura de archivos y no heredocs del shell ni `node -e`: el shell de este entorno interpreta los escapes (`\\` → `\`, `\b` → retroceso).
 
 ## Pendientes conocidos (menores)
 
-`"0.500"` se acepta como 500; respaldo automático solo al abrir; Guardar habilitado mientras se busca la tasa; el aviso de duplicados no relaciona referencias sin ceros iniciales ni alias de banco ("BDV") de depósitos importados de Excel; en capturas borrosas el OCR puede leer mal el nombre y aun así marcarlo en verde. En la revisión en lote: cerrar la ventana menos de 0,5 s después de editar pierde esa última edición (el autoguardado no escucha el cierre); Ctrl+Enter da Hecho aunque haya un diálogo abierto; si falla Descartar, la edición en curso no se autoguarda.
+Los alias de banco son una lista fija en `domain/bancos.ts` (agregar ahí los nuevos). La cuenta destino del OCR solo baja a ámbar si nunca se usó: una mal leída igual a una ya usada no se detecta. Los feriados bancarios adicionales (SUDEBAN) se cargan a mano. El respaldo al cerrar no corre si la app termina por la actualización (ya hay `antes-de-actualizar-*`).
