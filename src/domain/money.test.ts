@@ -22,6 +22,18 @@ describe("parseMonto", () => {
   it.each(["", "   ", "abc", "1,2,3", "12,34.5", "-5", "1.23.4", ",5", "12.34.567,8x"])("rechaza %j", (input) => {
     expect(parseMonto(input)).toBeNull();
   });
+
+  it.each(["0.500", "0.500,00", "00.500", "0.000.500"])("rechaza un primer grupo 0 con punto de miles: %j", (input) => {
+    expect(parseMonto(input)).toBeNull();
+  });
+
+  it.each([
+    ["0,50", "0.5"],
+    ["0.5", "0.5"],
+    ["1.500", "1500"],
+  ])("sigue aceptando %j → %s", (input, expected) => {
+    expect(parseMonto(input)).toBe(expected);
+  });
 });
 
 describe("parseTasa", () => {

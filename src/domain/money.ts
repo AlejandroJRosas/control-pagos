@@ -15,6 +15,8 @@ export function parseMonto(input: string): string | null {
     .replace(/^(Bs\.?|\$)/i, "")
     .replace(/(Bs\.?|\$)$/i, "");
   if (s === "") return null;
+  // Un grupo de miles que empieza en 0 ("0.500") no es un monto: casi siempre es un decimal mal escrito.
+  if (/^0+\.\d{3}(\.\d{3})*(,|$)/.test(s)) return null;
 
   let normalized: string;
   if (s.includes(",")) {
