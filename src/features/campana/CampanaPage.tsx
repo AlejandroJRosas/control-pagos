@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { ChevronDown, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Pencil, Plus, Settings2, Trash2, UserPlus } from "lucide-react";
+import { ChevronDown, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Pencil, Plus, MessageCircle, Settings2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -10,6 +10,7 @@ import { Aviso, Cargando } from "@/components/Feedback";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { ResumenCards } from "@/components/ResumenCards";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { EnvioLoteDialog } from "./EnvioLoteDialog";
 import { getDb } from "@/db";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { setEstadoCampana } from "@/db/repos/campanas";
@@ -53,6 +54,7 @@ export function CampanaPage() {
   const [quitar, setQuitar] = useState<GerenteResumen | null>(null);
   const [eliminar, setEliminar] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [envio, setEnvio] = useState(false);
 
   const cerradaAtajo = data?.campana.estado !== "activa";
   useAtajo("n", () => navigate(`/campanas/${campanaId}/depositos/nuevo`), { activo: !cerradaAtajo });
@@ -156,6 +158,11 @@ export function CampanaPage() {
                 <ChevronDown data-icon="inline-end" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-auto min-w-48">
+                <DropdownMenuItem disabled={view.gerentes.length === 0} onClick={() => setEnvio(true)}>
+                  <MessageCircle />
+                  Enviar estados de cuenta
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem disabled={cerrada} onClick={() => setAgregar(true)}>
                   <UserPlus />
                   Agregar gerentes
@@ -265,6 +272,7 @@ export function CampanaPage() {
         destructive
         onConfirm={() => (quitar ? quitarGerente(quitar) : undefined)}
       />
+      <EnvioLoteDialog campanaId={campanaId} open={envio} onOpenChange={setEnvio} />
     </div>
   );
 }
