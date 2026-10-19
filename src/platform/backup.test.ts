@@ -202,3 +202,34 @@ it("respaldoDeCierre sin escrituras no respalda", async () => {
   await respaldoDeCierre(db);
   expect(invoke).not.toHaveBeenCalledWith("create_backup", expect.anything());
 });
+
+it("si el respaldo al cerrar falló la vez anterior, al abrir se rehace el del día y se anota", async () => {
+  const { setAjuste, getAjuste } = await import("@/db/repos/ajustes");
+  const { mantenimientoAlIniciar, AJUSTE_ERROR_CIERRE } = await import("./backup");
+  const db = await dbSinVacuum();
+  await setAjuste(db, AJUSTE_ERROR_CIERRE, JSON.stringify({ fecha: "2026-10-19T20:00:00.000Z", mensaje: "disco lleno" }));
+  invokePorComando(() => null);
+  await mantenimientoAlIniciar(db);
+  expect(invoke).toHaveBeenCalledWith("auto_backup_path_hoy", expect.anything());
+  expect(invoke).toHaveBeenCalledWith("create_backup", expect.anything());
+  expect(JSON.parse((await getAjuste(db, AJUSTE_ERROR_CIERRE)) ?? "{}")).toMatchObject({ mensaje: "disco lleno", respaldadoAlAbrir: true });
+});
+
+it("sin error de cierre anterior, al abrir no se rehace un respaldo del día que ya existe", async () => {
+  const { mantenimientoAlIniciar } = await import("./backup");
+  const db = await dbSinVacuum();
+  invokePorComando(() => null);
+  await mantenimientoAlIniciar(db);
+  expect(invoke).toHaveBeenCalledWith("auto_backup_path", expect.anything());
+  expect(invoke).not.toHaveBeenCalledWith("auto_backup_path_hoy", expect.anything());
+});
+
+it("mensajeErrorDeCierre solo dice que se respaldó al abrir si de verdad ocurrió", async () => {
+  const { mensajeErrorDeCierre } = await import("./backup");
+  expect(mensajeErrorDeCierre(JSON.stringify({ mensaje: "disco lleno", respaldadoAlAbrir: true }))).toBe(
+    "El respaldo al cerrar la app la última vez no se completó (disco lleno). Ya se volvió a respaldar al abrir.",
+  );
+  expect(mensajeErrorDeCierre(JSON.stringify({ mensaje: "disco lleno" }))).toBe(
+    "El respaldo al cerrar la app la última vez no se completó (disco lleno) y tampoco se pudo respaldar al abrir. Revisa Configuración → Respaldos.",
+  );
+});

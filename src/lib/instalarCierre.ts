@@ -2,11 +2,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { toast } from "sonner";
 import { closeDb, getDb } from "@/db";
 import { deleteAjuste, getAjuste, setAjuste } from "@/db/repos/ajustes";
-import { respaldoDeCierre } from "@/platform/backup";
+import { AJUSTE_ERROR_CIERRE, esperarArranque, mensajeErrorDeCierre, respaldoDeCierre } from "@/platform/backup";
 import { pedirCierre } from "./cierre";
 import { reportError } from "./reportError";
 
-const AJUSTE_ERROR = "cierre_error";
 
 let respaldando = false;
 const oyentes = new Set<() => void>();
@@ -35,19 +34,19 @@ export async function instalarCierre(): Promise<() => void> {
       },
       guardarError: async (err) => {
         const mensaje = err instanceof Error ? err.message : String(err);
-        await setAjuste(await getDb(), AJUSTE_ERROR, JSON.stringify({ fecha: new Date().toISOString(), mensaje }));
+        await setAjuste(await getDb(), AJUSTE_ERROR_CIERRE, JSON.stringify({ fecha: new Date().toISOString(), mensaje }));
       },
       onRespaldando: setRespaldando,
     }).catch(reportError);
   });
 }
 
-/** Si el respaldo al cerrar la vez anterior no se completó, se avisa una vez. */
+/** Si el respaldo al cerrar la vez anterior no se completó, se avisa una vez (después de rehacerlo al abrir). */
 export async function avisarErrorDeCierre(): Promise<void> {
+  await esperarArranque();
   const db = await getDb();
-  const v = await getAjuste(db, AJUSTE_ERROR);
+  const v = await getAjuste(db, AJUSTE_ERROR_CIERRE);
   if (!v) return;
-  const { mensaje } = JSON.parse(v) as { mensaje: string };
-  toast.warning(`El respaldo al cerrar la app no se completó (${mensaje}). Hoy se hizo el respaldo al abrir.`, { duration: 15_000 });
-  await deleteAjuste(db, AJUSTE_ERROR);
+  toast.warning(mensajeErrorDeCierre(v), { duration: 15_000 });
+  await deleteAjuste(db, AJUSTE_ERROR_CIERRE);
 }

@@ -7,6 +7,19 @@ import { imagenesUsadas } from "@/db/queries/imagenesUsadas";
 import { precargarFeriados } from "@/db/repos/feriados";
 import { copiarAlEspejo } from "./espejo";
 import { huboEscrituras, reiniciarEscrituras } from "@/db/tauriDriver";
+import { getAjuste, setAjuste } from "@/db/repos/ajustes";
+
+/** Error del último respaldo al cerrar (JSON `{ fecha, mensaje, respaldadoAlAbrir? }`); se avisa una vez al abrir. */
+export const AJUSTE_ERROR_CIERRE = "cierre_error";
+
+type ErrorCierre = { fecha?: string; mensaje: string; respaldadoAlAbrir?: boolean };
+
+export function mensajeErrorDeCierre(valor: string): string {
+  const e = JSON.parse(valor) as ErrorCierre;
+  return e.respaldadoAlAbrir
+    ? `El respaldo al cerrar la app la última vez no se completó (${e.mensaje}). Ya se volvió a respaldar al abrir.`
+    : `El respaldo al cerrar la app la última vez no se completó (${e.mensaje}) y tampoco se pudo respaldar al abrir. Revisa Configuración → Respaldos.`;
+}
 
 export type DataPaths = { dbPath: string; imagesDir: string; backupsDir: string };
 export type BackupInfo = { name: string; path: string; sizeBytes: number; modifiedMs: number };
@@ -58,7 +71,10 @@ export async function runAutoBackup(db: SqlDriver, { reemplazar = false }: { ree
  * los respaldos de seguridad viejos y de las imágenes que ya no usa ningún registro.
  */
 export async function mantenimientoAlIniciar(db: SqlDriver): Promise<void> {
-  await runAutoBackup(db);
+  // Si el respaldo al cerrar falló, el del día no tiene lo de esa sesión: se rehace ahora.
+  const errorCierre = await getAjuste(db, AJUSTE_ERROR_CIERRE);
+  await runAutoBackup(db, { reemplazar: errorCierre !== null });
+  if (errorCierre) await setAjuste(db, AJUSTE_ERROR_CIERRE, JSON.stringify({ ...(JSON.parse(errorCierre) as ErrorCierre), respaldadoAlAbrir: true }));
   await precargarFeriados(db, todayIso());
   await invoke("prune_safety_backups");
   await invoke("clean_orphan_images", { usadas: await imagenesUsadas(db) });
@@ -66,6 +82,9 @@ export async function mantenimientoAlIniciar(db: SqlDriver): Promise<void> {
 
 type Arranque = { integridadOk: boolean; mantenimiento?: Promise<unknown> };
 let arranque: Arranque = { integridadOk: false };
+
+/** Termina cuando acaba el mantenimiento de apertura (o enseguida si no hay). */
+export const esperarArranque = (): Promise<unknown> => (arranque.mantenimiento ?? Promise.resolve()).catch(() => {});
 
 /** Lo fija `main.tsx` al abrir: si la BD pasó la verificación y la promesa del mantenimiento de apertura. */
 export function marcarArranque(a: Arranque): void {
