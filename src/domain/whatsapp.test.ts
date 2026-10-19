@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mensajeEstadoCuenta, numeroWhatsApp, urlWhatsApp } from "./whatsapp";
+import { aplicarPlantilla, camposDesconocidos, mensajeEstadoCuenta, numeroWhatsApp, PLANTILLAS_POR_DEFECTO, urlWhatsApp } from "./whatsapp";
 
 describe("numeroWhatsApp", () => {
   it("convierte números venezolanos al formato internacional", () => {
@@ -47,4 +47,38 @@ describe("mensajeEstadoCuenta", () => {
 
 it("urlWhatsApp arma el enlace wa.me con el texto codificado", () => {
   expect(urlWhatsApp("584141234567", "Hola & adiós\nok")).toBe("https://wa.me/584141234567?text=Hola%20%26%20adi%C3%B3s%0Aok");
+});
+
+describe("plantillas", () => {
+  const e = { gerenteNombre: "Ana", campanaNombre: "Marzo", fechaCorte: "2026-10-19", asignado: "100", pagado: "40", restante: "60", cantidad: 3 };
+
+  it("aplicarPlantilla reemplaza los campos", () => {
+    expect(aplicarPlantilla("{gerente} ({campana}, {fecha}): {asignado} - {pagado} = {restante} ({depositos})", e)).toBe(
+      "Ana (Marzo, 19/10/2026): $ 100,00 - $ 40,00 = $ 60,00 (3 depósitos)",
+    );
+    expect(aplicarPlantilla("{depositos}", { ...e, cantidad: 1 })).toBe("1 depósito");
+  });
+
+  it("{saldo} describe el estado y {restante} es el monto absoluto", () => {
+    expect(aplicarPlantilla("{saldo}", e)).toBe("Restante: $ 60,00");
+    expect(aplicarPlantilla("{saldo}", { ...e, restante: "0" })).toBe("Saldo completo");
+    expect(aplicarPlantilla("{saldo} / {restante}", { ...e, restante: "-10" })).toBe("Pagado de más: $ 10,00 / $ 10,00");
+  });
+
+  it("aplicarPlantilla deja campos desconocidos", () => {
+    expect(aplicarPlantilla("Hola {restnte}", e)).toBe("Hola {restnte}");
+  });
+
+  it("camposDesconocidos", () => {
+    expect(camposDesconocidos("{gerente} {restnte} {x} {x}")).toEqual(["restnte", "x"]);
+    expect(camposDesconocidos(PLANTILLAS_POR_DEFECTO.pendiente)).toEqual([]);
+    expect(camposDesconocidos(PLANTILLAS_POR_DEFECTO.completo)).toEqual([]);
+  });
+
+  it("mensajeEstadoCuenta usa la plantilla de pendiente o de completo", () => {
+    const p = { pendiente: "Debes {restante}", completo: "Listo: {saldo}" };
+    expect(mensajeEstadoCuenta(e, p)).toBe("Debes $ 60,00");
+    expect(mensajeEstadoCuenta({ ...e, restante: "0" }, p)).toBe("Listo: Saldo completo");
+    expect(mensajeEstadoCuenta({ ...e, restante: "-5" }, p)).toBe("Listo: Pagado de más: $ 5,00");
+  });
 });

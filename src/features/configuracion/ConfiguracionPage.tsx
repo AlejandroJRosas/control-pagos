@@ -21,6 +21,7 @@ import { ordenar, type Columnas } from "@/lib/orden";
 import { MODOS, TEMAS, setModo, setTema, useModo, useTema } from "@/lib/tema";
 import { cn } from "@/lib/utils";
 import { CopiaDrive } from "./CopiaDrive";
+import { MensajesWhatsApp } from "./MensajesWhatsApp";
 
 const tamano = (bytes: number) =>
   bytes < 1024 * 1024 ? `${formatNumberVE(bytes / 1024, 0)} KB` : `${formatNumberVE(bytes / 1024 / 1024, 1)} MB`;
@@ -160,6 +161,7 @@ export function ConfiguracionPage() {
       </Card>
 
       <CopiaDrive />
+      <MensajesWhatsApp />
 
       <ConfirmDialog
         open={restaurar !== null}

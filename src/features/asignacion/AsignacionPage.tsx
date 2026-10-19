@@ -19,6 +19,7 @@ import { reportError } from "@/lib/reportError";
 import { leerVolver } from "@/lib/volver";
 import { GerenteFormDialog } from "@/features/gerentes/GerenteFormDialog";
 import { EstadoCuentaDialog } from "./EstadoCuentaDialog";
+import { getPlantillas } from "@/db/repos/plantillas";
 import { DomainError } from "@/domain/errors";
 import { useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
@@ -54,7 +55,11 @@ export function AsignacionPage() {
   async function abrirWhatsApp() {
     if (!numero) return;
     const { asignado, pagado, restante, cantidad } = resumen;
-    const texto = mensajeEstadoCuenta({ gerenteNombre: a.gerenteNombre, campanaNombre: a.campanaNombre, fechaCorte: hoy, asignado, pagado, restante, cantidad });
+    const plantillas = await getPlantillas(await getDb());
+    const texto = mensajeEstadoCuenta(
+      { gerenteNombre: a.gerenteNombre, campanaNombre: a.campanaNombre, fechaCorte: hoy, asignado, pagado, restante, cantidad },
+      plantillas,
+    );
     await openUrl(urlWhatsApp(numero, texto));
   }
 
