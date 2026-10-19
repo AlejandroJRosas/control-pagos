@@ -16,7 +16,7 @@ import { deleteImage, saveImage } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
 import { borradorDepositoConOcr } from "./leerEnBorrador";
 import { useLote } from "./useLote";
-import { TablaLote, ZonaLote } from "./ZonaLote";
+import { BarraIrARevisar, TablaLote, ZonaLote } from "./ZonaLote";
 
 export function SubirLoteDepositosPage() {
   const { campanaId } = useParams();
@@ -64,10 +64,12 @@ function SubirLote({ data }: { data: CampanaData }) {
         title="Subir comprobantes en lote"
         subtitle="Cada imagen se lee y queda en la cola de revisión; los saldos cambian solo al darle Hecho."
         actions={
-          <Link to={`/campanas/${campana.id}/revision`} className={buttonVariants()}>
-            <ListChecks />
-            Ir a revisar
-          </Link>
+          filas.length === 0 && (
+            <Link to={`/campanas/${campana.id}/revision`} className={buttonVariants()}>
+              <ListChecks />
+              Ir a revisar
+            </Link>
+          )
         }
       />
       {cerrada && <Aviso>La campaña está cerrada: no se pueden agregar comprobantes.</Aviso>}
@@ -85,6 +87,7 @@ function SubirLote({ data }: { data: CampanaData }) {
       </div>
       <ZonaLote onArchivos={agregar} disabled={cerrada} />
       <TablaLote filas={filas} />
+      <BarraIrARevisar to={`/campanas/${campana.id}/revision`} filas={filas} />
     </div>
   );
 }

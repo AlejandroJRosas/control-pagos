@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Images, Loader2, XCircle } from "lucide-react";
+import { useNavigate } from "react-router";
+import { AlertTriangle, CheckCircle2, Images, ListChecks, Loader2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Tecla } from "@/components/AyudaAtajos";
+import { useAtajo } from "@/hooks/useAtajo";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ACCEPTED_IMAGE_TYPES, separarImagenes } from "@/platform/images";
 import { cn } from "@/lib/utils";
@@ -112,5 +115,47 @@ export function TablaLote({ filas }: { filas: FilaLote[] }) {
         })}
       </TableBody>
     </Table>
+  );
+}
+
+const leyendo = (f: FilaLote) => f.estado === "en-cola" || f.estado === "leyendo";
+
+/**
+ * Barra fija abajo con "Ir a revisar" (Enter o Ctrl+Enter). Salir abandona las lecturas pendientes, así que
+ * mientras se lee el botón espera a que termine y entonces abre la revisión ("Ir ya" no espera).
+ */
+export function BarraIrARevisar({ to, filas }: { to: string; filas: FilaLote[] }) {
+  const navigate = useNavigate();
+  const [esperando, setEsperando] = useState(false);
+  const porLeer = filas.filter(leyendo).length;
+  const listos = porLeer === 0;
+
+  useEffect(() => {
+    if (esperando && listos) navigate(to);
+  }, [esperando, listos, navigate, to]);
+
+  const ir = () => (listos ? navigate(to) : setEsperando((e) => !e));
+  useAtajo("Enter", ir, { activo: filas.length > 0 });
+  useAtajo("Enter", ir, { ctrl: true, activo: filas.length > 0 });
+  if (filas.length === 0) return null;
+
+  return (
+    <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-end gap-3 border-t bg-background/95 px-6 py-3 backdrop-blur">
+      <span className="mr-auto text-sm text-muted-foreground" aria-live="polite">
+        {filas.length} subido(s)
+        {porLeer > 0 && ` · leyendo ${porLeer}…`}
+        {esperando && " · la revisión se abre al terminar"}
+      </span>
+      {esperando && (
+        <Button variant="ghost" onClick={() => navigate(to)}>
+          Ir ya
+        </Button>
+      )}
+      <Button variant={esperando ? "outline" : "default"} onClick={ir}>
+        {esperando ? <Loader2 className="animate-spin" /> : <ListChecks />}
+        {esperando ? "Esperando la lectura (clic para cancelar)" : "Ir a revisar"}
+        {!esperando && <Tecla>Enter</Tecla>}
+      </Button>
+    </div>
   );
 }

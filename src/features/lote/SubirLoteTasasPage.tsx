@@ -9,7 +9,7 @@ import { deleteImage, saveImage } from "@/platform/images";
 import { invalidate } from "@/hooks/useData";
 import { borradorTasaConOcr } from "./leerEnBorrador";
 import { useLote } from "./useLote";
-import { TablaLote, ZonaLote } from "./ZonaLote";
+import { BarraIrARevisar, TablaLote, ZonaLote } from "./ZonaLote";
 
 export function SubirLoteTasasPage() {
   const { filas, agregar } = useLote({
@@ -42,14 +42,17 @@ export function SubirLoteTasasPage() {
         title="Subir tasas en lote"
         subtitle="Cada imagen se lee y queda en la cola de revisión; la tasa se registra al darle Hecho."
         actions={
-          <Link to="/tasas/revision" className={buttonVariants()}>
-            <ListChecks />
-            Ir a revisar
-          </Link>
+          filas.length === 0 && (
+            <Link to="/tasas/revision" className={buttonVariants()}>
+              <ListChecks />
+              Ir a revisar
+            </Link>
+          )
         }
       />
       <ZonaLote onArchivos={agregar} />
       <TablaLote filas={filas} />
+      <BarraIrARevisar to="/tasas/revision" filas={filas} />
     </div>
   );
 }
