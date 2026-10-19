@@ -98,7 +98,8 @@ export async function planificarImportacion(
     }
 
     const problemas = tasaAplicada ? f.problemas.filter((p) => !PROBLEMAS_TASA.includes(p)) : f.problemas;
-    const importable = problemas.length === 0;
+    // Un depósito ya registrado (o repetido más arriba en el archivo) no se importa: no puede haber duplicados.
+    const importable = problemas.length === 0 && duplicados.length === 0 && repetidaEnArchivo === null;
     filas.push({
       ...f,
       problemas,
@@ -108,7 +109,7 @@ export async function planificarImportacion(
       duplicados,
       repetidaEnArchivo,
       importable,
-      marcada: importable && estadoTasa !== "distinta" && duplicados.length === 0 && repetidaEnArchivo === null,
+      marcada: importable && estadoTasa !== "distinta",
       editada: edicion !== undefined && Object.keys(edicion).length > 0,
       editables: camposFaltantes(original).filter((c) => c !== "tasa" || !tasaEnApp),
     });

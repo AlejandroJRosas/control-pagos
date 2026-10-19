@@ -26,7 +26,19 @@ export type Deposito = {
   uuid: string;
 };
 export type DepositoGuardar = DepositoValido & { imagenPath: string | null };
-export type Duplicado = { id: number; fecha: string; montoBs: string; gerenteNombre: string; campanaNombre: string };
+export type Duplicado = {
+  id: number;
+  asignacionId: number;
+  fecha: string;
+  banco: string;
+  referencia: string;
+  montoBs: string;
+  observaciones: string | null;
+  imagenPath: string | null;
+  gerenteNombre: string;
+  campanaNombre: string;
+  campanaEstado: "activa" | "cerrada";
+};
 
 const SEL = `SELECT id, asignacion_id AS asignacionId, tasa_id AS tasaId, fecha, banco, referencia, cuenta_destino AS cuentaDestino,
   monto_bs AS montoBs, observaciones, imagen_path AS imagenPath, creado_en AS creadoEn, actualizado_en AS actualizadoEn, uuid FROM depositos`;
@@ -50,9 +62,21 @@ async function assertTasaDeLaFecha(db: SqlDriver, v: DepositoGuardar): Promise<v
   }
 }
 
+/** No puede haber dos depósitos con el mismo banco y referencia (`claveDuplicado`). */
+async function assertNoDuplicado(db: SqlDriver, v: DepositoGuardar, excludeId?: number): Promise<void> {
+  const [d] = await findDuplicados(db, v.banco, v.referencia, excludeId);
+  if (d) {
+    throw new DomainError(
+      "DUPLICADO",
+      `Ya existe un depósito de ${d.banco} con la referencia ${d.referencia} (${formatFecha(d.fecha)}, ${d.gerenteNombre}, ${d.campanaNombre})`,
+    );
+  }
+}
+
 export async function createDeposito(db: SqlDriver, asignacionId: number, v: DepositoGuardar): Promise<number> {
   await assertEditable(db, asignacionId);
   await assertTasaDeLaFecha(db, v);
+  await assertNoDuplicado(db, v);
   const now = nowIso();
   const r = await db.execute(
     `INSERT INTO depositos (asignacion_id, tasa_id, fecha, banco, referencia, cuenta_destino, monto_bs, observaciones, imagen_path, creado_en, actualizado_en, uuid)
@@ -72,6 +96,8 @@ export async function updateDeposito(db: SqlDriver, id: number, v: DepositoGuard
   const actual = await requireDeposito(db, id);
   await assertEditable(db, actual.asignacionId);
   await assertTasaDeLaFecha(db, v);
+  // Un duplicado que ya existía (de antes de esta regla) se puede seguir editando mientras no cambie su banco o referencia.
+  if (claveDuplicado(v.banco, v.referencia) !== claveDuplicado(actual.banco, actual.referencia)) await assertNoDuplicado(db, v, id);
   await db.execute(
     `UPDATE depositos SET tasa_id = ?, fecha = ?, banco = ?, referencia = ?, cuenta_destino = ?, monto_bs = ?,
        observaciones = ?, imagen_path = ?, actualizado_en = ? WHERE id = ?`,
@@ -131,8 +157,9 @@ export async function restaurarDepositos(db: SqlDriver, e: Eliminados): Promise<
 export { claveComparacion };
 
 export async function findDuplicados(db: SqlDriver, banco: string, referencia: string, excludeId?: number): Promise<Duplicado[]> {
-  const rows = await db.select<Duplicado & { banco: string; referencia: string }>(
-    `SELECT d.id, d.fecha, d.monto_bs AS montoBs, g.nombre AS gerenteNombre, c.nombre AS campanaNombre, d.banco, d.referencia
+  const rows = await db.select<Duplicado>(
+    `SELECT d.id, d.asignacion_id AS asignacionId, d.fecha, d.banco, d.referencia, d.monto_bs AS montoBs, d.observaciones,
+            d.imagen_path AS imagenPath, g.nombre AS gerenteNombre, c.nombre AS campanaNombre, c.estado AS campanaEstado
      FROM depositos d
      JOIN asignaciones a ON a.id = d.asignacion_id
      JOIN gerentes g ON g.id = a.gerente_id
@@ -143,9 +170,7 @@ export async function findDuplicados(db: SqlDriver, banco: string, referencia: s
   );
   const clave = claveDuplicado(banco, referencia);
   if (!clave) return [];
-  return rows
-    .filter((r) => claveDuplicado(r.banco, r.referencia) === clave)
-    .map(({ id, fecha, montoBs, gerenteNombre, campanaNombre }) => ({ id, fecha, montoBs, gerenteNombre, campanaNombre }));
+  return rows.filter((r) => claveDuplicado(r.banco, r.referencia) === clave);
 }
 
 export async function listBancosUsados(db: SqlDriver): Promise<string[]> {

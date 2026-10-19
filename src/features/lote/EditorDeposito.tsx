@@ -9,7 +9,8 @@ import { getDb } from "@/db";
 import type { CampanaData } from "@/db/queries/campanaData";
 import type { Gerente } from "@/db/repos/gerentes";
 import { descartarDeposito, guardarBorradorDeposito, type BorradorDeposito, type ItemColaDeposito } from "@/db/repos/cola";
-import { completarDeposito } from "@/db/operaciones/revision";
+import { completarConDuplicado, completarDeposito } from "@/db/operaciones/revision";
+import type { Duplicado } from "@/db/repos/depositos";
 import { duplicadosEnCola } from "@/domain/cola";
 import type { DestinoDraft } from "@/domain/validation";
 import { deleteImage } from "@/platform/images";
@@ -69,8 +70,11 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
     return items.filter((i) => ids.includes(i.id));
   }, [items, item.id, draft.banco, draft.referencia]);
 
+  // Ya registrado con este banco y referencia: no se hace "Hecho", se actualiza el existente o se descarta.
+  const duplicado = !hecho && f.duplicados.length > 0;
+
   async function marcarHecho() {
-    if (hecho || cerrada || saving || f.tasa === undefined) return;
+    if (hecho || cerrada || saving || f.tasa === undefined || duplicado) return;
     const r = f.validar();
     if (!r) return;
     setSaving(true);
@@ -79,6 +83,24 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
       // En la revisión no hay asignación fija: `validar` siempre devuelve el destino.
       await completarDeposito(await getDb(), item.id, r.deposito, r.destino!, borrador);
       toast.success("Depósito registrado");
+      onSiguiente();
+      invalidate();
+    } catch (e) {
+      reportError(e);
+      void auto.guardar();
+      setSaving(false);
+    }
+  }
+
+  async function actualizarExistente(d: Duplicado) {
+    if (cerrada || saving || f.tasa === undefined) return;
+    const r = f.validar();
+    if (!r) return;
+    setSaving(true);
+    auto.cancelar();
+    try {
+      await completarConDuplicado(await getDb(), item.id, d.id, r.deposito, borrador);
+      toast.success(`Depósito de ${d.gerenteNombre} actualizado`);
       onSiguiente();
       invalidate();
     } catch (e) {
@@ -106,6 +128,8 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
 
   // useAtajo no actúa con un diálogo abierto (p. ej. la confirmación de Descartar).
   useAtajo("Enter", () => void marcarHecho(), { ctrl: true });
+  // Ctrl+D: un duplicado se descarta de una vez (DuplicadoBloqueo); otro comprobante pide confirmación.
+  useAtajo("d", () => setConfirmDescartar(true), { ctrl: true, activo: !hecho && !cerrada && !saving && !duplicado });
 
   return (
     <form
@@ -135,6 +159,7 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
         gerentes={gerentes}
         bancos={bancos}
         disabled={hecho || cerrada || saving}
+        duplicado={hecho ? undefined : { onActualizar: (d) => void actualizarExistente(d), onDescartar: () => void descartar(), ocupado: cerrada || saving }}
         avisosExtra={
           enCola.length > 0 && (
             <Aviso tono="warning">
@@ -146,7 +171,7 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
       />
       {!hecho && (
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" className="text-destructive" disabled={cerrada || saving} onClick={() => setConfirmDescartar(true)}>
+          <Button type="button" variant="outline" className="text-destructive" disabled={cerrada || saving} title="Ctrl+D" onClick={() => setConfirmDescartar(true)}>
             <Trash2 />
             Descartar
           </Button>
@@ -154,7 +179,7 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
             <SkipForward />
             Saltar
           </Button>
-          <Button type="submit" disabled={cerrada || saving || f.tasa === undefined} title="Ctrl+Enter">
+          <Button type="submit" disabled={cerrada || saving || f.tasa === undefined || duplicado} title="Ctrl+Enter">
             <Check />
             Hecho
           </Button>

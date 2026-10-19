@@ -1,7 +1,7 @@
 import { beforeEach, expect, it } from "vitest";
 import type { SqlDriver } from "../driver";
 import { createTestDb } from "../testing/sqljsDriver";
-import { depositoBase, seedBasico } from "../testing/fixtures";
+import { crearDuplicado, depositoBase, seedBasico } from "../testing/fixtures";
 import { createTasa } from "./tasas";
 import { setEstadoCampana } from "./campanas";
 import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, getDeposito, listBancosUsados, listCuentasDestinoUsadas, restaurarDepositos, updateDeposito } from "./depositos";
@@ -33,7 +33,21 @@ it("rechaza una tasa que no es de la fecha del depósito", async () => {
 it("detecta duplicados sin distinguir mayúsculas ni espacios, excluyendo el propio", async () => {
   const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Banesco ", referencia: " 123 " }));
   const dups = await findDuplicados(db, "banesco", "123");
-  expect(dups).toEqual([{ id, fecha: "2026-03-02", montoBs: "3650", gerenteNombre: "Ana", campanaNombre: "Marzo" }]);
+  expect(dups).toEqual([
+    {
+      id,
+      asignacionId: s.asignacionId,
+      fecha: "2026-03-02",
+      banco: "Banesco ",
+      referencia: " 123 ",
+      montoBs: "3650",
+      observaciones: null,
+      imagenPath: null,
+      gerenteNombre: "Ana",
+      campanaNombre: "Marzo",
+      campanaEstado: "activa",
+    },
+  ]);
   expect(await findDuplicados(db, "BANESCO", "123", id)).toEqual([]);
   expect(await findDuplicados(db, "Mercantil", "123")).toEqual([]);
 });
@@ -42,6 +56,26 @@ it("detecta duplicados con otra capitalización, acentos o espacios internos", a
   const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Venezolano de Crédito", referencia: "AB12 cd" }));
   expect((await findDuplicados(db, "VENEZOLANO DE CREDITO", "ab12CD")).map((d) => d.id)).toEqual([id]);
   expect(await findDuplicados(db, "Venezolano de Crédito", "AB12 ce")).toEqual([]);
+});
+
+it("no deja crear ni cambiar a un banco y referencia que ya existen", async () => {
+  const a = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Banesco", referencia: "123" }));
+  await expect(createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "banesco", referencia: "0123" }))).rejects.toMatchObject({
+    code: "DUPLICADO",
+    message: expect.stringContaining("Ya existe un depósito de Banesco con la referencia 123"),
+  });
+  const b = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Banesco", referencia: "456" }));
+  await expect(updateDeposito(db, b, depositoBase(s.tasaId, { referencia: "123" }))).rejects.toMatchObject({ code: "DUPLICADO" });
+  // El propio depósito no cuenta.
+  await updateDeposito(db, a, depositoBase(s.tasaId, { referencia: "123", montoBs: "7300" }));
+  expect(await getDeposito(db, a)).toMatchObject({ montoBs: "7300" });
+});
+
+it("un duplicado que ya existía se puede editar sin cambiar su banco ni referencia", async () => {
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "123" }));
+  const viejo = await crearDuplicado(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "123" }));
+  await updateDeposito(db, viejo, depositoBase(s.tasaId, { referencia: "123", observaciones: "revisar" }));
+  expect(await getDeposito(db, viejo)).toMatchObject({ observaciones: "revisar" });
 });
 
 it("bloquea cambios en campaña cerrada", async () => {

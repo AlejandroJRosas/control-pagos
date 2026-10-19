@@ -1,5 +1,5 @@
 import type { SqlDriver } from "../driver";
-import { createDeposito } from "../repos/depositos";
+import { createDeposito, getDeposito, updateDeposito, type DepositoGuardar } from "../repos/depositos";
 import { createTasa, deleteTasa } from "../repos/tasas";
 import { getItemColaDeposito, getItemColaTasa, marcarDepositoHecho, marcarTasaHecha, type BorradorDeposito, type BorradorTasa } from "../repos/cola";
 import { resolverDestino } from "./destino";
@@ -55,4 +55,29 @@ export async function completarTasa(db: SqlDriver, itemId: number, v: TasaValida
     throw e;
   }
   return tasaId;
+}
+
+/**
+ * "Actualizar" ante un duplicado: el depósito que ya existe toma los datos nuevos (sigue con su gerente y campaña).
+ * Sin imagen u observaciones nuevas conserva las suyas. Devuelve cómo estaba, para revertir.
+ */
+export async function actualizarDuplicado(db: SqlDriver, depositoId: number, v: DepositoGuardar): Promise<DepositoGuardar> {
+  const actual = await getDeposito(db, depositoId);
+  if (!actual) throw new DomainError("NO_ENCONTRADO", "El depósito ya no existe");
+  await updateDeposito(db, depositoId, { ...v, observaciones: v.observaciones ?? actual.observaciones, imagenPath: v.imagenPath ?? actual.imagenPath });
+  const { fecha, banco, referencia, cuentaDestino, montoBs, tasaId, observaciones, imagenPath } = actual;
+  return { fecha, banco, referencia, cuentaDestino, montoBs, tasaId, observaciones, imagenPath };
+}
+
+/** "Actualizar" en la revisión: el duplicado existente toma los datos y la imagen del comprobante, y el elemento queda hecho apuntando a él. */
+export async function completarConDuplicado(db: SqlDriver, itemId: number, depositoId: number, v: DepositoValido, borrador?: BorradorDeposito): Promise<void> {
+  const item = await getItemColaDeposito(db, itemId);
+  assertPendiente(item);
+  const antes = await actualizarDuplicado(db, depositoId, { ...v, imagenPath: item!.imagenPath });
+  try {
+    await marcarDepositoHecho(db, itemId, depositoId, borrador);
+  } catch (e) {
+    await updateDeposito(db, depositoId, antes);
+    throw e;
+  }
 }

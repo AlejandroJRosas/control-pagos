@@ -247,9 +247,9 @@ function Revision({ f }: { f: FilaPlan }) {
     notas.push({ texto: `El Excel dice ${formatTasa(f.tasa)}; se usará la del día: ${formatTasa(f.tasaAplicada)}`, tono: "aviso" });
   }
   f.duplicados.forEach((d) =>
-    notas.push({ texto: `Ya registrado: ${formatFecha(d.fecha)} · ${d.gerenteNombre} · ${d.campanaNombre}`, tono: "aviso" }),
+    notas.push({ texto: `Ya registrado (no se importa): ${formatFecha(d.fecha)} · ${d.gerenteNombre} · ${d.campanaNombre}`, tono: "error" }),
   );
-  if (f.repetidaEnArchivo !== null) notas.push({ texto: `Repetida en el archivo (fila ${f.repetidaEnArchivo})`, tono: "aviso" });
+  if (f.repetidaEnArchivo !== null) notas.push({ texto: `Repetida en el archivo (fila ${f.repetidaEnArchivo}): no se importa`, tono: "error" });
   if (notas.length === 0) return <Badge variant="secondary">OK</Badge>;
   return (
     <ul className="space-y-0.5 text-xs">

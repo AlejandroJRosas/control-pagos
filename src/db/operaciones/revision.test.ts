@@ -3,11 +3,11 @@ import type { SqlDriver } from "../driver";
 import { createTestDb } from "../testing/sqljsDriver";
 import { depositoBase, seedBasico } from "../testing/fixtures";
 import { setEstadoCampana } from "../repos/campanas";
-import { getDeposito } from "../repos/depositos";
+import { createDeposito, getDeposito } from "../repos/depositos";
 import { getAsignacion } from "../repos/asignaciones";
 import { getTasa } from "../repos/tasas";
 import { borradorDepositoVacio, borradorTasaVacio, encolarDeposito, encolarTasa, getItemColaDeposito, getItemColaTasa } from "../repos/cola";
-import { completarDeposito, completarTasa } from "./revision";
+import { actualizarDuplicado, completarConDuplicado, completarDeposito, completarTasa } from "./revision";
 
 let db: SqlDriver;
 let s: Awaited<ReturnType<typeof seedBasico>>;
@@ -112,4 +112,29 @@ it("guarda en la cola el borrador con el que se completó", async () => {
   const bt = { draft: { fecha: "2026-10-16", valor: "1", notas: "" }, auto: { estado: {}, confianza: {} } };
   await completarTasa(db, t, { fecha: "2026-10-16", valor: "1", notas: null }, bt);
   expect((await getItemColaTasa(db, t))?.borrador).toEqual(bt);
+});
+
+it("actualizar el duplicado reemplaza sus datos; sin imagen ni observaciones nuevas conserva las suyas", async () => {
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { observaciones: "de antes", imagenPath: "imagenes/vieja.png" }));
+  await actualizarDuplicado(db, id, { ...deposito(), montoBs: "7300", observaciones: null, imagenPath: null });
+  expect(await getDeposito(db, id)).toMatchObject({ montoBs: "7300", observaciones: "de antes", imagenPath: "imagenes/vieja.png", asignacionId: s.asignacionId });
+  await actualizarDuplicado(db, id, { ...deposito(), observaciones: "nueva", imagenPath: "imagenes/nueva.png" });
+  expect(await getDeposito(db, id)).toMatchObject({ montoBs: "3650", observaciones: "nueva", imagenPath: "imagenes/nueva.png" });
+});
+
+it("desde la cola: actualiza el existente con la imagen del comprobante y marca hecho", async () => {
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
+  await completarConDuplicado(db, item, id, { ...deposito(), montoBs: "7300" });
+  expect(await getDeposito(db, id)).toMatchObject({ montoBs: "7300", imagenPath: "imagenes/c1.png" });
+  expect(await getItemColaDeposito(db, item)).toMatchObject({ estado: "hecho", depositoId: id });
+  expect(await contar("depositos")).toBe(1);
+});
+
+it("desde la cola: si marcar falla, el existente vuelve a como estaba", async () => {
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { observaciones: "original" }));
+  await expect(completarConDuplicado(fallaAlMarcar("cola_depositos"), item, id, { ...deposito(), montoBs: "7300", observaciones: "otra" })).rejects.toThrow(
+    "disco lleno",
+  );
+  expect(await getDeposito(db, id)).toMatchObject({ montoBs: "3650", observaciones: "original", imagenPath: null });
+  expect(await getItemColaDeposito(db, item)).toMatchObject({ estado: "pendiente" });
 });

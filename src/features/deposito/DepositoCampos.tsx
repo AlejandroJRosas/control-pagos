@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { confClass } from "@/lib/confianza";
 import { TasaFormDialog } from "@/features/tasas/TasaFormDialog";
 import type { DepositoForm } from "./useDepositoForm";
+import { DuplicadoBloqueo, type AccionesDuplicado } from "./DuplicadoBloqueo";
 
 type Props = {
   f: DepositoForm;
@@ -30,10 +31,12 @@ type Props = {
   avisosExtra?: ReactNode;
   /** Avisa cuando se abre o cierra el diálogo de "Registrar tasa" (para no pegar imágenes detrás). */
   onTasaDialog?: (open: boolean) => void;
+  /** Al registrar uno nuevo: un duplicado no se guarda, se actualiza el existente o se descarta. Sin esto (al editar), solo se avisa. */
+  duplicado?: AccionesDuplicado;
 };
 
 /** Campos del depósito, saldos en vivo y avisos; compartido por el registro individual y la revisión en lote. */
-export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled, avisosExtra, onTasaDialog }: Props) {
+export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled, avisosExtra, onTasaDialog, duplicado }: Props) {
   const [tasaDialog, setTasaDialogState] = useState(false);
   const setTasaDialog = (open: boolean) => {
     setTasaDialogState(open);
@@ -50,6 +53,7 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
 
   return (
     <>
+      {duplicado && duplicados.length > 0 && <DuplicadoBloqueo duplicados={duplicados} acciones={duplicado} />}
       <fieldset disabled={disabled} className="grid gap-4">
         {!asignacion && (
           <DestinoGerente id="d-destino" asignaciones={data.asignaciones} gerentes={gerentes} value={form.destino} errors={f.destinoErrors} onChange={f.setDestino} />
@@ -152,7 +156,7 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
           </CardContent>
         </Card>
 
-        {duplicados.length > 0 && (
+        {!duplicado && duplicados.length > 0 && (
           <Aviso tono="warning">
             Ya existe un depósito con este banco y esta referencia:
             <ul className="mt-1 list-disc pl-4">

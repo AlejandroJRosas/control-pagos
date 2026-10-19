@@ -8,9 +8,10 @@ import { Aviso, Cargando } from "@/components/Feedback";
 import { ImageDrop } from "@/components/ImageDrop";
 import { getDb } from "@/db";
 import { getAsignacion, type AsignacionDetalle } from "@/db/repos/asignaciones";
-import { createDeposito, deleteDeposito, getDeposito, listBancosUsados, listCuentasDestinoUsadas, updateDeposito, type Deposito } from "@/db/repos/depositos";
+import { createDeposito, deleteDeposito, getDeposito, listBancosUsados, listCuentasDestinoUsadas, updateDeposito, type Deposito, type Duplicado } from "@/db/repos/depositos";
 import { listGerentes, type Gerente } from "@/db/repos/gerentes";
 import { registrarDepositoEnCampana } from "@/db/operaciones/destino";
+import { actualizarDuplicado } from "@/db/operaciones/revision";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
 import { todayIso } from "@/domain/dates";
 import { DomainError } from "@/domain/errors";
@@ -99,7 +100,9 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
 
   // Mientras se busca la tasa de la fecha no se puede guardar: el depósito saldría sin tasa o con la anterior.
   const buscandoTasa = f.tasa === undefined;
-  useAtajo("Enter", () => void guardar(false), { ctrl: true, activo: !cerrada && !saving && !buscandoTasa });
+  // Uno nuevo con el banco y la referencia de otro no se guarda: se actualiza el existente o se descarta.
+  const duplicado = !deposito && f.duplicados.length > 0;
+  useAtajo("Enter", () => void guardar(false), { ctrl: true, activo: !cerrada && !saving && !buscandoTasa && !duplicado });
 
   async function onImagen(v: ImagenValue) {
     setImagen(v);
@@ -125,8 +128,46 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
     }
   }
 
-  async function guardar(yNuevo: boolean) {
+  /** Deja el formulario vacío para el siguiente, con la misma fecha (y el mismo gerente si se indica). */
+  function reiniciar(asignacionId: number | null) {
+    if (imagen?.kind === "new") URL.revokeObjectURL(imagen.previewUrl);
+    fechaInicial.current = draft.fecha;
+    const siguiente: DepositoFormState = {
+      draft: { ...depositoVacio(draft.fecha), tasaId: draft.tasaId },
+      auto: autollenadoNuevo(),
+      destino: asignacion || asignacionId === null ? SIN_DESTINO : { ...SIN_DESTINO, sel: `a:${asignacionId}` },
+    };
+    huellaInicial.current = huella(siguiente, null);
+    f.reiniciar(siguiente);
+    imagenVigente.current = null;
+    setLeyendo(false);
+    setImagen(null);
+  }
+
+  function descartar() {
+    reiniciar(null);
+    toast.success("Depósito descartado");
+  }
+
+  async function actualizarExistente(d: Duplicado) {
     if (buscandoTasa) return;
+    const r = f.validar();
+    if (!r) return;
+    setSaving(true);
+    try {
+      await actualizarDuplicado(await getDb(), d.id, { ...r.deposito, imagenPath: await persistImagen(imagen) });
+      toast.success(`Depósito de ${d.gerenteNombre} actualizado`);
+      reiniciar(null);
+      invalidate();
+    } catch (e) {
+      reportError(e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function guardar(yNuevo: boolean) {
+    if (buscandoTasa || duplicado) return;
     const r = f.validar();
     if (!r) return;
     setSaving(true);
@@ -145,18 +186,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
       }
       toast.success(deposito ? "Depósito actualizado" : "Depósito registrado");
       if (yNuevo) {
-        if (imagen?.kind === "new") URL.revokeObjectURL(imagen.previewUrl);
-        fechaInicial.current = draft.fecha;
-        const siguiente: DepositoFormState = {
-          draft: { ...depositoVacio(draft.fecha), tasaId: draft.tasaId },
-          auto: autollenadoNuevo(),
-          destino: asignacion ? SIN_DESTINO : { ...SIN_DESTINO, sel: `a:${asignacionId}` },
-        };
-        huellaInicial.current = huella(siguiente, null);
-        f.reiniciar(siguiente);
-        imagenVigente.current = null;
-        setLeyendo(false);
-        setImagen(null);
+        reiniciar(asignacionId);
         invalidate();
       } else {
         aviso.permitirSalida();
@@ -225,6 +255,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
             bancos={bancos}
             disabled={cerrada || saving}
             onTasaDialog={setTasaDialog}
+            duplicado={deposito ? undefined : { onActualizar: (d) => void actualizarExistente(d), onDescartar: descartar, ocupado: cerrada || saving }}
           />
 
           <div className="flex justify-end gap-2">
@@ -232,11 +263,11 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
               Cancelar
             </Button>
             {!deposito && (
-              <Button type="button" variant="secondary" disabled={cerrada || saving || buscandoTasa} onClick={() => void guardar(true)}>
+              <Button type="button" variant="secondary" disabled={cerrada || saving || buscandoTasa || duplicado} onClick={() => void guardar(true)}>
                 Guardar y nuevo
               </Button>
             )}
-            <Button type="submit" disabled={cerrada || saving || buscandoTasa} title="Ctrl+Enter">
+            <Button type="submit" disabled={cerrada || saving || buscandoTasa || duplicado} title="Ctrl+Enter">
               Guardar
             </Button>
           </div>

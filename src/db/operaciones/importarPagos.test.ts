@@ -75,7 +75,8 @@ describe("planificarImportacion", () => {
     expect(r(26)).toMatchObject({ estadoTasa: "distinta", tasaAplicada: "37", marcada: false });
     expect(r(27).duplicados).toHaveLength(1);
     expect(r(27).marcada).toBe(false);
-    expect(r(28)).toMatchObject({ repetidaEnArchivo: 23, marcada: false });
+    expect(r(27)).toMatchObject({ importable: false, marcada: false });
+    expect(r(28)).toMatchObject({ repetidaEnArchivo: 23, marcada: false, importable: false });
     expect(r(29)).toMatchObject({ importable: false, marcada: false, usd: "20.00" });
   });
 
