@@ -6,6 +6,7 @@ import { BusquedaGlobal } from "@/components/BusquedaGlobal";
 import { AyudaAtajos, Tecla } from "@/components/AyudaAtajos";
 import { AvisoActualizacion } from "@/components/AvisoActualizacion";
 import { AvisoTasaFaltante } from "@/components/AvisoTasaFaltante";
+import { AvisoEspejo } from "@/components/AvisoEspejo";
 import { useAtajo } from "@/hooks/useAtajo";
 import { getCampana } from "@/db/repos/campanas";
 import { useData } from "@/hooks/useData";
@@ -116,6 +117,7 @@ export function AppLayout() {
         </NavLink>
       </aside>
       <main className="flex-1 overflow-auto p-6">
+        <AvisoEspejo />
         <AvisoTasaFaltante />
         <Outlet />
       </main>

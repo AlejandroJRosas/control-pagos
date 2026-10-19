@@ -20,6 +20,7 @@ import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { MODOS, TEMAS, setModo, setTema, useModo, useTema } from "@/lib/tema";
 import { cn } from "@/lib/utils";
+import { CopiaDrive } from "./CopiaDrive";
 
 const tamano = (bytes: number) =>
   bytes < 1024 * 1024 ? `${formatNumberVE(bytes / 1024, 0)} KB` : `${formatNumberVE(bytes / 1024 / 1024, 1)} MB`;
@@ -157,6 +158,8 @@ export function ConfiguracionPage() {
           )}
         </CardContent>
       </Card>
+
+      <CopiaDrive />
 
       <ConfirmDialog
         open={restaurar !== null}

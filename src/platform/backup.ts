@@ -5,6 +5,7 @@ import { closeDb } from "@/db";
 import { todayIso } from "@/domain/dates";
 import { imagenesUsadas } from "@/db/queries/imagenesUsadas";
 import { precargarFeriados } from "@/db/repos/feriados";
+import { copiarAlEspejo } from "./espejo";
 
 export type DataPaths = { dbPath: string; imagesDir: string; backupsDir: string };
 export type BackupInfo = { name: string; path: string; sizeBytes: number; modifiedMs: number };
@@ -35,11 +36,18 @@ export async function respaldoAntesDe(db: SqlDriver, motivo: string): Promise<st
   return dest;
 }
 
-export async function runAutoBackup(db: SqlDriver): Promise<void> {
-  const dest = await invoke<string | null>("auto_backup_path", { today: todayIso() });
+/**
+ * Respaldo automático del día (`auto-<hoy>.zip`) y su copia a la carpeta espejo. Al abrir no se repite si ya
+ * existe; con `reemplazar` (al cerrar) se rehace para que quede el estado más reciente del día.
+ */
+export async function runAutoBackup(db: SqlDriver, { reemplazar = false }: { reemplazar?: boolean } = {}): Promise<void> {
+  const dest = reemplazar
+    ? await invoke<string>("auto_backup_path_hoy", { today: todayIso() })
+    : await invoke<string | null>("auto_backup_path", { today: todayIso() });
   if (!dest) return;
   await createBackup(db, dest);
   await invoke("prune_auto_backups");
+  await copiarAlEspejo(db, dest);
 }
 
 /**
