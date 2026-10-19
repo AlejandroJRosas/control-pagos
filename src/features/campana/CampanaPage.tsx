@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { ChevronDown, FileSpreadsheet, FileUp, Images, ListChecks, Lock, LockOpen, Pencil, Plus, Settings2, Trash2, UserPlus } from "lucide-react";
+import { ChevronDown, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Lock, LockOpen, Pencil, Plus, Settings2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -18,7 +18,9 @@ import { contarPendientesDepositos } from "@/db/repos/cola";
 import { buildCampanaView, type GerenteResumen } from "@/domain/campanaView";
 import { formatPeriodo, todayIso } from "@/domain/dates";
 import { buildCampanaWorkbook } from "@/export/campanaWorkbook";
-import { archivoExcel } from "@/export/fileName";
+import { buildCampanaPdf } from "@/export/campanaPdf";
+import { archivoExcel, archivoPdf } from "@/export/fileName";
+import { savePdf } from "@/export/savePdf";
 import { saveWorkbook } from "@/export/saveWorkbook";
 import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
@@ -95,6 +97,14 @@ export function CampanaPage() {
     }
   }
 
+  async function exportarPdf() {
+    try {
+      if (await savePdf(buildCampanaPdf(campana, view), archivoPdf(campana.nombre, todayIso()))) toast.success("PDF guardado");
+    } catch (e) {
+      reportError(e, "Exportar");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -117,6 +127,10 @@ export function CampanaPage() {
             <Button variant="outline" onClick={exportar}>
               <FileSpreadsheet />
               Exportar a Excel
+            </Button>
+            <Button variant="outline" onClick={exportarPdf}>
+              <FileText />
+              Exportar PDF
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" />}>

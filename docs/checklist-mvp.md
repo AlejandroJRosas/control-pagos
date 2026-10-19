@@ -17,7 +17,8 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Ordenar la pestaña "Por gerente" por % avance.
 - [ ] Campaña → "Cerrar campaña" → todo de solo lectura ("Registrar depósito" y su menú deshabilitados); reabrir.
 - [ ] Campaña → "Eliminar campaña": el primer aviso muestra cuántos depósitos, gerentes y pendientes se borran; "Continuar" pide escribir el nombre y "Eliminar definitivamente" solo se habilita si coincide. Al eliminar vuelve a Campañas, la campaña ya no está (ni en "Campaña actual"), los gerentes y tasas siguen, y hay un `antes-de-eliminar-*.zip` en Configuración → respaldos. Con la campaña cerrada la opción está deshabilitada.
-- [ ] Exportar campaña a Excel: Resumen, Todos los depósitos, una hoja por gerente; números sumables en Excel.
+- [ ] Exportar campaña a Excel: Resumen, Todos los depósitos, una hoja por gerente; números sumables en Excel. Franja azul con el título, cifras clave, filas alternadas, barra de datos en "% avance", saldos negativos en rojo; la vista previa de impresión sale horizontal en una página de ancho con el encabezado repetido.
+- [ ] Exportar PDF: página 1 con la barra general y el resumen por gerente; una página por gerente con sus depósitos (incluye cuenta destino). Probar un gerente que cobró de más ("Pagado de más" en rojo), uno sin depósitos ("Sin depósitos registrados") y uno con más de 40 depósitos (la tabla sigue en la página siguiente con su encabezado). El texto se puede seleccionar y los acentos se ven bien.
 - [ ] Exportar tasas a Excel.
 - [ ] Crear respaldo, restaurarlo; respaldo automático diario visible.
 - [ ] Cerrar y volver a abrir la app: todos los datos siguen ahí.

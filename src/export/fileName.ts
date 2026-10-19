@@ -11,3 +11,7 @@ export function archivoBase(nombre: string): string {
 export function archivoExcel(nombre: string, fecha: string): string {
   return `${archivoBase(nombre) || "reporte"}-${fecha}.xlsx`;
 }
+
+export function archivoPdf(nombre: string, fecha: string): string {
+  return `${archivoBase(nombre) || "reporte"}-${fecha}.pdf`;
+}

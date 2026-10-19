@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { buildCampanaWorkbook, isoToExcelDate, safeSheetName } from "./campanaWorkbook";
-import { archivoExcel } from "./fileName";
+import { archivoExcel, archivoPdf } from "./fileName";
 import { COLOR, argb } from "./estilo";
 import { buildCampanaView, type DepositoData } from "@/domain/campanaView";
 import type { Campana } from "@/db/repos/campanas";
@@ -62,6 +62,11 @@ it("nombres que Excel/ExcelJS rechazan no rompen la exportación", async () => {
 it("archivoExcel genera un nombre seguro", () => {
   expect(archivoExcel("Campaña Marzo/2026", "2026-10-18")).toBe("campana-marzo-2026-2026-10-18.xlsx");
   expect(archivoExcel("***", "2026-10-18")).toBe("reporte-2026-10-18.xlsx");
+});
+
+it("archivoPdf genera un nombre seguro", () => {
+  expect(archivoPdf("Campaña Marzo/2026", "2026-10-18")).toBe("campana-marzo-2026-2026-10-18.pdf");
+  expect(archivoPdf("***", "2026-10-18")).toBe("reporte-2026-10-18.pdf");
 });
 
 it("genera resumen, todos los depósitos y una hoja por gerente", async () => {
