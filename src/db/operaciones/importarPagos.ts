@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import type { SqlDriver } from "../driver";
+import { nowIso } from "../clock";
 import { assertCampanaActiva } from "../repos/campanas";
 import { getAsignacion, updateSaldoAsignacion } from "../repos/asignaciones";
 import { listGerentes } from "../repos/gerentes";
@@ -174,7 +175,7 @@ export async function importarPagos(
   } catch (e) {
     for (const id of depositos) await db.execute("DELETE FROM depositos WHERE id = ?", [id]);
     for (const id of tasasCreadas) await db.execute("DELETE FROM tasas WHERE id = ?", [id]);
-    if (saldoAnterior !== null) await db.execute("UPDATE asignaciones SET saldo_usd = ? WHERE id = ?", [saldoAnterior, asignacionId]);
+    if (saldoAnterior !== null) await db.execute("UPDATE asignaciones SET saldo_usd = ?, actualizado_en = ? WHERE id = ?", [saldoAnterior, nowIso(), asignacionId]);
     await deshacer();
     throw e;
   }

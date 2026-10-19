@@ -1,4 +1,5 @@
 import type { SqlDriver } from "../driver";
+import { nowIso } from "../clock";
 import { assertCampanaActiva, type EstadoCampana } from "./campanas";
 import { DomainError } from "@/domain/errors";
 
@@ -34,14 +35,20 @@ export async function createAsignacion(db: SqlDriver, v: { campanaId: number; ge
   await assertCampanaActiva(db, v.campanaId);
   const [dup] = await db.select<{ id: number }>("SELECT id FROM asignaciones WHERE campana_id = ? AND gerente_id = ?", [v.campanaId, v.gerenteId]);
   if (dup) throw new DomainError("DUPLICADO", "Este gerente ya está en la campaña");
-  const r = await db.execute("INSERT INTO asignaciones (campana_id, gerente_id, saldo_usd) VALUES (?, ?, ?)", [v.campanaId, v.gerenteId, v.saldoUsd]);
+  const r = await db.execute("INSERT INTO asignaciones (campana_id, gerente_id, saldo_usd, uuid, actualizado_en) VALUES (?, ?, ?, ?, ?)", [
+    v.campanaId,
+    v.gerenteId,
+    v.saldoUsd,
+    crypto.randomUUID(),
+    nowIso(),
+  ]);
   return r.lastInsertId;
 }
 
 export async function updateSaldoAsignacion(db: SqlDriver, id: number, saldoUsd: string): Promise<void> {
   const a = await requireAsignacion(db, id);
   await assertCampanaActiva(db, a.campanaId);
-  await db.execute("UPDATE asignaciones SET saldo_usd = ? WHERE id = ?", [saldoUsd, id]);
+  await db.execute("UPDATE asignaciones SET saldo_usd = ?, actualizado_en = ? WHERE id = ?", [saldoUsd, nowIso(), id]);
 }
 
 export async function deleteAsignacion(db: SqlDriver, id: number): Promise<void> {

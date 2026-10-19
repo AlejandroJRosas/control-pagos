@@ -2,6 +2,10 @@ import type { SqlDriver } from "./driver";
 
 type Migration = { version: number; statements: string[] };
 
+/** UUID v4 en SQL (por fila: `randomblob` se evalúa en cada una). */
+const UUID_V4_SQL = `lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' ||
+  substr('89ab', 1 + (abs(random()) % 4), 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6)))`;
+
 /** Cada sentencia va por separado: el driver de Tauri ejecuta una sentencia por llamada. */
 const MIGRATIONS: Migration[] = [
   {
@@ -88,15 +92,51 @@ const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    // Ajustes que viajan en los respaldos, feriados (usan la tasa del día hábil anterior) y, para la fase 3,
+    // un identificador único global y la fecha de la última modificación en cada registro.
+    version: 3,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ajustes (
+        clave TEXT PRIMARY KEY,
+        valor TEXT NOT NULL,
+        actualizado_en TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS feriados (
+        fecha TEXT PRIMARY KEY,
+        nombre TEXT,
+        creado_en TEXT NOT NULL
+      )`,
+      ...["gerentes", "campanas", "asignaciones", "tasas", "depositos"].flatMap((t) => [
+        `ALTER TABLE ${t} ADD COLUMN uuid TEXT`,
+        `UPDATE ${t} SET uuid = ${UUID_V4_SQL} WHERE uuid IS NULL`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_${t}_uuid ON ${t}(uuid)`,
+      ]),
+      ...["gerentes", "campanas", "asignaciones", "tasas"].map((t) => `ALTER TABLE ${t} ADD COLUMN actualizado_en TEXT`),
+      "UPDATE gerentes SET actualizado_en = creado_en WHERE actualizado_en IS NULL",
+      "UPDATE campanas SET actualizado_en = creado_en WHERE actualizado_en IS NULL",
+      "UPDATE asignaciones SET actualizado_en = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE actualizado_en IS NULL",
+      "UPDATE tasas SET actualizado_en = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE actualizado_en IS NULL",
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
-export async function migrate(db: SqlDriver): Promise<void> {
+/** Migra hasta `hasta` (por defecto la última versión; las pruebas usan versiones intermedias). */
+export async function migrate(db: SqlDriver, hasta = SCHEMA_VERSION): Promise<void> {
   const [{ user_version: current }] = await db.select<{ user_version: number }>("PRAGMA user_version");
   for (const m of MIGRATIONS) {
-    if (m.version <= current) continue;
-    for (const sql of m.statements) await db.execute(sql);
+    if (m.version <= current || m.version > hasta) continue;
+    for (const sql of m.statements) {
+      try {
+        await db.execute(sql);
+      } catch (e) {
+        // Sin transacción entre llamadas, una migración puede quedar a medias: ADD COLUMN no tiene IF NOT EXISTS.
+        if (/^\s*ALTER TABLE \S+ ADD COLUMN/i.test(sql) && /duplicate column/i.test(String(e))) continue;
+        throw e;
+      }
+    }
     await db.execute(`PRAGMA user_version = ${m.version}`);
   }
 }

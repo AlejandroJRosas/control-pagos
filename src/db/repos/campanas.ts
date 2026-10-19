@@ -33,24 +33,26 @@ export async function assertCampanaActiva(db: SqlDriver, campanaId: number): Pro
 }
 
 export async function createCampana(db: SqlDriver, v: CampanaValida): Promise<number> {
+  const now = nowIso();
   const r = await db.execute(
-    "INSERT INTO campanas (nombre, fecha_inicio, fecha_fin, estado, notas, creado_en) VALUES (?, ?, ?, 'activa', ?, ?)",
-    [v.nombre, v.fechaInicio, v.fechaFin, v.notas, nowIso()],
+    "INSERT INTO campanas (nombre, fecha_inicio, fecha_fin, estado, notas, creado_en, uuid, actualizado_en) VALUES (?, ?, ?, 'activa', ?, ?, ?, ?)",
+    [v.nombre, v.fechaInicio, v.fechaFin, v.notas, now, crypto.randomUUID(), now],
   );
   return r.lastInsertId;
 }
 
 export async function updateCampana(db: SqlDriver, id: number, v: CampanaValida): Promise<void> {
   await assertCampanaActiva(db, id);
-  await db.execute("UPDATE campanas SET nombre = ?, fecha_inicio = ?, fecha_fin = ?, notas = ? WHERE id = ?", [
+  await db.execute("UPDATE campanas SET nombre = ?, fecha_inicio = ?, fecha_fin = ?, notas = ?, actualizado_en = ? WHERE id = ?", [
     v.nombre,
     v.fechaInicio,
     v.fechaFin,
     v.notas,
+    nowIso(),
     id,
   ]);
 }
 
 export async function setEstadoCampana(db: SqlDriver, id: number, estado: EstadoCampana): Promise<void> {
-  await db.execute("UPDATE campanas SET estado = ? WHERE id = ?", [estado, id]);
+  await db.execute("UPDATE campanas SET estado = ?, actualizado_en = ? WHERE id = ?", [estado, nowIso(), id]);
 }

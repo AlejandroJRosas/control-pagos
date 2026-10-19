@@ -31,14 +31,21 @@ export async function getGerente(db: SqlDriver, id: number): Promise<Gerente | n
 }
 
 export async function createGerente(db: SqlDriver, v: GerenteValido): Promise<number> {
-  const r = await db.execute("INSERT INTO gerentes (nombre, telefono, activo, creado_en) VALUES (?, ?, 1, ?)", [v.nombre, v.telefono, nowIso()]);
+  const now = nowIso();
+  const r = await db.execute("INSERT INTO gerentes (nombre, telefono, activo, creado_en, uuid, actualizado_en) VALUES (?, ?, 1, ?, ?, ?)", [
+    v.nombre,
+    v.telefono,
+    now,
+    crypto.randomUUID(),
+    now,
+  ]);
   return r.lastInsertId;
 }
 
 export async function updateGerente(db: SqlDriver, id: number, v: GerenteValido): Promise<void> {
-  await db.execute("UPDATE gerentes SET nombre = ?, telefono = ? WHERE id = ?", [v.nombre, v.telefono, id]);
+  await db.execute("UPDATE gerentes SET nombre = ?, telefono = ?, actualizado_en = ? WHERE id = ?", [v.nombre, v.telefono, nowIso(), id]);
 }
 
 export async function setGerenteActivo(db: SqlDriver, id: number, activo: boolean): Promise<void> {
-  await db.execute("UPDATE gerentes SET activo = ? WHERE id = ?", [activo ? 1 : 0, id]);
+  await db.execute("UPDATE gerentes SET activo = ?, actualizado_en = ? WHERE id = ?", [activo ? 1 : 0, nowIso(), id]);
 }

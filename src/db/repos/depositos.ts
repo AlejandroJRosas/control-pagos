@@ -22,12 +22,13 @@ export type Deposito = {
   imagenPath: string | null;
   creadoEn: string;
   actualizadoEn: string;
+  uuid: string;
 };
 export type DepositoGuardar = DepositoValido & { imagenPath: string | null };
 export type Duplicado = { id: number; fecha: string; montoBs: string; gerenteNombre: string; campanaNombre: string };
 
 const SEL = `SELECT id, asignacion_id AS asignacionId, tasa_id AS tasaId, fecha, banco, referencia, cuenta_destino AS cuentaDestino,
-  monto_bs AS montoBs, observaciones, imagen_path AS imagenPath, creado_en AS creadoEn, actualizado_en AS actualizadoEn FROM depositos`;
+  monto_bs AS montoBs, observaciones, imagen_path AS imagenPath, creado_en AS creadoEn, actualizado_en AS actualizadoEn, uuid FROM depositos`;
 
 export async function getDeposito(db: SqlDriver, id: number): Promise<Deposito | null> {
   const [row] = await db.select<Deposito>(`${SEL} WHERE id = ?`, [id]);
@@ -53,9 +54,9 @@ export async function createDeposito(db: SqlDriver, asignacionId: number, v: Dep
   await assertTasaDeLaFecha(db, v);
   const now = nowIso();
   const r = await db.execute(
-    `INSERT INTO depositos (asignacion_id, tasa_id, fecha, banco, referencia, cuenta_destino, monto_bs, observaciones, imagen_path, creado_en, actualizado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [asignacionId, v.tasaId, v.fecha, v.banco, v.referencia, v.cuentaDestino, v.montoBs, v.observaciones, v.imagenPath, now, now],
+    `INSERT INTO depositos (asignacion_id, tasa_id, fecha, banco, referencia, cuenta_destino, monto_bs, observaciones, imagen_path, creado_en, actualizado_en, uuid)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [asignacionId, v.tasaId, v.fecha, v.banco, v.referencia, v.cuentaDestino, v.montoBs, v.observaciones, v.imagenPath, now, now, crypto.randomUUID()],
   );
   return r.lastInsertId;
 }
@@ -111,9 +112,9 @@ export async function restaurarDepositos(db: SqlDriver, e: Eliminados): Promise<
   try {
     for (const d of e.depositos) {
       await db.execute(
-        `INSERT INTO depositos (id, asignacion_id, tasa_id, fecha, banco, referencia, cuenta_destino, monto_bs, observaciones, imagen_path, creado_en, actualizado_en)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [d.id, d.asignacionId, d.tasaId, d.fecha, d.banco, d.referencia, d.cuentaDestino, d.montoBs, d.observaciones, d.imagenPath, d.creadoEn, d.actualizadoEn],
+        `INSERT INTO depositos (id, asignacion_id, tasa_id, fecha, banco, referencia, cuenta_destino, monto_bs, observaciones, imagen_path, creado_en, actualizado_en, uuid)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [d.id, d.asignacionId, d.tasaId, d.fecha, d.banco, d.referencia, d.cuentaDestino, d.montoBs, d.observaciones, d.imagenPath, d.creadoEn, d.actualizadoEn, d.uuid],
       );
       insertados.push(d.id);
     }

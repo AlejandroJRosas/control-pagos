@@ -1,4 +1,5 @@
 import type { SqlDriver } from "../driver";
+import { nowIso } from "../clock";
 import type { TasaValida } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
 import { esFinDeSemana, fechaDeTasa, formatFecha } from "@/domain/dates";
@@ -34,12 +35,19 @@ export async function createTasa(db: SqlDriver, v: TasaValida & { imagenPath: st
     throw new DomainError("VALIDACION", `Los sábados y domingos usan la tasa del viernes ${formatFecha(fechaDeTasa(v.fecha))}`);
   }
   if (await getTasaByFecha(db, v.fecha)) throw new DomainError("DUPLICADO", `Ya existe una tasa para el ${formatFecha(v.fecha)}`);
-  const r = await db.execute("INSERT INTO tasas (fecha, valor, imagen_path, notas) VALUES (?, ?, ?, ?)", [v.fecha, v.valor, v.imagenPath, v.notas]);
+  const r = await db.execute("INSERT INTO tasas (fecha, valor, imagen_path, notas, uuid, actualizado_en) VALUES (?, ?, ?, ?, ?, ?)", [
+    v.fecha,
+    v.valor,
+    v.imagenPath,
+    v.notas,
+    crypto.randomUUID(),
+    nowIso(),
+  ]);
   return r.lastInsertId;
 }
 
 export async function updateTasa(db: SqlDriver, id: number, v: { valor: string; notas: string | null; imagenPath: string | null }): Promise<void> {
-  await db.execute("UPDATE tasas SET valor = ?, notas = ?, imagen_path = ? WHERE id = ?", [v.valor, v.notas, v.imagenPath, id]);
+  await db.execute("UPDATE tasas SET valor = ?, notas = ?, imagen_path = ?, actualizado_en = ? WHERE id = ?", [v.valor, v.notas, v.imagenPath, nowIso(), id]);
 }
 
 export async function countUsosTasa(db: SqlDriver, id: number): Promise<number> {
