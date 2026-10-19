@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { ChevronDown, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Lock, LockOpen, Pencil, Plus, Settings2, Trash2, UserPlus } from "lucide-react";
+import { ChevronDown, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Lock, LockOpen, Pencil, Plus, Settings2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -124,14 +124,23 @@ export function CampanaPage() {
                 Revisar pendientes ({pendientes})
               </Link>
             )}
-            <Button variant="outline" onClick={exportar}>
-              <FileSpreadsheet />
-              Exportar a Excel
-            </Button>
-            <Button variant="outline" onClick={exportarPdf}>
-              <FileText />
-              Exportar PDF
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="outline" />}>
+                <Download />
+                Exportar
+                <ChevronDown data-icon="inline-end" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-auto min-w-48">
+                <DropdownMenuItem onClick={() => void exportar()}>
+                  <FileSpreadsheet />
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void exportarPdf()}>
+                  <FileText />
+                  PDF para compartir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" />}>
                 <Settings2 />
