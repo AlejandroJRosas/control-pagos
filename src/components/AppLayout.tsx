@@ -79,7 +79,7 @@ export function AppLayout() {
           )}
         </button>
         {actual && (
-          <div className="mb-2">
+          <div className="mb-2 border-b pb-3">
             {!c && <div className="px-2 pb-1 text-xs text-muted-foreground">Campaña actual</div>}
             <NavLink to={`/campanas/${actual.id}`} className={linkClass(c)} title={c ? `Campaña actual: ${actual.nombre}` : actual.nombre}>
               <FolderOpen className="size-4 shrink-0" />
