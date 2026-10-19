@@ -1,4 +1,4 @@
-import { createHashRouter, Navigate } from "react-router";
+import { createHashRouter, Navigate, type RouteObject } from "react-router";
 import { AppLayout } from "@/components/AppLayout";
 import { CampanasPage } from "@/features/campanas/CampanasPage";
 import { Inicio } from "@/features/campanas/Inicio";
@@ -15,7 +15,8 @@ import { SubirLoteTasasPage } from "@/features/lote/SubirLoteTasasPage";
 import { RevisionDepositosPage } from "@/features/lote/RevisionDepositosPage";
 import { RevisionTasasPage } from "@/features/lote/RevisionTasasPage";
 
-export const router = createHashRouter([
+/** Rutas de la app; las pruebas de interfaz las montan con un router en memoria. */
+export const routes: RouteObject[] = [
   {
     element: <AppLayout />,
     children: [
@@ -38,4 +39,6 @@ export const router = createHashRouter([
       { path: "*", element: <Navigate to="/" replace /> },
     ],
   },
-]);
+];
+
+export const router = createHashRouter(routes);
