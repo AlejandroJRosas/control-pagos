@@ -1,12 +1,13 @@
 import type { SqlDriver } from "../driver";
 import { getGerente, type Gerente } from "../repos/gerentes";
+import type { Etiqueta } from "../repos/etiquetas";
 import type { EstadoCampana } from "../repos/campanas";
 import type { AsignacionData, DepositoData } from "@/domain/campanaView";
 import { DomainError } from "@/domain/errors";
 
 export type CampanaDelGerente = { asignacionId: number; campanaId: number; campanaNombre: string; campanaEstado: EstadoCampana; fechaInicio: string };
 
-export type GerenteData = { gerente: Gerente; campanas: CampanaDelGerente[]; asignaciones: AsignacionData[]; depositos: DepositoData[] };
+export type GerenteData = { gerente: Gerente; etiquetas: Etiqueta[]; campanas: CampanaDelGerente[]; asignaciones: AsignacionData[]; depositos: DepositoData[] };
 
 /** Todas las campañas de un gerente; `buildCampanaView(asignaciones, depositos)` da el resumen de cada una. */
 export async function loadGerenteData(db: SqlDriver, gerenteId: number): Promise<GerenteData> {
@@ -34,5 +35,10 @@ export async function loadGerenteData(db: SqlDriver, gerenteId: number): Promise
      WHERE a.gerente_id = ?`,
     [gerenteId],
   );
-  return { gerente, campanas, asignaciones, depositos };
+  const etiquetas = await db.select<Etiqueta>(
+    `SELECT e.id, e.nombre, e.color FROM gerente_etiquetas ge JOIN etiquetas e ON e.id = ge.etiqueta_id
+     WHERE ge.gerente_id = ? ORDER BY e.nombre COLLATE NOCASE`,
+    [gerenteId],
+  );
+  return { gerente, etiquetas, campanas, asignaciones, depositos };
 }

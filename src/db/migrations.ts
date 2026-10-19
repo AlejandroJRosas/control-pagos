@@ -119,6 +119,26 @@ const MIGRATIONS: Migration[] = [
       "UPDATE tasas SET actualizado_en = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE actualizado_en IS NULL",
     ],
   },
+  {
+    // Etiquetas (nombre y color) para categorizar y filtrar gerentes.
+    version: 4,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS etiquetas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        color TEXT NOT NULL,
+        creado_en TEXT NOT NULL,
+        uuid TEXT NOT NULL UNIQUE,
+        actualizado_en TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS gerente_etiquetas (
+        gerente_id INTEGER NOT NULL REFERENCES gerentes(id) ON DELETE CASCADE,
+        etiqueta_id INTEGER NOT NULL REFERENCES etiquetas(id) ON DELETE CASCADE,
+        PRIMARY KEY (gerente_id, etiqueta_id)
+      )`,
+      "CREATE INDEX IF NOT EXISTS idx_gerente_etiquetas_etiqueta ON gerente_etiquetas(etiqueta_id)",
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

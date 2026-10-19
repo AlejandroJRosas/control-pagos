@@ -3,7 +3,8 @@ import { nowIso } from "../clock";
 import type { GerenteValido } from "@/domain/validation";
 
 export type Gerente = { id: number; nombre: string; telefono: string | null; activo: boolean; creadoEn: string };
-export type GerenteConCampanas = Gerente & { campanas: string[] };
+/** `etiquetas`: ids de sus etiquetas. */
+export type GerenteConCampanas = Gerente & { campanas: string[]; etiquetas: number[] };
 
 type Row = Omit<Gerente, "activo"> & { activo: number };
 const COLS = "g.id, g.nombre, g.telefono, g.activo, g.creado_en AS creadoEn";
@@ -17,12 +18,17 @@ export async function listGerentes(db: SqlDriver, opts: { soloActivos?: boolean 
 }
 
 export async function listGerentesConCampanas(db: SqlDriver): Promise<GerenteConCampanas[]> {
-  const rows = await db.select<Row & { campanas: string | null }>(
+  const rows = await db.select<Row & { campanas: string | null; etiquetas: string | null }>(
     `SELECT ${COLS},
-       (SELECT group_concat(c.nombre, char(31)) FROM asignaciones a JOIN campanas c ON c.id = a.campana_id WHERE a.gerente_id = g.id) AS campanas
+       (SELECT group_concat(c.nombre, char(31)) FROM asignaciones a JOIN campanas c ON c.id = a.campana_id WHERE a.gerente_id = g.id) AS campanas,
+       (SELECT group_concat(ge.etiqueta_id) FROM gerente_etiquetas ge WHERE ge.gerente_id = g.id) AS etiquetas
      FROM gerentes g ORDER BY g.nombre COLLATE NOCASE`,
   );
-  return rows.map((r) => ({ ...toGerente(r), campanas: r.campanas ? r.campanas.split(SEP) : [] }));
+  return rows.map((r) => ({
+    ...toGerente(r),
+    campanas: r.campanas ? r.campanas.split(SEP) : [],
+    etiquetas: r.etiquetas ? String(r.etiquetas).split(",").map(Number) : [],
+  }));
 }
 
 export async function getGerente(db: SqlDriver, id: number): Promise<Gerente | null> {

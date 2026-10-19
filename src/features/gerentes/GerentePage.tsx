@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Cargando, Vacio } from "@/components/Feedback";
 import { ResumenCards } from "@/components/ResumenCards";
 import { SortableHead, useOrden } from "@/components/SortableHead";
+import { EtiquetaChip } from "@/components/EtiquetaChip";
 import { EstadoGerenteBadge, ORDEN_ESTADOS } from "@/components/EstadoGerenteBadge";
 import { getDb } from "@/db";
 import { setGerenteActivo } from "@/db/repos/gerentes";
@@ -57,7 +58,7 @@ export function GerentePage() {
         const r = porAsignacion.get(c.asignacionId) as GerenteResumen;
         return { ...c, ...r, estado: estadoGerente(r) };
       });
-      return { gerente: d.gerente, total: view.total, campanas };
+      return { gerente: d.gerente, etiquetas: d.etiquetas, total: view.total, campanas };
     },
     [gerenteId],
   );
@@ -85,9 +86,12 @@ export function GerentePage() {
       <PageHeader
         back={{ to: "/gerentes", label: "Gerentes" }}
         title={
-          <span className="flex items-center gap-3">
+          <span className="flex flex-wrap items-center gap-3">
             {g.nombre}
             {g.activo ? <Badge>Activo</Badge> : <Badge variant="secondary">Inactivo</Badge>}
+            {data.etiquetas.map((e) => (
+              <EtiquetaChip key={e.id} nombre={e.nombre} color={e.color} />
+            ))}
           </span>
         }
         subtitle={`${g.telefono ?? "Sin teléfono"} · ${data.campanas.length} campaña(s)`}
