@@ -21,6 +21,7 @@ globalThis.ResizeObserver ??= class {
 };
 Element.prototype.scrollIntoView ??= () => {};
 Element.prototype.hasPointerCapture ??= () => false;
+Element.prototype.setPointerCapture ??= () => {};
 
 vi.mock("@/db", () => ({
   getDb: async () => {

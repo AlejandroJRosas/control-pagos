@@ -42,21 +42,36 @@ export async function buscarActualizacion(): Promise<Update | null> {
 /**
  * Búsqueda sin interrumpir (con la app ya abierta): si hay versión nueva solo aparece el botón de la barra
  * lateral. No toca un aviso abierto (podría estar instalando) ni reemplaza la misma versión ya encontrada.
+ * Devuelve la versión solo si es nueva para la app (para avisar una sola vez).
  */
-export async function buscarEnSegundoPlano(): Promise<void> {
-  if (estado.abierto) return;
+export async function buscarEnSegundoPlano(): Promise<Update | null> {
+  if (estado.abierto) return null;
   const u = await check();
-  if (!u) return;
+  if (!u) return null;
   if (estado.abierto || estado.update?.version === u.version) {
     void u.close().catch(() => {});
-    return;
+    return null;
   }
   fijar({ update: u, abierto: false });
+  return u;
 }
 
-/** Repite `buscarEnSegundoPlano` cada `cadaMs`; los errores (sin internet) van a `onError`. Devuelve cómo detenerla. */
-export function buscarPeriodicamente(cadaMs: number, onError: (e: unknown) => void = () => {}): () => void {
-  const id = setInterval(() => buscarEnSegundoPlano().catch(onError), cadaMs);
+/**
+ * Repite `buscarEnSegundoPlano` cada `cadaMs` y llama a `onNueva` cuando aparece una versión; los errores
+ * (sin internet) van a `onError`. Devuelve cómo detenerla.
+ */
+export function buscarPeriodicamente(
+  cadaMs: number,
+  onNueva: (u: Update) => void,
+  onError: (e: unknown) => void = () => {},
+): () => void {
+  const id = setInterval(
+    () =>
+      buscarEnSegundoPlano()
+        .then((u) => u && onNueva(u))
+        .catch(onError),
+    cadaMs,
+  );
   return () => clearInterval(id);
 }
 

@@ -40,7 +40,7 @@ it("sin versión nueva no hay nada que ofrecer", async () => {
 it("la búsqueda en segundo plano muestra el botón sin abrir el aviso", async () => {
   const a = await import("./actualizacion");
   check.mockResolvedValue(nueva);
-  await a.buscarEnSegundoPlano();
+  expect(await a.buscarEnSegundoPlano()).toBe(nueva);
   expect(a.estadoActualizacion()).toEqual({ update: nueva, abierto: false });
 });
 
@@ -54,7 +54,7 @@ it("la búsqueda en segundo plano no toca un aviso abierto ni repite la misma ve
   a.posponerActualizacion();
   const otraVez = { ...nueva, close: vi.fn(async () => {}) };
   check.mockResolvedValue(otraVez);
-  await a.buscarEnSegundoPlano();
+  expect(await a.buscarEnSegundoPlano()).toBeNull();
   expect(a.estadoActualizacion().update).toBe(nueva);
   expect(otraVez.close).toHaveBeenCalled();
 });
@@ -64,12 +64,17 @@ it("busca periódicamente con la app abierta", async () => {
   try {
     const a = await import("./actualizacion");
     check.mockResolvedValue(null);
-    const detener = a.buscarPeriodicamente(1000);
+    const onNueva = vi.fn();
+    const detener = a.buscarPeriodicamente(1000, onNueva);
     await vi.advanceTimersByTimeAsync(2500);
     expect(check).toHaveBeenCalledTimes(2);
+    expect(onNueva).not.toHaveBeenCalled();
+    check.mockResolvedValue(nueva);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onNueva).toHaveBeenCalledWith(nueva);
     detener();
     await vi.advanceTimersByTimeAsync(5000);
-    expect(check).toHaveBeenCalledTimes(2);
+    expect(check).toHaveBeenCalledTimes(3);
   } finally {
     vi.useRealTimers();
   }

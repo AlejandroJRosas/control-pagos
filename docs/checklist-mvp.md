@@ -115,4 +115,4 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Filtro Banco (Campaña → Todos los depósitos), año en Tasas → Feriados y "Banco de origen" del depósito: mismo buscador desplegable que el filtro de Gerente. En "Banco de origen" se puede escribir un banco que no está en la lista.
 - [ ] Calendario de tasas: un día con captura muestra el ícono de imagen arriba a la derecha y abre la captura; el resto del cuadro sigue editando la tasa.
 - [ ] Con una versión nueva disponible, "Más tarde" cierra el aviso y aparece "Actualizar a X.Y.Z" en la barra lateral, encima de "Atajos de teclado" (colapsada, solo el ícono); al pulsarlo vuelve el aviso.
-- [ ] Con la app abierta desde antes de publicar una versión, a más tardar en una hora aparece "Actualizar a X.Y.Z" en la barra lateral sin abrir el aviso ni pulsar "Buscar actualizaciones".
+- [ ] Con la app abierta desde antes de publicar una versión, a más tardar en 10 minutos sale abajo el mensaje "Hay una versión nueva (X.Y.Z)" (sin abrir el aviso) y el botón de la barra lateral; "Actualizar" en el mensaje abre el aviso.
