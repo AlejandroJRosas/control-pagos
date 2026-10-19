@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando } from "@/components/Feedback";
 import { Field } from "@/components/Field";
-import { NativeSelect } from "@/components/NativeSelect";
+import { BuscadorSelect } from "@/components/BuscadorSelect";
 import { getDb } from "@/db";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
 import { borradorDepositoVacio, encolarDeposito, getItemColaDeposito, guardarBorradorDeposito } from "@/db/repos/cola";
@@ -71,14 +71,14 @@ function SubirLote({ data }: { data: CampanaData }) {
       {cerrada && <Aviso>La campaña está cerrada: no se pueden agregar comprobantes.</Aviso>}
       <div className="max-w-sm">
         <Field id="lote-gerente" label="Gerente para todo el lote (opcional)">
-          <NativeSelect id="lote-gerente" value={gerente} disabled={cerrada} onChange={(e) => setGerente(e.target.value)}>
-            <option value="">— Sin asignar (lo eliges al revisar) —</option>
-            {data.asignaciones.map((a) => (
-              <option key={a.id} value={`a:${a.id}`}>
-                {a.gerenteNombre}
-              </option>
-            ))}
-          </NativeSelect>
+          <BuscadorSelect
+            id="lote-gerente"
+            value={gerente}
+            disabled={cerrada}
+            onChange={setGerente}
+            opciones={data.asignaciones.map((a) => ({ value: `a:${a.id}`, label: a.gerenteNombre }))}
+            placeholder="Sin asignar (lo eliges al revisar)"
+          />
         </Field>
       </div>
       <ZonaLote onArchivos={agregar} disabled={cerrada} />

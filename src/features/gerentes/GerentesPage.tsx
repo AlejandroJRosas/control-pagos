@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/PageHeader";
 import { Cargando, Vacio } from "@/components/Feedback";
@@ -11,6 +12,8 @@ import { listGerentesConCampanas, setGerenteActivo, type Gerente, type GerenteCo
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
+import { useFiltrosUrl } from "@/lib/filtrosUrl";
+import { claveComparacion } from "@/domain/texto";
 import { GerenteFormDialog } from "./GerenteFormDialog";
 
 type Col = "nombre" | "telefono" | "campanas" | "estado";
@@ -36,10 +39,14 @@ export function GerentesPage() {
   }
 
   const { orden, alternar } = useOrden<Col>();
-  const filas = useMemo(
-    () => ordenar((data ?? []).filter((g) => verInactivos || g.activo), COLUMNAS, orden),
-    [data, verInactivos, orden],
-  );
+  const { valores: f, set } = useFiltrosUrl("gerentes", ["q"] as const);
+  const filas = useMemo(() => {
+    const k = claveComparacion(f.q);
+    const coincide = (g: GerenteConCampanas) =>
+      claveComparacion(g.nombre).includes(k) || claveComparacion(g.telefono ?? "").includes(k) || g.campanas.some((c) => claveComparacion(c).includes(k));
+    return ordenar((data ?? []).filter((g) => (verInactivos || g.activo) && coincide(g)), COLUMNAS, orden);
+  }, [data, verInactivos, orden, f.q]);
+  const nuevo = () => setDialog({ open: true, gerente: null });
 
   return (
     <div>
@@ -47,11 +54,23 @@ export function GerentesPage() {
         title="Gerentes"
         actions={
           <>
+            <div className="relative w-64">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                data-buscar-tabla
+                type="search"
+                aria-label="Buscar gerente"
+                className="pl-8"
+                placeholder="Nombre, teléfono o campaña…"
+                value={f.q}
+                onChange={(e) => set({ q: e.target.value })}
+              />
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={verInactivos} onChange={(e) => setVerInactivos(e.target.checked)} />
               Ver inactivos
             </label>
-            <Button onClick={() => setDialog({ open: true, gerente: null })}>
+            <Button onClick={nuevo}>
               <Plus />
               Nuevo gerente
             </Button>
@@ -61,7 +80,27 @@ export function GerentesPage() {
       {!data ? (
         <Cargando error={error} />
       ) : filas.length === 0 ? (
-        <Vacio texto="Todavía no hay gerentes." />
+        data.length === 0 ? (
+          <Vacio texto="Todavía no hay gerentes.">
+            <Button onClick={nuevo}>
+              <Plus />
+              Nuevo gerente
+            </Button>
+          </Vacio>
+        ) : (
+          <Vacio texto="Ningún gerente coincide con la búsqueda.">
+            {f.q && (
+              <Button variant="outline" onClick={() => set({ q: "" })}>
+                Limpiar búsqueda
+              </Button>
+            )}
+            {!verInactivos && (
+              <Button variant="outline" onClick={() => setVerInactivos(true)}>
+                Ver inactivos
+              </Button>
+            )}
+          </Vacio>
+        )
       ) : (
         <Table>
           <TableHeader>

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Aviso, Cargando, Vacio } from "@/components/Feedback";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { NativeSelect } from "@/components/NativeSelect";
+import { BuscadorSelect } from "@/components/BuscadorSelect";
 import { getDb } from "@/db";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
 import { listBancosUsados } from "@/db/repos/depositos";
@@ -132,14 +132,12 @@ function Revision({ data, items, gerentes, bancos }: Ctx) {
       pie={
         !cerrada && (
           <div className="grid gap-2 border-t pt-2">
-            <NativeSelect aria-label="Gerente para los marcados" value={gerenteMasivo} onChange={(e) => setGerenteMasivo(e.target.value)}>
-              <option value="">Gerente para los marcados…</option>
-              {data.asignaciones.map((a) => (
-                <option key={a.id} value={`a:${a.id}`}>
-                  {a.gerenteNombre}
-                </option>
-              ))}
-            </NativeSelect>
+            <BuscadorSelect
+              value={gerenteMasivo}
+              onChange={setGerenteMasivo}
+              opciones={data.asignaciones.map((a) => ({ value: `a:${a.id}`, label: a.gerenteNombre }))}
+              placeholder="Gerente para los marcados…"
+            />
             <Button variant="outline" size="sm" disabled={!gerenteMasivo || marcados.size === 0} onClick={() => void asignar()}>
               Asignar gerente a marcados ({marcados.size})
             </Button>
@@ -186,12 +184,11 @@ function Revision({ data, items, gerentes, bancos }: Ctx) {
           onSaltar={() => setActualId(siguientePendiente(items, actual.id) ?? actual.id)}
         />
       ) : (
-        <div className="space-y-3">
-          <Vacio texto="No quedan comprobantes por revisar." />
+        <Vacio texto="No quedan comprobantes por revisar.">
           <Link to={`/campanas/${campana.id}`} className={buttonVariants({ variant: "outline" })}>
             Volver a la campaña
           </Link>
-        </div>
+        </Vacio>
       )}
     </RevisionLayout>
   );

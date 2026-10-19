@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Decimal from "decimal.js";
 import { useNavigate } from "react-router";
 import { Trash2 } from "lucide-react";
@@ -26,6 +26,8 @@ type Props = {
   totales?: { totalBs: string; totalUsd: string; cantidad: number };
   /** Campaña cerrada: sin selección ni eliminación. */
   soloLectura?: boolean;
+  /** Qué mostrar si no hay filas (por defecto, "No hay depósitos."). */
+  vacio?: ReactNode;
 };
 
 type Col = "fecha" | "gerente" | "banco" | "referencia" | "cuenta" | "montoBs" | "tasa" | "usd" | "saldo" | "observaciones";
@@ -42,7 +44,7 @@ const COLUMNAS: Columnas<FilaDeposito, Col> = {
   observaciones: { tipo: "texto", valor: (d) => d.observaciones },
 };
 
-export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, soloLectura = false }: Props) {
+export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, soloLectura = false, vacio }: Props) {
   const navigate = useNavigate();
   const { orden, alternar } = useOrden<Col>();
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
@@ -52,7 +54,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
   const elegidos = filas.filter((d) => marcados.has(d.id)).map((d) => d.id);
   const todos = filas.length > 0 && elegidos.length === filas.length;
 
-  if (filas.length === 0) return <Vacio texto="No hay depósitos." />;
+  if (filas.length === 0) return vacio ?? <Vacio texto="No hay depósitos." />;
   const num = "text-right tabular-nums";
   const head = (col: Col, label: string, className?: string) => (
     <SortableHead col={col} orden={orden} onOrden={alternar} className={className}>

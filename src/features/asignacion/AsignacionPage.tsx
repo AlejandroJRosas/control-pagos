@@ -2,7 +2,7 @@ import { Link, useParams } from "react-router";
 import { Plus } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
-import { Aviso, Cargando } from "@/components/Feedback";
+import { Aviso, Cargando, Vacio } from "@/components/Feedback";
 import { ResumenCards } from "@/components/ResumenCards";
 import { DepositosTable } from "@/components/DepositosTable";
 import { getAsignacion } from "@/db/repos/asignaciones";
@@ -52,7 +52,23 @@ export function AsignacionPage() {
       />
       {cerrada && <Aviso>La campaña está cerrada: solo lectura.</Aviso>}
       <ResumenCards resumen={resumen} />
-      <DepositosTable filas={r.filas} mostrarGerente={false} saldoLabel="Saldo restante" totales={r} soloLectura={cerrada} />
+      <DepositosTable
+        filas={r.filas}
+        mostrarGerente={false}
+        saldoLabel="Saldo restante"
+        totales={r}
+        soloLectura={cerrada}
+        vacio={
+          <Vacio texto={`${a.gerenteNombre} todavía no tiene depósitos en esta campaña.`}>
+            {!cerrada && (
+              <Link to={`/asignaciones/${a.id}/depositos/nuevo`} className={buttonVariants()}>
+                <Plus />
+                Registrar depósito
+              </Link>
+            )}
+          </Vacio>
+        }
+      />
     </div>
   );
 }

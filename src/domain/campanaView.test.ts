@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildCampanaView, filtrarDepositos, type AsignacionData, type DepositoData } from "./campanaView";
+import { buildCampanaView, calcResumen, estadoGerente, filtrarDepositos, type AsignacionData, type DepositoData } from "./campanaView";
 
 const asig = (id: number, gerenteId: number, gerenteNombre: string, saldoUsd: string): AsignacionData => ({ id, gerenteId, gerenteNombre, saldoUsd });
 
@@ -100,5 +100,41 @@ describe("filtrarDepositos", () => {
   it("banco sin distinguir mayúsculas ni espacios y rango de fechas inclusivo", () => {
     expect(filtrarDepositos(build().depositos, { banco: "BANESCO" }).cantidad).toBe(2);
     expect(filtrarDepositos(build().depositos, { desde: "2026-03-02", hasta: "2026-03-03" }).cantidad).toBe(2);
+  });
+
+  it("busca texto en referencia, banco, gerente y observaciones sin distinguir mayúsculas ni acentos", () => {
+    const v = buildCampanaView(asignaciones, [
+      dep({ asignacionId: 1, fecha: "2026-03-01", montoBs: "1234567.89", tasaValor: "1", referencia: "000123", observaciones: "Pagó en Caracas" }),
+      dep({ asignacionId: 2, fecha: "2026-03-02", montoBs: "20", tasaValor: "1", banco: "Mercantil" }),
+    ]);
+    const ids = (texto: string) => filtrarDepositos(v.depositos, { texto }).filas.map((f) => f.id);
+    expect(ids("0001")).toEqual([1]);
+    expect(ids("MERCANTIL")).toEqual([2]);
+    expect(ids("luis")).toEqual([2]);
+    expect(ids("pago en caracas")).toEqual([1]);
+    expect(ids("  ")).toEqual([1, 2]);
+  });
+
+  it("busca montos con o sin separadores", () => {
+    const v = buildCampanaView(asignaciones, [
+      dep({ asignacionId: 1, fecha: "2026-03-01", montoBs: "1234567.89", tasaValor: "1" }),
+      dep({ asignacionId: 2, fecha: "2026-03-02", montoBs: "20", tasaValor: "1" }),
+    ]);
+    const ids = (texto: string) => filtrarDepositos(v.depositos, { texto }).filas.map((f) => f.id);
+    expect(ids("1.234.567")).toEqual([1]);
+    expect(ids("1234567,89")).toEqual([1]);
+    expect(ids("1234")).toEqual([1]);
+    expect(ids("20,00")).toEqual([2]);
+  });
+});
+
+describe("estadoGerente", () => {
+  const estado = (asignado: string, usds: string[]) => estadoGerente(calcResumen(asignado, usds, usds.map(() => "2026-03-01")));
+  it("distingue sin pagos, en curso, completo y pagado de más", () => {
+    expect(estado("100", [])).toBe("sin-pagos");
+    expect(estado("100", ["40"])).toBe("en-curso");
+    expect(estado("100", ["40", "60"])).toBe("completo");
+    expect(estado("100", ["40", "60.01"])).toBe("excedido");
+    expect(estado("0", [])).toBe("sin-pagos");
   });
 });

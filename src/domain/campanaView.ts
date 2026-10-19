@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
-import { toUsd } from "./money";
+import { formatNumberVE, toUsd } from "./money";
+import { claveComparacion } from "./texto";
 
 export type AsignacionData = { id: number; gerenteId: number; gerenteNombre: string; saldoUsd: string };
 
@@ -102,7 +103,35 @@ export function buildCampanaView(asignaciones: AsignacionData[], depositos: Depo
   };
 }
 
-export type FiltroDepositos = { gerenteId?: number | null; banco?: string | null; desde?: string | null; hasta?: string | null };
+export type EstadoGerente = "sin-pagos" | "en-curso" | "completo" | "excedido";
+
+export function estadoGerente(r: Resumen): EstadoGerente {
+  const restante = new Decimal(r.restante);
+  if (restante.isNegative() && !restante.isZero()) return "excedido";
+  if (r.cantidad === 0) return "sin-pagos";
+  return restante.lte(0) ? "completo" : "en-curso";
+}
+
+const soloDigitos = (s: string) => s.replace(/\D/g, "");
+
+/** Búsqueda libre: referencia, banco, cuenta, gerente, observaciones y montos (con o sin separadores). */
+export function coincideTexto(d: DepositoCalculado, texto: string): boolean {
+  const k = claveComparacion(texto);
+  if (!k) return true;
+  const montos = [formatNumberVE(d.montoBs), formatNumberVE(d.usd)];
+  const campos = [d.referencia, d.banco, d.cuentaDestino, d.gerenteNombre, d.observaciones ?? "", ...montos];
+  if (campos.some((c) => claveComparacion(c).includes(k))) return true;
+  const digitos = soloDigitos(texto);
+  return /^[\d.,\s]+$/.test(texto) && digitos !== "" && montos.some((m) => soloDigitos(m).includes(digitos));
+}
+
+export type FiltroDepositos = {
+  gerenteId?: number | null;
+  banco?: string | null;
+  desde?: string | null;
+  hasta?: string | null;
+  texto?: string | null;
+};
 export type FilaDeposito = DepositoCalculado & { saldoMostrado: string };
 
 export function filtrarDepositos(
@@ -117,7 +146,8 @@ export function filtrarDepositos(
         (!porGerente || d.gerenteId === f.gerenteId) &&
         (!banco || d.banco.trim().toLowerCase() === banco) &&
         (!f.desde || d.fecha >= f.desde) &&
-        (!f.hasta || d.fecha <= f.hasta),
+        (!f.hasta || d.fecha <= f.hasta) &&
+        (!f.texto || coincideTexto(d, f.texto)),
     )
     .map((d) => ({ ...d, saldoMostrado: porGerente ? d.saldoGerenteRestante : d.saldoGeneralRestante }));
   const sum = (key: "montoBs" | "usd") => filas.reduce((acc, d) => acc.plus(d[key]), new Decimal(0)).toFixed(2);

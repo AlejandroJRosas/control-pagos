@@ -169,17 +169,32 @@ export function CampanaPage() {
       />
       {cerrada && <Aviso>La campaña está cerrada: solo lectura. Reábrela para hacer cambios.</Aviso>}
       <ResumenCards resumen={view.total} etiquetaAsignado="Saldo general" />
-      <Tabs value={tab} onValueChange={(v) => setParams(v === "gerentes" ? { tab: "gerentes" } : {}, { replace: true })}>
+      <Tabs
+        value={tab}
+        onValueChange={(v) =>
+          setParams(
+            (p) => {
+              const n = new URLSearchParams(p);
+              if (v === "gerentes") n.set("tab", "gerentes");
+              else n.delete("tab");
+              return n;
+            },
+            { replace: true },
+          )
+        }
+      >
         <TabsList>
           <TabsTrigger value="depositos">Todos los depósitos ({view.depositos.length})</TabsTrigger>
           <TabsTrigger value="gerentes">Por gerente ({view.gerentes.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="gerentes">
           <PorGerenteTab
+            campanaId={campanaId}
             gerentes={view.gerentes}
             cerrada={cerrada}
             onEditarSaldo={(g) => setAsig({ id: g.asignacionId, gerenteNombre: g.gerenteNombre, saldoUsd: g.asignado })}
             onQuitar={setQuitar}
+            onAgregar={() => setAgregar(true)}
           />
         </TabsContent>
         <TabsContent value="depositos">

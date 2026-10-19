@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/Field";
-import { NativeSelect } from "@/components/NativeSelect";
+import { BuscadorSelect, type Opcion } from "@/components/BuscadorSelect";
 import type { AsignacionData } from "@/domain/campanaView";
 import type { DestinoDraft } from "@/domain/validation";
 import type { Gerente } from "@/db/repos/gerentes";
@@ -19,32 +19,23 @@ export function DestinoGerente({ id, asignaciones, gerentes, value, onChange, er
   const enCampana = new Set(asignaciones.map((a) => a.gerenteId));
   const otros = gerentes.filter((g) => !enCampana.has(g.id) && (g.activo || value.sel === `g:${g.id}`));
   const pideSaldo = value.sel === "nuevo" || value.sel.startsWith("g:");
+  const opciones: Opcion[] = [
+    ...asignaciones.map((a) => ({ value: `a:${a.id}`, label: a.gerenteNombre, detalle: "En la campaña" })),
+    ...otros.map((g) => ({ value: `g:${g.id}`, label: g.nombre, detalle: "Agregar a la campaña" })),
+    { value: "nuevo", label: "+ Nuevo gerente…" },
+  ];
 
   return (
     <div className="grid grid-cols-2 gap-4">
       <Field id={`${id}-gerente`} label="Gerente" error={errors.sel}>
-        <NativeSelect id={`${id}-gerente`} value={value.sel} onChange={(e) => onChange({ ...value, sel: e.target.value })}>
-          <option value="">Selecciona…</option>
-          {asignaciones.length > 0 && (
-            <optgroup label="En esta campaña">
-              {asignaciones.map((a) => (
-                <option key={a.id} value={`a:${a.id}`}>
-                  {a.gerenteNombre}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {otros.length > 0 && (
-            <optgroup label="Agregar a la campaña">
-              {otros.map((g) => (
-                <option key={g.id} value={`g:${g.id}`}>
-                  {g.nombre}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          <option value="nuevo">+ Nuevo gerente…</option>
-        </NativeSelect>
+        <BuscadorSelect
+          id={`${id}-gerente`}
+          value={value.sel}
+          onChange={(sel) => onChange({ ...value, sel })}
+          opciones={opciones}
+          placeholder="Buscar gerente…"
+          aria-invalid={!!errors.sel}
+        />
       </Field>
       {pideSaldo && (
         <Field id={`${id}-saldo`} label="Saldo a pagar (USD)" error={errors.saldo} hint="Se agrega a la campaña con este saldo">

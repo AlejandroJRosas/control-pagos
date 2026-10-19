@@ -114,7 +114,16 @@ export function TasasPage() {
           </TabsContent>
           <TabsContent value="lista">
             {data.length === 0 ? (
-              <Vacio texto="Todavía no hay tasas registradas." />
+              <Vacio texto="Todavía no hay tasas registradas.">
+                <Button onClick={() => setDialog({ open: true, tasa: null })}>
+                  <Plus />
+                  Nueva tasa
+                </Button>
+                <Link to="/tasas/lote" className={buttonVariants({ variant: "outline" })}>
+                  <Images />
+                  Subir lote
+                </Link>
+              </Vacio>
             ) : (
               <Table>
                 <TableHeader>

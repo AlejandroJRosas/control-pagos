@@ -83,12 +83,11 @@ function Revision({ items }: { items: ItemColaTasa[] }) {
           onSaltar={() => setActualId(siguientePendiente(items, actual.id) ?? actual.id)}
         />
       ) : (
-        <div className="space-y-3">
-          <Vacio texto="No quedan tasas por revisar." />
+        <Vacio texto="No quedan tasas por revisar.">
           <Link to="/tasas" className={buttonVariants({ variant: "outline" })}>
             Volver a Tasas
           </Link>
-        </div>
+        </Vacio>
       )}
     </RevisionLayout>
   );

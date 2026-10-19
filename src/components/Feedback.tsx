@@ -8,8 +8,14 @@ export function Cargando({ error }: { error?: unknown }) {
   return <p className="py-8 text-center text-sm text-muted-foreground">Cargando…</p>;
 }
 
-export function Vacio({ texto }: { texto: string }) {
-  return <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">{texto}</p>;
+/** Estado vacío; `children` son las acciones para salir de él (p. ej. "Registrar depósito"). */
+export function Vacio({ texto, children }: { texto: string; children?: ReactNode }) {
+  return (
+    <div className="grid justify-items-center gap-3 rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+      <p>{texto}</p>
+      {children && <div className="flex flex-wrap justify-center gap-2">{children}</div>}
+    </div>
+  );
 }
 
 export function Aviso({ tono = "info", children }: { tono?: "info" | "warning"; children: ReactNode }) {

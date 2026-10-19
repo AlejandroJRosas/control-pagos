@@ -43,7 +43,12 @@ export function CampanasPage() {
       {!data ? (
         <Cargando error={error} />
       ) : data.length === 0 ? (
-        <Vacio texto="Todavía no hay campañas. Crea la primera." />
+        <Vacio texto="Todavía no hay campañas. Crea la primera.">
+          <Button onClick={() => setNueva(true)}>
+            <Plus />
+            Nueva campaña
+          </Button>
+        </Vacio>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {data.map(({ campana, total, gerentes }) => (
