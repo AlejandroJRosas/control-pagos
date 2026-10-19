@@ -1,5 +1,6 @@
 import { createHashRouter, Navigate, type RouteObject } from "react-router";
 import { AppLayout } from "@/components/AppLayout";
+import { ResumenPage } from "@/features/resumen/ResumenPage";
 import { CampanasPage } from "@/features/campanas/CampanasPage";
 import { Inicio } from "@/features/campanas/Inicio";
 import { CampanaPage } from "@/features/campana/CampanaPage";
@@ -21,6 +22,7 @@ export const routes: RouteObject[] = [
     element: <AppLayout />,
     children: [
       { index: true, element: <Inicio /> },
+      { path: "resumen", element: <ResumenPage /> },
       { path: "campanas", element: <CampanasPage /> },
       { path: "campanas/:campanaId", element: <CampanaPage /> },
       { path: "campanas/:campanaId/depositos/nuevo", element: <DepositoPage /> },

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router";
-import { Download, FolderKanban, FolderOpen, Keyboard, LineChart, PanelLeftClose, PanelLeftOpen, Search, Settings, Users } from "lucide-react";
+import { Download, FolderKanban, FolderOpen, Keyboard, LayoutDashboard, LineChart, PanelLeftClose, PanelLeftOpen, Search, Settings, Users } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { BusquedaGlobal } from "@/components/BusquedaGlobal";
 import { AyudaAtajos, Tecla } from "@/components/AyudaAtajos";
@@ -19,6 +19,7 @@ import { avisarErrorDeCierre } from "@/lib/instalarCierre";
 import { reportError } from "@/lib/reportError";
 
 const items = [
+  { to: "/resumen", label: "Resumen", icon: LayoutDashboard },
   { to: "/campanas", label: "Campañas", icon: FolderKanban },
   { to: "/gerentes", label: "Gerentes", icon: Users },
   { to: "/tasas", label: "Tasas", icon: LineChart },

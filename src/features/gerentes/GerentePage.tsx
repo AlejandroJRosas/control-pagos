@@ -20,7 +20,7 @@ import { formatPct, formatUsd } from "@/domain/money";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
-import { conVolver } from "@/lib/volver";
+import { conVolver, leerVolver } from "@/lib/volver";
 import { cn } from "@/lib/utils";
 import { GerenteFormDialog } from "./GerenteFormDialog";
 
@@ -84,7 +84,7 @@ export function GerentePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        back={{ to: "/gerentes", label: "Gerentes" }}
+        back={leerVolver(location.state) ?? { to: "/gerentes", label: "Gerentes" }}
         title={
           <span className="flex flex-wrap items-center gap-3">
             {g.nombre}
