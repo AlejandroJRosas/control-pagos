@@ -211,9 +211,27 @@ pub fn prune_auto(dir: &Path, keep: usize) -> Result<(), String> {
     Ok(())
 }
 
-/// Copia un respaldo automático (`auto-*.zip`) a la carpeta espejo (p. ej. una de Google Drive) y poda allí
-/// los viejos. Escribe en `.part` y renombra; si la carpeta no está, no crea nada.
-pub fn mirror(zip: &Path, dir: &Path, keep: usize) -> Result<(), String> {
+/// Subcarpeta de cada instalación dentro de la carpeta espejo: el nombre del equipo y, si no es la app normal
+/// (p. ej. la instancia de prueba), su identificador. Así dos instalaciones que comparten la carpeta de Drive no se
+/// pisan ni se podan los respaldos entre sí.
+pub fn subcarpeta_espejo(equipo: &str, identificador: &str) -> String {
+    let limpio: String = equipo
+        .trim()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' })
+        .collect();
+    let base = if limpio.is_empty() { "equipo".to_string() } else { limpio };
+    if identificador == "com.controlpagos.app" {
+        base
+    } else {
+        format!("{base} ({identificador})")
+    }
+}
+
+/// Copia un respaldo automático (`auto-*.zip`) a `<dir>/<sub>` (la subcarpeta de esta instalación dentro de la
+/// carpeta de Google Drive) y poda allí los viejos y los `.part` que hayan quedado a medias. Escribe en `.part` y
+/// renombra; si la carpeta de Drive no está, no crea nada. Nunca toca nada fuera de su subcarpeta.
+pub fn mirror(zip: &Path, dir: &Path, sub: &str, keep: usize) -> Result<(), String> {
     let name = zip
         .file_name()
         .and_then(|n| n.to_str())
@@ -225,16 +243,32 @@ pub fn mirror(zip: &Path, dir: &Path, keep: usize) -> Result<(), String> {
             dir.display()
         ));
     }
-    let dest = dir.join(name);
+    let destino = dir.join(sub);
+    let sin_escritura = |e: io::Error| format!("No se pudo escribir en la carpeta de Google Drive ({}): {e}", destino.display());
+    fs::create_dir_all(&destino).map_err(sin_escritura)?;
+    let dest = destino.join(name);
     let part = with_suffix(&dest, ".part");
     let result = fs::copy(zip, &part)
-        .map_err(s)
+        .map_err(sin_escritura)
         .and_then(|_| fs::rename(&part, &dest).map_err(s));
     if result.is_err() {
         let _ = fs::remove_file(&part);
     }
     result?;
-    prune_auto(dir, keep)
+    limpiar_part(&destino)?;
+    prune_auto(&destino, keep)
+}
+
+/// `.part` que quedaron de una copia interrumpida (p. ej. si la app se cerró a mitad).
+fn limpiar_part(dir: &Path) -> Result<(), String> {
+    for e in fs::read_dir(dir).map_err(s)? {
+        let p = e.map_err(s)?.path();
+        let es_part = p.file_name().and_then(|n| n.to_str()).map(|n| n.starts_with("auto-") && n.ends_with(".zip.part")).unwrap_or(false);
+        if es_part {
+            fs::remove_file(&p).map_err(s)?;
+        }
+    }
+    Ok(())
 }
 
 fn antiguedad(p: &Path, now: SystemTime) -> Result<Duration, String> {
@@ -578,16 +612,18 @@ mod espejo_tests {
     }
 
     #[test]
-    fn espejo_copia_y_reemplaza() {
+    fn espejo_copia_y_reemplaza_en_la_subcarpeta_del_equipo() {
         let local = tempdir().unwrap();
         let espejo = tempdir().unwrap();
         let zip = local.path().join("auto-2026-10-19.zip");
         fs::write(&zip, b"a").unwrap();
-        mirror(&zip, espejo.path(), 7).unwrap();
+        mirror(&zip, espejo.path(), "PC1", 7).unwrap();
         fs::write(&zip, b"b").unwrap();
-        mirror(&zip, espejo.path(), 7).unwrap();
-        assert_eq!(fs::read(espejo.path().join("auto-2026-10-19.zip")).unwrap(), b"b");
-        assert_eq!(nombres(espejo.path()), vec!["auto-2026-10-19.zip".to_string()]);
+        mirror(&zip, espejo.path(), "PC1", 7).unwrap();
+        let sub = espejo.path().join("PC1");
+        assert_eq!(fs::read(sub.join("auto-2026-10-19.zip")).unwrap(), b"b");
+        assert_eq!(nombres(&sub), vec!["auto-2026-10-19.zip".to_string()]);
+        assert_eq!(nombres(espejo.path()), vec!["PC1".to_string()]);
     }
 
     #[test]
@@ -596,31 +632,56 @@ mod espejo_tests {
         let zip = local.path().join("auto-2026-10-19.zip");
         fs::write(&zip, b"a").unwrap();
         let falta = local.path().join("no-existe");
-        let err = mirror(&zip, &falta, 7).unwrap_err();
+        let err = mirror(&zip, &falta, "PC1", 7).unwrap_err();
         assert!(err.contains("Google Drive"), "{err}");
         assert!(!falta.exists());
         assert!(zip.exists());
     }
 
     #[test]
-    fn poda_espejo_solo_toca_auto() {
+    fn poda_espejo_solo_toca_auto_de_su_subcarpeta() {
         let local = tempdir().unwrap();
         let espejo = tempdir().unwrap();
+        let mia = espejo.path().join("PC1");
+        let otra = espejo.path().join("PC2");
+        fs::create_dir_all(&mia).unwrap();
+        fs::create_dir_all(&otra).unwrap();
         for i in 1..=9 {
-            fs::write(espejo.path().join(format!("auto-2026-01-0{i}.zip")), b"z").unwrap();
+            fs::write(mia.join(format!("auto-2026-01-0{i}.zip")), b"z").unwrap();
+            fs::write(otra.join(format!("auto-2026-01-0{i}.zip")), b"z").unwrap();
         }
-        fs::write(espejo.path().join("notas.txt"), b"x").unwrap();
-        fs::write(espejo.path().join("antes-de-x.zip"), b"x").unwrap();
+        fs::write(mia.join("notas.txt"), b"x").unwrap();
+        fs::write(mia.join("antes-de-x.zip"), b"x").unwrap();
+        fs::write(espejo.path().join("auto-2025-01-01.zip"), b"viejo").unwrap();
         let zip = local.path().join("auto-2026-01-10.zip");
         fs::write(&zip, b"n").unwrap();
-        mirror(&zip, espejo.path(), 7).unwrap();
-        let n = nombres(espejo.path());
+        mirror(&zip, espejo.path(), "PC1", 7).unwrap();
+        let n = nombres(&mia);
         assert_eq!(n.iter().filter(|x| x.starts_with("auto-")).count(), 7);
         assert!(n.contains(&"auto-2026-01-10.zip".to_string()));
         assert!(!n.contains(&"auto-2026-01-03.zip".to_string()));
-        assert!(n.contains(&"auto-2026-01-04.zip".to_string()));
         assert!(n.contains(&"notas.txt".to_string()));
         assert!(n.contains(&"antes-de-x.zip".to_string()));
+        // Otra instalación y la raíz no se tocan.
+        assert_eq!(nombres(&otra).len(), 9);
+        assert!(espejo.path().join("auto-2025-01-01.zip").exists());
+    }
+
+    #[test]
+    fn espejo_limpia_part_huerfanos_de_su_subcarpeta() {
+        let local = tempdir().unwrap();
+        let espejo = tempdir().unwrap();
+        let mia = espejo.path().join("PC1");
+        let otra = espejo.path().join("PC2");
+        fs::create_dir_all(&mia).unwrap();
+        fs::create_dir_all(&otra).unwrap();
+        fs::write(mia.join("auto-2026-10-18.zip.part"), b"a medias").unwrap();
+        fs::write(otra.join("auto-2026-10-18.zip.part"), b"de otro equipo").unwrap();
+        let zip = local.path().join("auto-2026-10-19.zip");
+        fs::write(&zip, b"n").unwrap();
+        mirror(&zip, espejo.path(), "PC1", 7).unwrap();
+        assert_eq!(nombres(&mia), vec!["auto-2026-10-19.zip".to_string()]);
+        assert!(otra.join("auto-2026-10-18.zip.part").exists());
     }
 
     #[test]
@@ -629,8 +690,16 @@ mod espejo_tests {
         let espejo = tempdir().unwrap();
         let zip = local.path().join("antes-de-x.zip");
         fs::write(&zip, b"a").unwrap();
-        assert!(mirror(&zip, espejo.path(), 7).is_err());
+        assert!(mirror(&zip, espejo.path(), "PC1", 7).is_err());
         assert!(nombres(espejo.path()).is_empty());
+    }
+
+    #[test]
+    fn subcarpeta_por_equipo_e_instalacion() {
+        assert_eq!(subcarpeta_espejo("OFICINA-PC", "com.controlpagos.app"), "OFICINA-PC");
+        assert_eq!(subcarpeta_espejo("OFICINA-PC", "com.controlpagos.dev"), "OFICINA-PC (com.controlpagos.dev)");
+        assert_eq!(subcarpeta_espejo("", "com.controlpagos.app"), "equipo");
+        assert_eq!(subcarpeta_espejo("PC/Raro:*?", "com.controlpagos.app"), "PC_Raro___");
     }
 
     #[test]

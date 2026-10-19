@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { CloudUpload, FolderOpen, X } from "lucide-react";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ const fechaHora = (iso: string) => new Date(iso).toLocaleString("es-VE");
 /** Carpeta de Google Drive (u otra sincronizada) donde se copia cada respaldo automático. */
 export function CopiaDrive() {
   const { data: e } = useData((db) => getEstadoEspejo(db), []);
+  const { data: sub } = useData(() => invoke<string>("mirror_subfolder"), []);
   const [busy, setBusy] = useState(false);
 
   async function elegir() {
@@ -59,7 +61,7 @@ export function CopiaDrive() {
         <CardTitle>Copia en Google Drive</CardTitle>
         <CardDescription>
           Elige una carpeta de Google Drive sincronizada para tener una copia de los respaldos fuera de esta computadora. Cada respaldo automático se copia
-          allí y se conservan los últimos 7.
+          allí, en una subcarpeta de este equipo, y se conservan los últimos 7.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -67,6 +69,12 @@ export function CopiaDrive() {
           <div>
             <span className="text-muted-foreground">Carpeta: </span>
             <code>{e.carpeta}</code>
+            {sub && (
+              <span className="block text-muted-foreground">
+                Los respaldos de este equipo van a la subcarpeta <code>{sub}</code>: varias computadoras pueden usar la misma carpeta sin borrarse
+                los respaldos entre sí.
+              </span>
+            )}
           </div>
         ) : (
           <p className="text-muted-foreground">Sin configurar: los respaldos solo quedan en esta computadora.</p>

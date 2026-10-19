@@ -78,14 +78,21 @@ fn auto_backup_path_hoy(app: AppHandle, today: String) -> Result<String, String>
     Ok(paths(&app)?.backups.join(format!("auto-{today}.zip")).display().to_string())
 }
 
-/// Copia un respaldo automático de la carpeta de respaldos a la carpeta espejo y poda allí (quedan 7).
+/// Subcarpeta de esta instalación dentro de la carpeta espejo (nombre del equipo e identificador de la app).
+#[tauri::command]
+fn mirror_subfolder(app: AppHandle) -> String {
+    backup::subcarpeta_espejo(&std::env::var("COMPUTERNAME").unwrap_or_default(), &app.config().identifier)
+}
+
+/// Copia un respaldo automático de la carpeta de respaldos a la subcarpeta de esta instalación dentro de la
+/// carpeta espejo y poda allí (quedan 7).
 #[tauri::command]
 fn mirror_backup(app: AppHandle, zip_path: String, dir: String) -> Result<(), String> {
     let zip = Path::new(&zip_path);
     if !zip.starts_with(&paths(&app)?.backups) {
         return Err("El respaldo no está en la carpeta de respaldos".into());
     }
-    backup::mirror(zip, Path::new(&dir), 7)
+    backup::mirror(zip, Path::new(&dir), &mirror_subfolder(app), 7)
 }
 
 #[tauri::command]
@@ -182,6 +189,7 @@ pub fn run() {
             auto_backup_path,
             auto_backup_path_hoy,
             mirror_backup,
+            mirror_subfolder,
             prune_auto_backups,
             prune_safety_backups,
             clean_orphan_images,
