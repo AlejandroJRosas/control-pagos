@@ -10,12 +10,15 @@ export const huboEscrituras = (): boolean => escrituras > 0;
 export const reiniciarEscrituras = (): void => {
   escrituras = 0;
 };
+export const contarEscritura = (): void => {
+  escrituras++;
+};
 
 export function tauriDriver(db: Database): SqlDriver {
   return {
     async execute(sql: string, params: SqlValue[] = []) {
       const r = await db.execute(sql, params);
-      if (esEscritura(sql)) escrituras++;
+      if (esEscritura(sql)) contarEscritura();
       return { lastInsertId: Number(r.lastInsertId ?? 0), rowsAffected: r.rowsAffected };
     },
     select<T>(sql: string, params: SqlValue[] = []) {

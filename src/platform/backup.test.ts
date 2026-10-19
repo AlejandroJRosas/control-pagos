@@ -136,3 +136,69 @@ it("copiarUltimoAlEspejo copia el auto más reciente", async () => {
   expect(await copiarUltimoAlEspejo(db)).toMatchObject({ ok: true });
   expect(invoke).toHaveBeenCalledWith("mirror_backup", { zipPath: "a19", dir: "G:/x" });
 });
+
+it("lo escrito mientras corre el respaldo de apertura sigue pendiente para el respaldo al cerrar", async () => {
+  const { contarEscritura, huboEscrituras, reiniciarEscrituras } = await import("@/db/tauriDriver");
+  const { mantenimientoAlIniciar } = await import("./backup");
+  const db = await dbSinVacuum();
+  reiniciarEscrituras();
+  contarEscritura(); // escrito antes del respaldo: queda en él
+  invokePorComando(() => null);
+  const base = invoke.getMockImplementation()!;
+  invoke.mockImplementation(async (cmd: string, args: unknown) => {
+    if (cmd === "create_backup") contarEscritura(); // el usuario registra la tasa mientras se respalda
+    return base(cmd, args);
+  });
+  await mantenimientoAlIniciar(db);
+  expect(huboEscrituras()).toBe(true);
+});
+
+it("sin respaldo nuevo al abrir (ya existía el del día), lo escrito antes también se respalda al cerrar", async () => {
+  const { contarEscritura, huboEscrituras, reiniciarEscrituras } = await import("@/db/tauriDriver");
+  const { mantenimientoAlIniciar } = await import("./backup");
+  const db = await dbSinVacuum();
+  reiniciarEscrituras();
+  invoke.mockResolvedValue(null); // auto_backup_path → null: ya existe
+  contarEscritura();
+  await mantenimientoAlIniciar(db);
+  expect(huboEscrituras()).toBe(true);
+});
+
+it("respaldoDeCierre: con la BD dañada no respalda aunque haya escrituras", async () => {
+  const { contarEscritura } = await import("@/db/tauriDriver");
+  const { marcarArranque, respaldoDeCierre } = await import("./backup");
+  const db = await dbSinVacuum();
+  invokePorComando(() => null);
+  marcarArranque({ integridadOk: false });
+  contarEscritura();
+  await respaldoDeCierre(db);
+  expect(invoke).not.toHaveBeenCalledWith("create_backup", expect.anything());
+});
+
+it("respaldoDeCierre espera a que termine el mantenimiento de apertura", async () => {
+  const { contarEscritura } = await import("@/db/tauriDriver");
+  const { marcarArranque, respaldoDeCierre } = await import("./backup");
+  const db = await dbSinVacuum();
+  invokePorComando(() => null);
+  let terminar!: () => void;
+  marcarArranque({ integridadOk: true, mantenimiento: new Promise<void>((r) => (terminar = r)) });
+  contarEscritura();
+  const p = respaldoDeCierre(db);
+  await new Promise((r) => setTimeout(r, 20));
+  expect(invoke).not.toHaveBeenCalledWith("create_backup", expect.anything());
+  terminar();
+  await p;
+  expect(invoke).toHaveBeenCalledWith("auto_backup_path_hoy", expect.anything());
+  expect(invoke).toHaveBeenCalledWith("create_backup", expect.anything());
+});
+
+it("respaldoDeCierre sin escrituras no respalda", async () => {
+  const { reiniciarEscrituras } = await import("@/db/tauriDriver");
+  const { marcarArranque, respaldoDeCierre } = await import("./backup");
+  const db = await dbSinVacuum();
+  invokePorComando(() => null);
+  marcarArranque({ integridadOk: true });
+  reiniciarEscrituras();
+  await respaldoDeCierre(db);
+  expect(invoke).not.toHaveBeenCalledWith("create_backup", expect.anything());
+});

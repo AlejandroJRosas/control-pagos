@@ -6,7 +6,7 @@ import { todayIso } from "@/domain/dates";
 import { imagenesUsadas } from "@/db/queries/imagenesUsadas";
 import { precargarFeriados } from "@/db/repos/feriados";
 import { copiarAlEspejo } from "./espejo";
-import { reiniciarEscrituras } from "@/db/tauriDriver";
+import { huboEscrituras, reiniciarEscrituras } from "@/db/tauriDriver";
 
 export type DataPaths = { dbPath: string; imagesDir: string; backupsDir: string };
 export type BackupInfo = { name: string; path: string; sizeBytes: number; modifiedMs: number };
@@ -46,6 +46,8 @@ export async function runAutoBackup(db: SqlDriver, { reemplazar = false }: { ree
     ? await invoke<string>("auto_backup_path_hoy", { today: todayIso() })
     : await invoke<string | null>("auto_backup_path", { today: todayIso() });
   if (!dest) return;
+  // Lo escrito hasta aquí entra en este respaldo; lo que llegue mientras se hace queda pendiente para el de cierre.
+  reiniciarEscrituras();
   await createBackup(db, dest);
   await invoke("prune_auto_backups");
   await copiarAlEspejo(db, dest);
@@ -57,11 +59,27 @@ export async function runAutoBackup(db: SqlDriver, { reemplazar = false }: { ree
  */
 export async function mantenimientoAlIniciar(db: SqlDriver): Promise<void> {
   await runAutoBackup(db);
-  // Lo escrito antes de este punto ya está en el respaldo del día; lo que siga se respalda al cerrar.
-  reiniciarEscrituras();
   await precargarFeriados(db, todayIso());
   await invoke("prune_safety_backups");
   await invoke("clean_orphan_images", { usadas: await imagenesUsadas(db) });
+}
+
+type Arranque = { integridadOk: boolean; mantenimiento?: Promise<unknown> };
+let arranque: Arranque = { integridadOk: false };
+
+/** Lo fija `main.tsx` al abrir: si la BD pasó la verificación y la promesa del mantenimiento de apertura. */
+export function marcarArranque(a: Arranque): void {
+  arranque = a;
+}
+
+/**
+ * Respaldo al cerrar: reemplaza el del día si hubo escrituras. Nunca con una BD que no pasó la verificación (pisaría
+ * un respaldo bueno y la copia de Drive) y siempre después del respaldo de apertura (los dos escribirían el mismo zip).
+ */
+export async function respaldoDeCierre(db: SqlDriver): Promise<void> {
+  await arranque.mantenimiento?.catch(() => {});
+  if (!arranque.integridadOk || !huboEscrituras()) return;
+  await runAutoBackup(db, { reemplazar: true });
 }
 
 /** Cierra la BD y reemplaza los datos. Quien llama debe recargar la ventana. */

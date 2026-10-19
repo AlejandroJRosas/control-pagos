@@ -42,7 +42,7 @@ it("createFeriado guarda y rechaza duplicados, fines de semana y días con tasa"
 it("deleteFeriado rechaza si hay depósitos de ese día", async () => {
   await createFeriado(db, { fecha: "2026-03-03", nombre: null });
   await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { fecha: "2026-03-03" }));
-  await expect(deleteFeriado(db, "2026-03-03")).rejects.toThrow(/1 depósito\(s\) de ese día que usan la tasa del 02\/03\/2026/);
+  await expect(deleteFeriado(db, "2026-03-03")).rejects.toThrow(/1 depósito\(s\) de ese día.* usan la tasa del 02\/03\/2026/);
 });
 
 it("createTasa rechaza un feriado", async () => {
@@ -62,4 +62,20 @@ it("un depósito del feriado se guarda con la tasa del día hábil anterior", as
   await createFeriado(db, { fecha: "2026-03-03", nombre: null });
   await expect(createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { fecha: "2026-03-03" }))).resolves.toBeGreaterThan(0);
   await expect(createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { fecha: "2026-03-04", referencia: "9" }))).rejects.toThrow(/La tasa es del/);
+});
+
+it("deleteFeriado rechaza si cambia la tasa de depósitos de días siguientes no hábiles", async () => {
+  await createTasa(db, { fecha: "2026-04-01", valor: "40", notas: null, imagenPath: null });
+  const t = (await getTasaParaFecha(db, "2026-04-01"))!.id;
+  await createFeriado(db, { fecha: "2026-04-02", nombre: "Jueves Santo" });
+  await createFeriado(db, { fecha: "2026-04-03", nombre: "Viernes Santo" });
+  await createDeposito(db, s.asignacionId, depositoBase(t, { fecha: "2026-04-04", referencia: "s" })); // sábado → 01/04
+  await expect(deleteFeriado(db, "2026-04-03")).rejects.toThrow(/1 depósito\(s\)/);
+  await expect(deleteFeriado(db, "2026-04-02")).rejects.toThrow(/depósito/);
+});
+
+it("deleteFeriado permite si los depósitos siguientes no cambian de tasa", async () => {
+  await createFeriado(db, { fecha: "2026-03-03", nombre: null });
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { fecha: "2026-03-02" }));
+  await expect(deleteFeriado(db, "2026-03-03")).resolves.toBeUndefined();
 });

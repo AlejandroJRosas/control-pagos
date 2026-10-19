@@ -4,7 +4,8 @@ import { RouterProvider } from "react-router";
 import { router } from "./App";
 import { reportError } from "./lib/reportError";
 import { getDb } from "./db";
-import { mantenimientoAlIniciar } from "./platform/backup";
+import { mantenimientoAlIniciar, marcarArranque } from "./platform/backup";
+import { invalidate } from "./hooks/useData";
 import { buscarActualizacion } from "./platform/actualizacion";
 import { warn } from "@tauri-apps/plugin-log";
 import { aplicarTemaGuardado } from "./lib/tema";
@@ -51,7 +52,11 @@ async function arrancar() {
     return;
   }
   render(app);
-  mantenimientoAlIniciar(db).catch((e) => reportError(e, "Respaldo automático"));
+  const mantenimiento = mantenimientoAlIniciar(db)
+    // Los avisos (Drive, tasa de hoy con los feriados recién cargados) se leyeron al montar: se recargan.
+    .then(invalidate)
+    .catch((e) => reportError(e, "Respaldo automático"));
+  marcarArranque({ integridadOk: true, mantenimiento });
 }
 
 void arrancar();

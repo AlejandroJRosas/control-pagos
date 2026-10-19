@@ -1,9 +1,8 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { toast } from "sonner";
 import { closeDb, getDb } from "@/db";
-import { huboEscrituras } from "@/db/tauriDriver";
 import { deleteAjuste, getAjuste, setAjuste } from "@/db/repos/ajustes";
-import { runAutoBackup } from "@/platform/backup";
+import { respaldoDeCierre } from "@/platform/backup";
 import { pedirCierre } from "./cierre";
 import { reportError } from "./reportError";
 
@@ -29,9 +28,7 @@ export async function instalarCierre(): Promise<() => void> {
   return ventana.onCloseRequested((e) => {
     e.preventDefault();
     void pedirCierre({
-      respaldar: async () => {
-        if (huboEscrituras()) await runAutoBackup(await getDb(), { reemplazar: true });
-      },
+      respaldar: async () => respaldoDeCierre(await getDb()),
       destruir: async () => {
         await closeDb().catch(() => {});
         await ventana.destroy();

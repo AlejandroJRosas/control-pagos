@@ -2,7 +2,7 @@ import type { SqlDriver } from "../driver";
 import { nowIso } from "../clock";
 import { getAjuste, setAjuste } from "./ajustes";
 import { DomainError } from "@/domain/errors";
-import { esFinDeSemana, fechaDeTasa, formatFecha } from "@/domain/dates";
+import { esDiaHabil, esFinDeSemana, fechaDeTasa, formatFecha, sumarDias } from "@/domain/dates";
 import { feriadosNacionales } from "@/domain/feriados";
 
 /** Día bancario sin tasa propia: rige la del último día hábil anterior. */
@@ -30,12 +30,24 @@ export async function createFeriado(db: SqlDriver, f: Feriado): Promise<void> {
   await db.execute("INSERT INTO feriados (fecha, nombre, creado_en) VALUES (?, ?, ?)", [f.fecha, f.nombre?.trim() || null, nowIso()]);
 }
 
-/** Los depósitos de un feriado usan la tasa de otro día: sin el feriado, su tasa ya no sería válida. */
+/**
+ * Los depósitos de un feriado (y de los días no hábiles que le siguen, p. ej. el sábado tras Viernes Santo) usan
+ * la tasa de un día anterior: si quitar el feriado cambia la tasa que les rige, ya no serían válidos.
+ */
 export async function deleteFeriado(db: SqlDriver, fecha: string): Promise<void> {
-  const [{ n }] = await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM depositos WHERE fecha = ?", [fecha]);
-  if (n > 0) {
-    const fer = await feriadosSet(db);
-    throw new DomainError("VALIDACION", `Hay ${n} depósito(s) de ese día que usan la tasa del ${formatFecha(fechaDeTasa(fecha, fer))}`);
+  const fer = await feriadosSet(db);
+  const sin = new Set(fer);
+  sin.delete(fecha);
+  let hasta = sumarDias(fecha, 1);
+  while (!esDiaHabil(hasta, fer)) hasta = sumarDias(hasta, 1);
+  const afectados = (await db.select<{ fecha: string }>("SELECT fecha FROM depositos WHERE fecha >= ? AND fecha < ?", [fecha, hasta])).filter(
+    (d) => fechaDeTasa(d.fecha, fer) !== fechaDeTasa(d.fecha, sin),
+  );
+  if (afectados.length > 0) {
+    throw new DomainError(
+      "VALIDACION",
+      `Hay ${afectados.length} depósito(s) de ese día o de los días no hábiles siguientes que usan la tasa del ${formatFecha(fechaDeTasa(fecha, fer))}`,
+    );
   }
   await db.execute("DELETE FROM feriados WHERE fecha = ?", [fecha]);
 }
