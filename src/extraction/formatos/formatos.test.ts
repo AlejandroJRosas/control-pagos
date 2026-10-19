@@ -11,6 +11,8 @@ import { reconocedoresDeposito, reconocedoresTasa } from "./index";
 import bdvOscuro from "./__fixtures__/bdv-oscuro.json";
 import bdvClaro from "./__fixtures__/bdv-claro.json";
 import bdvRecortada from "./__fixtures__/bdv-recortada.json";
+import bdvEnvuelta1 from "./__fixtures__/bdv-envuelta-1.json";
+import bdvEnvuelta2 from "./__fixtures__/bdv-envuelta-2.json";
 import tasaFixture from "./__fixtures__/tasa-mariandres.json";
 import banescoFixture from "./__fixtures__/banesco.json";
 import mercantilFixture from "./__fixtures__/mercantil.json";
@@ -35,6 +37,9 @@ describe("bdv-transferencia-terceros con capturas reales", () => {
     // Captura borrosa: el OCR pierde la "M" del nombre (limitación conocida, no detectable).
     ["claro", bdvClaro, { montoBs: "17.200,00", fecha: "2026-10-15", referencia: "059132356290", banco: BANCO, cuentaDestino: "A Colecciones 2006 Ca" }],
     ["recortada", bdvRecortada, { montoBs: "22.880,00", fecha: "2026-10-15", referencia: "059132357798", banco: BANCO, cuentaDestino: CUENTA }],
+    // Pantalla angosta: la operación sigue en la fila de abajo y el nombre va debajo de su etiqueta (el OCR pierde "M A").
+    ["envuelta 1", bdvEnvuelta1, { montoBs: "22.857,22", fecha: "2026-10-14", referencia: "059130685662", banco: BANCO, cuentaDestino: "Colecciones 2006 ca" }],
+    ["envuelta 2", bdvEnvuelta2, { montoBs: "21.122,78", fecha: "2026-10-16", referencia: "059134555133", banco: BANCO, cuentaDestino: "Colecciones 2006 ca" }],
   ])("%s", (_, fixture, esperado) => {
     const f = filasDe(fixture);
     expect(bdvTransferenciaTerceros.detecta(f)).toBe(true);
@@ -44,6 +49,12 @@ describe("bdv-transferencia-terceros con capturas reales", () => {
   it("la fecha que el OCR leyó con la barra como 1 se repara, pero queda para revisar", () => {
     const p = normalizarDeposito(bdvTransferenciaTerceros.extrae(filasDe(bdvOscuro)), HOY);
     expect(p.fecha).toEqual({ value: "2026-10-15", confidence: 0.7 });
+  });
+
+  it("en la pantalla angosta la referencia unida es segura y el nombre de varias filas queda para revisar", () => {
+    const r = bdvTransferenciaTerceros.extrae(filasDe(bdvEnvuelta1));
+    expect(r.referencia).toEqual({ texto: "059130685662", certeza: "etiqueta" });
+    expect(r.cuentaDestino?.certeza).toBe("heuristica");
   });
 });
 
@@ -90,7 +101,7 @@ describe("tasa-mariandres con texto sintético", () => {
 describe("detección", () => {
   it("cada reconocedor detecta solo sus imágenes", () => {
     const propias = new Map<Reconocedor<string>, OcrResultado[]>([
-      [bdvTransferenciaTerceros, [bdvOscuro, bdvClaro, bdvRecortada]],
+      [bdvTransferenciaTerceros, [bdvOscuro, bdvClaro, bdvRecortada, bdvEnvuelta1, bdvEnvuelta2]],
       [banescoOperacion, [banescoFixture]],
       [mercantilSolicitud, [mercantilFixture]],
       [tasaMariandres, [tasaFixture]],
@@ -114,8 +125,8 @@ describe("detección", () => {
 });
 
 describe("bdv-transferencia-terceros con texto sintético", () => {
-  const base = (operacion = "Operación: 059132331406") =>
-    filas("Transferencias a terceros", "13.186,80 Bs", "Fecha: 15/10/2026", operacion, "Nombre: M A Colecciones 2006 Ca", "Ana Pérez 15$");
+  const base = (...operacion: string[]) =>
+    filas("Transferencias a terceros", "13.186,80 Bs", "Fecha: 15/10/2026", ...(operacion.length ? operacion : ["Operación: 059132331406"]), "Nombre: M A Colecciones 2006 Ca", "Ana Pérez 15$");
 
   it("el monto sale de la fila con Bs, no de un número con $", () => {
     expect(bdvTransferenciaTerceros.extrae(base()).montoBs).toEqual({ texto: "13.186,80", certeza: "etiqueta" });
@@ -137,6 +148,16 @@ describe("bdv-transferencia-terceros con texto sintético", () => {
   it("un monto con punto en lugar de coma decimal se repara como heurística", () => {
     const f = filas("Transferencias a terceros", "17.200.00 Bs", "Nombre: X", "Destino: 0102");
     expect(bdvTransferenciaTerceros.extrae(f).montoBs).toEqual({ texto: "17.200,00", certeza: "heuristica" });
+  });
+
+  it("une la operación partida en dos filas solo si suma 12 dígitos", () => {
+    expect(bdvTransferenciaTerceros.extrae(base("Operación: 059132331", "406")).referencia).toEqual({ texto: "059132331406", certeza: "etiqueta" });
+    expect(bdvTransferenciaTerceros.extrae(base("Operación: 059132331", "40")).referencia).toEqual({ texto: "059132331", certeza: "heuristica" });
+  });
+
+  it("el nombre debajo de la etiqueta llega hasta la siguiente etiqueta", () => {
+    const f = filas("Transferencias a terceros", "Nombre:", "M A", "Colecciones", "Origen: 0102 5112", "Destino: 0102 8546");
+    expect(bdvTransferenciaTerceros.extrae(f).cuentaDestino).toEqual({ texto: "M A Colecciones", certeza: "heuristica" });
   });
 
   it("sin la etiqueta Fecha toma la primera fecha como heurística", () => {
