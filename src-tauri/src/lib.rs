@@ -69,6 +69,25 @@ fn auto_backup_path(app: AppHandle, today: String) -> Result<Option<String>, Str
     })
 }
 
+/// Ruta de `auto-<today>.zip` exista o no: el respaldo al cerrar reemplaza el del día.
+#[tauri::command]
+fn auto_backup_path_hoy(app: AppHandle, today: String) -> Result<String, String> {
+    if today.is_empty() || !today.chars().all(|c| c.is_ascii_digit() || c == '-') {
+        return Err("Fecha inválida".into());
+    }
+    Ok(paths(&app)?.backups.join(format!("auto-{today}.zip")).display().to_string())
+}
+
+/// Copia un respaldo automático de la carpeta de respaldos a la carpeta espejo y poda allí (quedan 7).
+#[tauri::command]
+fn mirror_backup(app: AppHandle, zip_path: String, dir: String) -> Result<(), String> {
+    let zip = Path::new(&zip_path);
+    if !zip.starts_with(&paths(&app)?.backups) {
+        return Err("El respaldo no está en la carpeta de respaldos".into());
+    }
+    backup::mirror(zip, Path::new(&dir), 7)
+}
+
 #[tauri::command]
 fn prune_auto_backups(app: AppHandle) -> Result<(), String> {
     backup::prune_auto(&paths(&app)?.backups, 7)
@@ -161,6 +180,8 @@ pub fn run() {
             data_paths,
             create_backup,
             auto_backup_path,
+            auto_backup_path_hoy,
+            mirror_backup,
             prune_auto_backups,
             prune_safety_backups,
             clean_orphan_images,

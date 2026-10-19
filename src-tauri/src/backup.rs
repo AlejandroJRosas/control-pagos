@@ -211,6 +211,32 @@ pub fn prune_auto(dir: &Path, keep: usize) -> Result<(), String> {
     Ok(())
 }
 
+/// Copia un respaldo automático (`auto-*.zip`) a la carpeta espejo (p. ej. una de Google Drive) y poda allí
+/// los viejos. Escribe en `.part` y renombra; si la carpeta no está, no crea nada.
+pub fn mirror(zip: &Path, dir: &Path, keep: usize) -> Result<(), String> {
+    let name = zip
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|n| n.starts_with("auto-") && n.ends_with(".zip"))
+        .ok_or_else(|| "Solo se copian respaldos automáticos".to_string())?;
+    if !dir.is_dir() {
+        return Err(format!(
+            "La carpeta de Google Drive no está disponible (¿Google Drive está abierto?): {}",
+            dir.display()
+        ));
+    }
+    let dest = dir.join(name);
+    let part = with_suffix(&dest, ".part");
+    let result = fs::copy(zip, &part)
+        .map_err(s)
+        .and_then(|_| fs::rename(&part, &dest).map_err(s));
+    if result.is_err() {
+        let _ = fs::remove_file(&part);
+    }
+    result?;
+    prune_auto(dir, keep)
+}
+
 fn antiguedad(p: &Path, now: SystemTime) -> Result<Duration, String> {
     let modified = fs::metadata(p).and_then(|m| m.modified()).map_err(s)?;
     Ok(now.duration_since(modified).unwrap_or(Duration::ZERO))
@@ -534,5 +560,88 @@ mod tests {
         assert_eq!(l.len(), 1);
         assert_eq!(l[0].name, "a.zip");
         assert_eq!(l[0].size_bytes, 5);
+    }
+}
+
+#[cfg(test)]
+mod espejo_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn nombres(dir: &Path) -> Vec<String> {
+        let mut v: Vec<String> = fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn espejo_copia_y_reemplaza() {
+        let local = tempdir().unwrap();
+        let espejo = tempdir().unwrap();
+        let zip = local.path().join("auto-2026-10-19.zip");
+        fs::write(&zip, b"a").unwrap();
+        mirror(&zip, espejo.path(), 7).unwrap();
+        fs::write(&zip, b"b").unwrap();
+        mirror(&zip, espejo.path(), 7).unwrap();
+        assert_eq!(fs::read(espejo.path().join("auto-2026-10-19.zip")).unwrap(), b"b");
+        assert_eq!(nombres(espejo.path()), vec!["auto-2026-10-19.zip".to_string()]);
+    }
+
+    #[test]
+    fn espejo_carpeta_inexistente_falla_sin_tocar_nada() {
+        let local = tempdir().unwrap();
+        let zip = local.path().join("auto-2026-10-19.zip");
+        fs::write(&zip, b"a").unwrap();
+        let falta = local.path().join("no-existe");
+        let err = mirror(&zip, &falta, 7).unwrap_err();
+        assert!(err.contains("Google Drive"), "{err}");
+        assert!(!falta.exists());
+        assert!(zip.exists());
+    }
+
+    #[test]
+    fn poda_espejo_solo_toca_auto() {
+        let local = tempdir().unwrap();
+        let espejo = tempdir().unwrap();
+        for i in 1..=9 {
+            fs::write(espejo.path().join(format!("auto-2026-01-0{i}.zip")), b"z").unwrap();
+        }
+        fs::write(espejo.path().join("notas.txt"), b"x").unwrap();
+        fs::write(espejo.path().join("antes-de-x.zip"), b"x").unwrap();
+        let zip = local.path().join("auto-2026-01-10.zip");
+        fs::write(&zip, b"n").unwrap();
+        mirror(&zip, espejo.path(), 7).unwrap();
+        let n = nombres(espejo.path());
+        assert_eq!(n.iter().filter(|x| x.starts_with("auto-")).count(), 7);
+        assert!(n.contains(&"auto-2026-01-10.zip".to_string()));
+        assert!(!n.contains(&"auto-2026-01-03.zip".to_string()));
+        assert!(n.contains(&"auto-2026-01-04.zip".to_string()));
+        assert!(n.contains(&"notas.txt".to_string()));
+        assert!(n.contains(&"antes-de-x.zip".to_string()));
+    }
+
+    #[test]
+    fn espejo_rechaza_lo_que_no_es_auto() {
+        let local = tempdir().unwrap();
+        let espejo = tempdir().unwrap();
+        let zip = local.path().join("antes-de-x.zip");
+        fs::write(&zip, b"a").unwrap();
+        assert!(mirror(&zip, espejo.path(), 7).is_err());
+        assert!(nombres(espejo.path()).is_empty());
+    }
+
+    #[test]
+    fn create_zip_reemplaza_un_destino_existente() {
+        let dir = tempdir().unwrap();
+        let db = dir.path().join(DB_NAME);
+        fs::write(&db, b"DB1").unwrap();
+        let dest = dir.path().join("auto-2026-10-19.zip");
+        fs::write(&dest, b"viejo").unwrap();
+        create_zip(&db, &dir.path().join("imagenes"), &dest).unwrap();
+        assert_ne!(fs::read(&dest).unwrap(), b"viejo");
+        assert!(!with_suffix(&dest, ".part").exists());
     }
 }
