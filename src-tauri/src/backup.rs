@@ -2,7 +2,8 @@ use serde::Serialize;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
+use std::collections::HashSet;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const DB_NAME: &str = "control-pagos.db";
 const SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
@@ -208,6 +209,62 @@ pub fn prune_auto(dir: &Path, keep: usize) -> Result<(), String> {
         fs::remove_file(p).map_err(s)?;
     }
     Ok(())
+}
+
+fn antiguedad(p: &Path, now: SystemTime) -> Result<Duration, String> {
+    let modified = fs::metadata(p).and_then(|m| m.modified()).map_err(s)?;
+    Ok(now.duration_since(modified).unwrap_or(Duration::ZERO))
+}
+
+/// Respaldos de seguridad (`antes-de-*.zip`): siempre quedan los `keep` más recientes; del resto se borran
+/// los que tienen más de `max_age`.
+pub fn prune_antes(dir: &Path, keep: usize, max_age: Duration, now: SystemTime) -> Result<usize, String> {
+    let mut zips: Vec<(PathBuf, Duration)> = Vec::new();
+    for entry in fs::read_dir(dir).map_err(s)? {
+        let p = entry.map_err(s)?.path();
+        let es_seguridad = p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.starts_with("antes-de-") && n.ends_with(".zip"))
+            .unwrap_or(false);
+        if es_seguridad && p.is_file() {
+            let edad = antiguedad(&p, now)?;
+            zips.push((p, edad));
+        }
+    }
+    zips.sort_by_key(|(_, edad)| *edad);
+    let mut borrados = 0;
+    for (p, edad) in zips.into_iter().skip(keep) {
+        if edad > max_age {
+            fs::remove_file(p).map_err(s)?;
+            borrados += 1;
+        }
+    }
+    Ok(borrados)
+}
+
+/// Borra de `images_dir` los archivos que no están en `usadas` (nombres de archivo) y tienen más de `min_age`
+/// (margen para una imagen recién guardada cuyo registro aún no existe). Devuelve cuántos borró.
+pub fn limpiar_huerfanas(images_dir: &Path, usadas: &HashSet<String>, min_age: Duration, now: SystemTime) -> Result<usize, String> {
+    if !images_dir.is_dir() {
+        return Ok(0);
+    }
+    let mut borrados = 0;
+    for entry in fs::read_dir(images_dir).map_err(s)? {
+        let p = entry.map_err(s)?.path();
+        if !p.is_file() {
+            continue;
+        }
+        let Some(nombre) = p.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if usadas.contains(nombre) || antiguedad(&p, now)? <= min_age {
+            continue;
+        }
+        fs::remove_file(&p).map_err(s)?;
+        borrados += 1;
+    }
+    Ok(borrados)
 }
 
 pub fn list(dir: &Path) -> Result<Vec<BackupInfo>, String> {
@@ -417,6 +474,55 @@ mod tests {
         assert!(!names.contains(&"auto-2026-01-01.zip".to_string()));
         assert!(!names.contains(&"auto-2026-01-02.zip".to_string()));
         assert!(names.contains(&"manual.zip".to_string()));
+    }
+
+    const DIA: Duration = Duration::from_secs(24 * 60 * 60);
+
+    fn nombres(dir: &Path) -> Vec<String> {
+        let mut n: Vec<String> = fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        n.sort();
+        n
+    }
+
+    #[test]
+    fn prune_antes_conserva_los_recientes_y_los_mas_nuevos() {
+        let dir = tempdir().unwrap();
+        for i in 1..=4 {
+            write(&dir.path().join(format!("antes-de-restaurar-{i}.zip")), b"z");
+        }
+        write(&dir.path().join("antes-de-eliminar-campana-9.zip"), b"z");
+        write(&dir.path().join("auto-2026-01-01.zip"), b"z");
+        write(&dir.path().join("manual.zip"), b"z");
+
+        // Recién creados: nada supera la antigüedad máxima.
+        assert_eq!(prune_antes(dir.path(), 2, 30 * DIA, SystemTime::now()).unwrap(), 0);
+        assert_eq!(nombres(dir.path()).len(), 7);
+
+        // 40 días después: quedan solo 2 de seguridad, y los demás zips intactos.
+        let despues = SystemTime::now() + 40 * DIA;
+        assert_eq!(prune_antes(dir.path(), 2, 30 * DIA, despues).unwrap(), 3);
+        let n = nombres(dir.path());
+        assert_eq!(n.iter().filter(|x| x.starts_with("antes-de-")).count(), 2);
+        assert!(n.contains(&"auto-2026-01-01.zip".to_string()));
+        assert!(n.contains(&"manual.zip".to_string()));
+    }
+
+    #[test]
+    fn limpia_solo_imagenes_huerfanas_con_margen() {
+        let dir = tempdir().unwrap();
+        let imgs = dir.path().join("imagenes");
+        write(&imgs.join("usada.png"), b"i");
+        write(&imgs.join("huerfana.jpg"), b"i");
+        fs::create_dir_all(imgs.join("subcarpeta")).unwrap();
+        let usadas: HashSet<String> = ["usada.png".to_string()].into();
+
+        assert_eq!(limpiar_huerfanas(&imgs, &usadas, DIA, SystemTime::now()).unwrap(), 0);
+        assert_eq!(limpiar_huerfanas(&imgs, &usadas, DIA, SystemTime::now() + 2 * DIA).unwrap(), 1);
+        assert_eq!(nombres(&imgs), vec!["subcarpeta".to_string(), "usada.png".to_string()]);
+        assert_eq!(limpiar_huerfanas(&dir.path().join("no-existe"), &usadas, DIA, SystemTime::now()).unwrap(), 0);
     }
 
     #[test]

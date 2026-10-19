@@ -3,7 +3,8 @@ pub mod ocr;
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashSet;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
 struct Paths {
@@ -73,6 +74,29 @@ fn prune_auto_backups(app: AppHandle) -> Result<(), String> {
     backup::prune_auto(&paths(&app)?.backups, 7)
 }
 
+/// Respaldos `antes-de-*`: se conservan los 5 más recientes y cualquiera de los últimos 30 días.
+#[tauri::command]
+fn prune_safety_backups(app: AppHandle) -> Result<usize, String> {
+    backup::prune_antes(
+        &paths(&app)?.backups,
+        5,
+        Duration::from_secs(30 * 24 * 60 * 60),
+        SystemTime::now(),
+    )
+}
+
+/// `usadas`: nombres de archivo de `imagenes\` que todavía referencia la BD. Lo demás, con más de un día, se borra.
+#[tauri::command]
+fn clean_orphan_images(app: AppHandle, usadas: Vec<String>) -> Result<usize, String> {
+    let usadas: HashSet<String> = usadas.into_iter().collect();
+    backup::limpiar_huerfanas(
+        &paths(&app)?.images,
+        &usadas,
+        Duration::from_secs(24 * 60 * 60),
+        SystemTime::now(),
+    )
+}
+
 #[tauri::command]
 fn list_backups(app: AppHandle) -> Result<Vec<backup::BackupInfo>, String> {
     backup::list(&paths(&app)?.backups)
@@ -125,6 +149,8 @@ pub fn run() {
             create_backup,
             auto_backup_path,
             prune_auto_backups,
+            prune_safety_backups,
+            clean_orphan_images,
             list_backups,
             restore_backup,
             ocr_imagen

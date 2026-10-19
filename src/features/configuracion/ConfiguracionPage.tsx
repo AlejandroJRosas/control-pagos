@@ -101,7 +101,7 @@ export function ConfiguracionPage() {
         <CardHeader>
           <CardTitle>Respaldos</CardTitle>
           <CardDescription>
-            Un respaldo (.zip) incluye la base de datos y todas las imágenes. Cada día se crea uno automático y se conservan los últimos 7.
+            Un respaldo (.zip) incluye la base de datos y todas las imágenes. Cada día se crea uno automático y se conservan los últimos 7. Las copias que se hacen antes de restaurar o eliminar una campaña se guardan 30 días (siempre quedan al menos las 5 más recientes).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

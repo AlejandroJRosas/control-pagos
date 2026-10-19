@@ -3,6 +3,7 @@ import { join } from "@tauri-apps/api/path";
 import type { SqlDriver } from "@/db/driver";
 import { closeDb } from "@/db";
 import { todayIso } from "@/domain/dates";
+import { imagenesUsadas } from "@/db/queries/imagenesUsadas";
 
 export type DataPaths = { dbPath: string; imagesDir: string; backupsDir: string };
 export type BackupInfo = { name: string; path: string; sizeBytes: number; modifiedMs: number };
@@ -25,7 +26,7 @@ export async function createBackup(db: SqlDriver, destPath: string): Promise<voi
   await invoke("create_backup", { snapshotPath, destPath });
 }
 
-/** Respaldo de seguridad antes de una operación destructiva (`antes-de-<motivo>-<ms>.zip`); no se poda. */
+/** Respaldo de seguridad antes de una operación destructiva (`antes-de-<motivo>-<ms>.zip`); lo poda `mantenimientoAlIniciar`. */
 export async function respaldoAntesDe(db: SqlDriver, motivo: string): Promise<string> {
   const { backupsDir } = await getDataPaths();
   const dest = await join(backupsDir, `antes-de-${motivo}-${Date.now()}.zip`);
@@ -38,6 +39,16 @@ export async function runAutoBackup(db: SqlDriver): Promise<void> {
   if (!dest) return;
   await createBackup(db, dest);
   await invoke("prune_auto_backups");
+}
+
+/**
+ * Al abrir la app: respaldo automático del día y, solo después (así lo borrado queda en un respaldo), poda de
+ * los respaldos de seguridad viejos y de las imágenes que ya no usa ningún registro.
+ */
+export async function mantenimientoAlIniciar(db: SqlDriver): Promise<void> {
+  await runAutoBackup(db);
+  await invoke("prune_safety_backups");
+  await invoke("clean_orphan_images", { usadas: await imagenesUsadas(db) });
 }
 
 /** Cierra la BD y reemplaza los datos. Quien llama debe recargar la ventana. */
