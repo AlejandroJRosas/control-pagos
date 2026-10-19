@@ -9,6 +9,7 @@ import { useAtajo } from "@/hooks/useAtajo";
 import { getCampana } from "@/db/repos/campanas";
 import { useData } from "@/hooks/useData";
 import { useBarraLateral } from "@/lib/barraLateral";
+import { useZoomApp } from "@/lib/zoomApp";
 import { useCampanaActual } from "@/lib/campanaActual";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ export function AppLayout() {
   const [buscar, setBuscar] = useState(false);
   const [ayuda, setAyuda] = useState(false);
   const barra = useBarraLateral();
+  useZoomApp();
   const c = barra.colapsada;
   useAtajo("k", () => setBuscar(true), { ctrl: true });
   useAtajo("b", barra.alternar, { ctrl: true });

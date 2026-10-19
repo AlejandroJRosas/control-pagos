@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { FechaInput } from "@/components/FechaInput";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/Field";
@@ -31,13 +32,12 @@ export function TasaCampos({ form, set, errors, fechaBloqueada, fechaImagen, avi
     <>
       <div className="grid grid-cols-2 gap-4">
         <Field id="t-fecha" label="Fecha" error={errors.fecha}>
-          <Input
+          <FechaInput
             id="t-fecha"
-            type="date"
             className={confClass(form.auto.confianza.fecha)}
             value={draft.fecha}
             disabled={fechaBloqueada}
-            onChange={(e) => set("fecha", e.target.value)}
+            onChange={(v) => set("fecha", v)}
           />
         </Field>
         <Field id="t-valor" label="Bs por USD" error={errors.valor} hint={nuevoValor ? `= ${formatTasa(nuevoValor)} Bs por USD` : "Ej. 36,50"}>

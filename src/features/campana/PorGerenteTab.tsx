@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Vacio } from "@/components/Feedback";
 import { SortableHead, useOrden } from "@/components/SortableHead";
+import { ColumnasMenu } from "@/components/ColumnasMenu";
 import { ESTADOS_GERENTE, EstadoGerenteBadge, ORDEN_ESTADOS } from "@/components/EstadoGerenteBadge";
 import { estadoGerente, type EstadoGerente, type GerenteResumen } from "@/domain/campanaView";
 import { formatFecha } from "@/domain/dates";
@@ -14,6 +15,7 @@ import { formatPct, formatUsd } from "@/domain/money";
 import { claveComparacion } from "@/domain/texto";
 import { useFiltrosUrl } from "@/lib/filtrosUrl";
 import { ordenar, type Columnas } from "@/lib/orden";
+import { useColumnas } from "@/lib/columnas";
 import { cn } from "@/lib/utils";
 
 type Fila = GerenteResumen & { estado: EstadoGerente };
@@ -28,6 +30,8 @@ const COLS: { key: Key; label: string; numeric?: boolean }[] = [
   { key: "cantidad", label: "Depósitos", numeric: true },
   { key: "ultimaFecha", label: "Último depósito" },
 ];
+const KEYS = COLS.map((c) => c.key);
+const ETIQUETAS = Object.fromEntries(COLS.map((c) => [c.key, c.label])) as Record<Key, string>;
 const COLUMNAS: Columnas<Fila, Key> = {
   gerenteNombre: { tipo: "texto", valor: (g) => g.gerenteNombre },
   estado: { tipo: "numero", valor: (g) => ORDEN_ESTADOS.indexOf(g.estado) },
@@ -39,6 +43,33 @@ const COLUMNAS: Columnas<Fila, Key> = {
   ultimaFecha: { tipo: "texto", valor: (g) => g.ultimaFecha },
 };
 const FILTROS = ["qg", "estado"] as const;
+
+function Celda({ col, g }: { col: Key; g: Fila }) {
+  switch (col) {
+    case "gerenteNombre":
+      return <TableCell className="font-medium">{g.gerenteNombre}</TableCell>;
+    case "estado":
+      return (
+        <TableCell>
+          <EstadoGerenteBadge estado={g.estado} />
+        </TableCell>
+      );
+    case "asignado":
+      return <TableCell className="text-right tabular-nums">{formatUsd(g.asignado)}</TableCell>;
+    case "pagado":
+      return <TableCell className="text-right tabular-nums">{formatUsd(g.pagado)}</TableCell>;
+    case "restante":
+      return (
+        <TableCell className={cn("text-right tabular-nums", new Decimal(g.restante).isNegative() && "text-destructive")}>{formatUsd(g.restante)}</TableCell>
+      );
+    case "pct":
+      return <TableCell className="text-right tabular-nums">{formatPct(g.pct)}</TableCell>;
+    case "cantidad":
+      return <TableCell className="text-right tabular-nums">{g.cantidad}</TableCell>;
+    case "ultimaFecha":
+      return <TableCell>{g.ultimaFecha ? formatFecha(g.ultimaFecha) : "—"}</TableCell>;
+  }
+}
 
 type Props = {
   campanaId: number;
@@ -53,6 +84,7 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
   const navigate = useNavigate();
   const { orden, alternar } = useOrden<Key>({ key: "gerenteNombre", dir: 1 });
   const { valores: f, set, limpiar } = useFiltrosUrl(`campana-${campanaId}-gerentes`, FILTROS);
+  const columnas = useColumnas("gerentes-campana", KEYS);
   const conEstado = useMemo<Fila[]>(() => gerentes.map((g) => ({ ...g, estado: estadoGerente(g) })), [gerentes]);
   const conteo = useMemo(() => {
     const c = Object.fromEntries(ORDEN_ESTADOS.map((e) => [e, 0])) as Record<EstadoGerente, number>;
@@ -113,6 +145,15 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
           {chip("", "Todos", conEstado.length)}
           {ORDEN_ESTADOS.filter((e) => conteo[e] > 0 || f.estado === e).map((e) => chip(e, ESTADOS_GERENTE[e].label, conteo[e]))}
         </div>
+        <div className="ml-auto">
+          <ColumnasMenu
+            estado={columnas.estado}
+            etiquetas={ETIQUETAS}
+            onAlternar={columnas.alternar}
+            onMover={columnas.mover}
+            onRestablecer={columnas.restablecer}
+          />
+        </div>
       </div>
       {filas.length === 0 ? (
         <Vacio texto="Ningún gerente coincide con la búsqueda o el estado elegido.">
@@ -124,9 +165,9 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
         <Table>
           <TableHeader>
             <TableRow>
-              {COLS.map((c) => (
-                <SortableHead key={c.key} col={c.key} orden={orden} onOrden={alternar} className={cn(c.numeric && "text-right")}>
-                  {c.label}
+              {columnas.visibles.map((k) => (
+                <SortableHead key={k} col={k} orden={orden} onOrden={alternar} className={cn(COLS.find((c) => c.key === k)?.numeric && "text-right")}>
+                  {ETIQUETAS[k]}
                 </SortableHead>
               ))}
               <TableHead className="text-right">Acciones</TableHead>
@@ -135,18 +176,9 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
           <TableBody>
             {filas.map((g) => (
               <TableRow key={g.asignacionId} className="cursor-pointer" onClick={() => navigate(`/asignaciones/${g.asignacionId}`)}>
-                <TableCell className="font-medium">{g.gerenteNombre}</TableCell>
-                <TableCell>
-                  <EstadoGerenteBadge estado={g.estado} />
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{formatUsd(g.asignado)}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatUsd(g.pagado)}</TableCell>
-                <TableCell className={cn("text-right tabular-nums", new Decimal(g.restante).isNegative() && "text-destructive")}>
-                  {formatUsd(g.restante)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{formatPct(g.pct)}</TableCell>
-                <TableCell className="text-right tabular-nums">{g.cantidad}</TableCell>
-                <TableCell>{g.ultimaFecha ? formatFecha(g.ultimaFecha) : "—"}</TableCell>
+                {columnas.visibles.map((col) => (
+                  <Celda key={col} col={col} g={g} />
+                ))}
                 <TableCell className="space-x-2 text-right" onClick={(e) => e.stopPropagation()}>
                   <Button size="sm" variant="outline" disabled={cerrada} onClick={() => onEditarSaldo(g)}>
                     Editar saldo

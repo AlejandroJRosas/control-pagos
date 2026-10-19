@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { FechaInput } from "@/components/FechaInput";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,7 +50,7 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
         )}
         <div className="grid grid-cols-2 gap-4">
           <Field id="d-fecha" label="Fecha" error={errors.fecha}>
-            <Input id="d-fecha" type="date" className={confClass(form.auto.confianza.fecha)} value={draft.fecha} onChange={(e) => set("fecha", e.target.value)} />
+            <FechaInput id="d-fecha" className={confClass(form.auto.confianza.fecha)} value={draft.fecha} onChange={(v) => set("fecha", v)} />
           </Field>
           <Field id="d-tasa" label="Tasa del día" error={errors.tasaId}>
             <div id="d-tasa" className="flex h-8 items-center gap-2 text-sm">

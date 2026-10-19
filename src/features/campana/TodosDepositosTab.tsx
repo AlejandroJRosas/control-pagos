@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router";
 import { Images, Plus, Search } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { FechaInput } from "@/components/FechaInput";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/NativeSelect";
@@ -97,11 +98,11 @@ export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: P
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="f-desde">Desde</Label>
-          <Input id="f-desde" type="date" value={f.desde} onChange={(e) => set({ desde: e.target.value })} />
+          <FechaInput id="f-desde" contenedorClassName="w-36" value={f.desde} onChange={(desde) => set({ desde })} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="f-hasta">Hasta</Label>
-          <Input id="f-hasta" type="date" value={f.hasta} onChange={(e) => set({ hasta: e.target.value })} />
+          <FechaInput id="f-hasta" contenedorClassName="w-36" value={f.hasta} onChange={(hasta) => set({ hasta })} />
         </div>
         <Button variant="ghost" disabled={!activos} onClick={limpiar}>
           Limpiar

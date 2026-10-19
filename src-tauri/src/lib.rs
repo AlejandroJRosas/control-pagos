@@ -133,7 +133,19 @@ async fn ocr_imagen(request: tauri::ipc::Request<'_>) -> Result<ocr::OcrResultad
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// El WebView2 toma el idioma de Windows: sin esto, en un Windows en inglés el calendario de los
+/// campos de fecha sale en inglés. Respeta otros argumentos que ya vengan en la variable.
+fn webview_en_espanol() {
+    const VAR: &str = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS";
+    let actuales = std::env::var(VAR).unwrap_or_default();
+    if !actuales.contains("--lang") {
+        // SAFETY: se llama al inicio de `run`, antes de crear hilos.
+        unsafe { std::env::set_var(VAR, format!("{actuales} --lang=es").trim()) };
+    }
+}
+
 pub fn run() {
+    webview_en_espanol();
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(

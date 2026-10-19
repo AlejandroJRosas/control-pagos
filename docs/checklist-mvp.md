@@ -91,3 +91,9 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Gerente sin teléfono: "Agregar teléfono…" abre su ficha. Con teléfono "0414-1234567": "Recordatorio por WhatsApp" abre el chat con el resumen.
 - [ ] Estado de cuenta: Copiar imagen y pegarla en otro programa; Guardar imagen… crea el PNG; "Copiar y abrir WhatsApp" abre el chat con la imagen lista para Ctrl+V.
 - [ ] Al abrir la app: los `antes-de-*.zip` de más de 30 días se borran (quedan al menos 5) y las imágenes sin registro de más de un día desaparecen de `imagenes\`, después del respaldo del día.
+
+## Columnas, fechas y zoom (0.2.0)
+
+- [ ] Campaña → Todos los depósitos: "Columnas" oculta y reordena columnas (flechas); el pie de totales sigue bajo Monto Bs y USD aunque se muevan; no deja ocultar la última; Restablecer vuelve al orden original. Se recuerda al reiniciar, aparte para la campaña, la página del gerente y Por gerente.
+- [ ] Campos de fecha (depósito, tasa, campaña, filtros Desde/Hasta): se ven como dd/mm/aaaa; al escribir "18102026" se ponen las barras; el ícono abre el calendario en español; una fecha inválida ("31/02/2026") queda en rojo y no se guarda.
+- [ ] Ctrl + rueda agranda o achica toda la app (aviso con el %); Ctrl + / Ctrl − también; Ctrl 0 vuelve al 100 %. Sobre un comprobante, Ctrl + rueda sigue haciendo zoom de la imagen. El zoom se mantiene al reiniciar.

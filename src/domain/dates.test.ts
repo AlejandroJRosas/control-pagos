@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { esFinDeSemana, fechaDeTasa, formatFecha, formatPeriodo, isValidIsoDate, sumarDias, todayIso } from "./dates";
+import { esFinDeSemana, fechaDeTasa, formatFecha, formatPeriodo, isValidIsoDate, mascaraFecha, parseFechaVE, sumarDias, todayIso } from "./dates";
 
 it("formatFecha", () => {
   expect(formatFecha("2026-10-18")).toBe("18/10/2026");
@@ -36,4 +36,26 @@ it("fechaDeTasa: sábado y domingo usan la tasa del viernes", () => {
   expect(fechaDeTasa("2026-10-18")).toBe("2026-10-16");
   expect(fechaDeTasa("2026-10-19")).toBe("2026-10-19");
   expect(fechaDeTasa("2026-11-01")).toBe("2026-10-30"); // domingo con viernes del mes anterior
+});
+
+it("parseFechaVE lee dd/mm/aaaa y variantes", () => {
+  expect(parseFechaVE("18/10/2026")).toBe("2026-10-18");
+  expect(parseFechaVE("1/5/2026")).toBe("2026-05-01");
+  expect(parseFechaVE(" 01-05-26 ")).toBe("2026-05-01");
+  expect(parseFechaVE("01.05.2026")).toBe("2026-05-01");
+  expect(parseFechaVE("31/02/2026")).toBeNull();
+  expect(parseFechaVE("18/10")).toBeNull();
+  expect(parseFechaVE("")).toBeNull();
+});
+
+it("mascaraFecha agrega las barras al escribir solo dígitos", () => {
+  expect(mascaraFecha("1")).toBe("1");
+  expect(mascaraFecha("18")).toBe("18");
+  expect(mascaraFecha("181")).toBe("18/1");
+  expect(mascaraFecha("18/1020")).toBe("18/10/20");
+  expect(mascaraFecha("18102026")).toBe("18/10/2026");
+  expect(mascaraFecha("181020261")).toBe("18/10/2026");
+  expect(mascaraFecha("18/")).toBe("18");
+  // Si el usuario escribe sus propias barras, se respeta.
+  expect(mascaraFecha("1/5/2026")).toBe("1/5/2026");
 });

@@ -26,6 +26,9 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - `src/db/operaciones/` — escrituras de varios pasos con reversión manual (el plugin SQL no da transacciones entre llamadas): `destino.ts` (gerente/asignación al registrar desde la campaña), `importarPagos.ts` (plan + importación).
 - `src/import/cuadroPagos.ts` — lee la hoja "CUADRO DE PAGOS" de las facturas por gerente (busca el encabezado por texto, no por celda fija).
 - Tablas ordenables con `SortableHead` + `useOrden` y `ordenar` (`lib/orden.ts`: montos como `decimal`, nunca como texto).
+- Columnas ocultables y reordenables con `useColumnas(clave, todas)` (`lib/columnas.ts`, en localStorage) + `components/ColumnasMenu.tsx`; hoy en `DepositosTable` y `PorGerenteTab`. El pie de totales se arma con `agruparPie`.
+- Campos de fecha con `components/FechaInput.tsx` (texto dd/mm/aaaa con `mascaraFecha`/`parseFechaVE` + calendario nativo con `showPicker`), nunca `<input type="date">` a la vista: este sigue el idioma de Windows. `lib.rs` arranca el WebView2 con `--lang=es`.
+- Zoom de la app (Ctrl + rueda / + / − / 0) en `lib/zoomApp.ts` con `setZoom` del webview; respeta el `preventDefault` de `ZoomableImage`.
 - Filtros de tablas en la URL con `useFiltrosUrl(clave, keys)` (`lib/filtrosUrl.ts`): se recuerdan por pantalla/campaña en localStorage. La búsqueda libre usa `coincideBusqueda` (`domain/busqueda.ts`: sin acentos y montos con o sin separadores). El campo de búsqueda de cada tabla lleva `data-buscar-tabla` (lo enfoca la tecla `/`).
 - Ficha del gerente `/gerentes/:id` (`features/gerentes/GerentePage.tsx` + `db/queries/gerenteData.ts`): todas sus campañas resumidas con `buildCampanaView` sobre sus asignaciones.
 - Volver a la lista de origen: quien abre un detalle pasa `state: conVolver(location, etiqueta)` (`lib/volver.ts`; `DepositosTable` lo hace con `volverLabel`) y el depósito lo lee con `leerVolver`; sin él vuelve al gerente o a la campaña.

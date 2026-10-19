@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { FechaInput } from "@/components/FechaInput";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/Field";
@@ -68,10 +69,10 @@ export function CampanaFormDialog({ campana, open, onOpenChange, onCreated }: Pr
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field id="c-inicio" label="Inicio" error={errors.fechaInicio}>
-              <Input id="c-inicio" type="date" value={draft.fechaInicio} onChange={set("fechaInicio")} />
+              <FechaInput id="c-inicio" value={draft.fechaInicio} onChange={(fechaInicio) => setDraft({ ...draft, fechaInicio })} />
             </Field>
             <Field id="c-fin" label="Fin (opcional)" error={errors.fechaFin}>
-              <Input id="c-fin" type="date" value={draft.fechaFin} onChange={set("fechaFin")} />
+              <FechaInput id="c-fin" value={draft.fechaFin} onChange={(fechaFin) => setDraft({ ...draft, fechaFin })} />
             </Field>
           </div>
           <Field id="c-notas" label="Notas (opcional)">

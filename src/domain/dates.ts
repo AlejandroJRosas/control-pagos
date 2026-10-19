@@ -37,3 +37,20 @@ export function fechaDeTasa(iso: string): string {
   const dia = diaSemana(iso);
   return dia === 6 ? sumarDias(iso, -1) : dia === 0 ? sumarDias(iso, -2) : iso;
 }
+
+/** Fecha escrita como dd/mm/aaaa (acepta "-" o "." y año de 2 dígitos) → ISO, o null si no es válida. */
+export function parseFechaVE(texto: string): string | null {
+  const m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/.exec(texto.trim());
+  if (!m) return null;
+  const pad = (s: string) => s.padStart(2, "0");
+  const iso = `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${pad(m[2])}-${pad(m[1])}`;
+  return isValidIsoDate(iso) ? iso : null;
+}
+
+/** Al escribir solo dígitos agrega las barras de dd/mm/aaaa; si el usuario puso sus propias barras, lo deja igual. */
+export function mascaraFecha(texto: string): string {
+  const soloMascara = [...texto].every((c, i) => /\d/.test(c) || (c === "/" && (i === 2 || i === 5)));
+  if (!soloMascara) return texto;
+  const d = texto.replace(/\D/g, "").slice(0, 8);
+  return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join("/");
+}

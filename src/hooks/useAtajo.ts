@@ -44,5 +44,6 @@ export const ATAJOS: { teclas: string[]; que: string }[] = [
   { teclas: ["Ctrl", "Enter"], que: "Guardar el depósito (o Hecho en la revisión en lote)" },
   { teclas: ["Esc"], que: "Volver a la pantalla anterior" },
   { teclas: ["Ctrl", "B"], que: "Colapsar o expandir la barra lateral" },
+  { teclas: ["Ctrl", "Rueda"], que: "Agrandar o achicar la app (también Ctrl + / Ctrl − ; Ctrl 0 vuelve al 100 %)" },
   { teclas: ["?"], que: "Mostrar esta ayuda" },
 ];
