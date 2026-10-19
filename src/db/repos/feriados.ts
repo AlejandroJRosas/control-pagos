@@ -24,7 +24,7 @@ const esFeriado = async (db: SqlDriver, fecha: string) =>
 
 /** Marcar feriado un día con tasa propia cambiaría la tasa (y el USD) de lo ya registrado: se rechaza. */
 export async function createFeriado(db: SqlDriver, f: Feriado): Promise<void> {
-  if (esFinDeSemana(f.fecha)) throw new DomainError("VALIDACION", "Los sábados y domingos ya usan la tasa del viernes");
+  if (esFinDeSemana(f.fecha)) throw new DomainError("VALIDACION", "Los sábados y domingos ya usan la tasa del último día hábil anterior");
   if (await esFeriado(db, f.fecha)) throw new DomainError("DUPLICADO", `El ${formatFecha(f.fecha)} ya es feriado`);
   if (await tieneTasa(db, f.fecha)) throw new DomainError("VALIDACION", "Ese día ya tiene tasa registrada; elimínala primero");
   await db.execute("INSERT INTO feriados (fecha, nombre, creado_en) VALUES (?, ?, ?)", [f.fecha, f.nombre?.trim() || null, nowIso()]);

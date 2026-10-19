@@ -2,7 +2,7 @@ import type { SqlDriver } from "../driver";
 import { nowIso } from "../clock";
 import type { TasaValida } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
-import { esFinDeSemana, fechaDeTasa, formatFecha } from "@/domain/dates";
+import { esFinDeSemana, fechaDeTasa, formatFecha, nombreDia } from "@/domain/dates";
 import { feriadosSet } from "./feriados";
 
 export type Tasa = { id: number; fecha: string; valor: string; imagenPath: string | null; notas: string | null };
@@ -35,13 +35,11 @@ export async function getTasaParaFecha(db: SqlDriver, fecha: string): Promise<Ta
 }
 
 export async function createTasa(db: SqlDriver, v: TasaValida & { imagenPath: string | null }): Promise<number> {
-  if (esFinDeSemana(v.fecha)) {
-    throw new DomainError("VALIDACION", `Los sábados y domingos usan la tasa del viernes ${formatFecha(fechaDeTasa(v.fecha))}`);
-  }
   const fer = await feriadosSet(db);
-  if (fer.has(v.fecha)) {
-    throw new DomainError("VALIDACION", `El ${formatFecha(v.fecha)} es feriado: usa la tasa del ${formatFecha(fechaDeTasa(v.fecha, fer))}`);
-  }
+  // El día cuya tasa rige (puede no ser el viernes: Viernes Santo es feriado).
+  const rige = `${nombreDia(fechaDeTasa(v.fecha, fer))} ${formatFecha(fechaDeTasa(v.fecha, fer))}`;
+  if (esFinDeSemana(v.fecha)) throw new DomainError("VALIDACION", `Los sábados y domingos usan la tasa del ${rige}`);
+  if (fer.has(v.fecha)) throw new DomainError("VALIDACION", `El ${formatFecha(v.fecha)} es feriado: usa la tasa del ${rige}`);
   if (await getTasaByFecha(db, v.fecha)) throw new DomainError("DUPLICADO", `Ya existe una tasa para el ${formatFecha(v.fecha)}`);
   const r = await db.execute("INSERT INTO tasas (fecha, valor, imagen_path, notas, uuid, actualizado_en) VALUES (?, ?, ?, ?, ?, ?)", [
     v.fecha,

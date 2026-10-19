@@ -48,7 +48,7 @@ it("deleteFeriado rechaza si hay depósitos de ese día", async () => {
 it("createTasa rechaza un feriado", async () => {
   await createFeriado(db, { fecha: "2026-03-03", nombre: null });
   await expect(createTasa(db, { fecha: "2026-03-03", valor: "37", notas: null, imagenPath: null })).rejects.toThrow(
-    "El 03/03/2026 es feriado: usa la tasa del 02/03/2026",
+    "El 03/03/2026 es feriado: usa la tasa del lunes 02/03/2026",
   );
 });
 
@@ -78,4 +78,15 @@ it("deleteFeriado permite si los depósitos siguientes no cambian de tasa", asyn
   await createFeriado(db, { fecha: "2026-03-03", nombre: null });
   await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { fecha: "2026-03-02" }));
   await expect(deleteFeriado(db, "2026-03-03")).resolves.toBeUndefined();
+});
+
+it("createTasa en fin de semana nombra el día cuya tasa se usa, saltando feriados", async () => {
+  await createFeriado(db, { fecha: "2026-04-02", nombre: "Jueves Santo" });
+  await createFeriado(db, { fecha: "2026-04-03", nombre: "Viernes Santo" });
+  await expect(createTasa(db, { fecha: "2026-04-04", valor: "40", notas: null, imagenPath: null })).rejects.toThrow(
+    "Los sábados y domingos usan la tasa del miércoles 01/04/2026",
+  );
+  await expect(createTasa(db, { fecha: "2026-03-07", valor: "40", notas: null, imagenPath: null })).rejects.toThrow(
+    "Los sábados y domingos usan la tasa del viernes 06/03/2026",
+  );
 });
