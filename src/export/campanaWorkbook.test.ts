@@ -90,20 +90,25 @@ it("genera resumen, todos los depósitos y una hoja por gerente", async () => {
   expect(total.getCell(5).value).toBe(0.8);
 
   const todos = wb.getWorksheet("Todos los depósitos")!;
-  expect(todos.getCell("A2").value).toEqual(isoToExcelDate("2026-03-01"));
-  expect(todos.getCell("B2").value).toBe("Ana");
-  expect(todos.getCell("D2").value).toBe("002");
-  expect(todos.getCell("I2").value).toBe(130);
-  expect(todos.getCell("I3").value).toBe(30);
-  expect(todos.getCell("K3").value).toBe("abc.png");
-  expect(todos.getCell("C4").value).toBe("TOTAL");
-  expect(todos.getCell("H4").value).toBe(120);
+  expect(todos.getCell("A1").value).toBe("Todos los depósitos");
+  expect(todos.getCell("A6").value).toEqual(isoToExcelDate("2026-03-01"));
+  expect(todos.getCell("B6").value).toBe("Ana");
+  expect(todos.getCell("D6").value).toBe("002");
+  expect(todos.getCell("I6").value).toBe(130);
+  expect(todos.getCell("I7").value).toBe(30);
+  expect(todos.getCell("K7").value).toBe("abc.png");
+  expect(todos.getCell("C8").value).toBe("TOTAL");
+  expect(todos.getCell("H8").value).toBe(120);
 
   const ana = wb.getWorksheet("Ana")!;
-  expect(ana.getCell("H2").value).toBe(0);
-  expect(ana.getCell("I2").value).toBe("obs");
+  expect(ana.getCell("A1").value).toBe("Ana");
+  expect(String(ana.getCell("A3").value)).toContain("Asignado $ 100,00 · Pagado $ 100,00 · Faltan $ 0,00 · Avance 100,0 %");
+  expect(ana.getCell("H6").value).toBe(0);
+  expect(ana.getCell("I6").value).toBe("obs");
 });
 
+const formatosCondicionales = (ws: ExcelJS.Worksheet) =>
+  (ws as unknown as { conditionalFormattings: ExcelJS.ConditionalFormattingOptions[] }).conditionalFormattings;
 const fondo = (c: ExcelJS.Cell) => (c.fill?.type === "pattern" ? c.fill.fgColor?.argb : undefined);
 
 it("resumen con formato: franja, filas alternadas, barra de datos y total", () => {
@@ -119,7 +124,7 @@ it("resumen con formato: franja, filas alternadas, barra de datos y total", () =
   expect(fondo(ws.getCell("A1"))).toBe(argb(COLOR.azul));
   expect(fondo(ws.getCell("A8"))).toBeUndefined();
   expect(fondo(ws.getCell("A9"))).toBe(argb(COLOR.banda));
-  const reglas = ws.conditionalFormattings.flatMap((cf: ExcelJS.ConditionalFormattingOptions) => cf.rules.map((r) => ({ ref: cf.ref, type: r.type })));
+  const reglas = formatosCondicionales(ws).flatMap((cf) => cf.rules.map((r) => ({ ref: cf.ref, type: r.type })));
   expect(reglas).toContainEqual({ ref: "E8:E9", type: "dataBar" });
   expect(ws.getCell("A10").value).toBe("TOTAL");
   expect(ws.getCell("A10").font.bold).toBe(true);
@@ -128,5 +133,26 @@ it("resumen con formato: franja, filas alternadas, barra de datos y total", () =
 it("campaña sin gerentes: el total queda en la primera fila de la tabla", () => {
   const ws = buildCampanaWorkbook(campana, buildCampanaView([], [])).getWorksheet("Resumen")!;
   expect(ws.getCell("A8").value).toBe("TOTAL");
-  expect(ws.conditionalFormattings).toHaveLength(0);
+  expect(formatosCondicionales(ws)).toHaveLength(0);
+});
+
+it("todas las hojas quedan listas para imprimir", async () => {
+  const view = buildCampanaView([{ id: 1, gerenteId: 10, gerenteNombre: "Ana", saldoUsd: "100" }], [dep(1, 1, "2026-03-02", "3650")]);
+  const wb = await roundTrip(buildCampanaWorkbook(campana, view));
+  for (const ws of wb.worksheets) {
+    expect(ws.pageSetup.orientation).toBe("landscape");
+    expect(ws.pageSetup.fitToPage).toBe(true);
+    expect(ws.pageSetup.fitToWidth).toBe(1);
+    expect(ws.pageSetup.fitToHeight).toBe(0);
+  }
+  expect(wb.getWorksheet("Resumen")!.pageSetup.printTitlesRow).toBe("7:7");
+  expect(wb.getWorksheet("Ana")!.pageSetup.printTitlesRow).toBe("5:5");
+});
+
+it("gerente sin depósitos: su hoja solo tiene el total en cero", async () => {
+  const view = buildCampanaView([{ id: 1, gerenteId: 10, gerenteNombre: "Luis", saldoUsd: "50" }], []);
+  const ws = (await roundTrip(buildCampanaWorkbook(campana, view))).getWorksheet("Luis")!;
+  expect(ws.getCell("B6").value).toBe("TOTAL");
+  expect(ws.getCell("E6").value).toBe(0);
+  expect(ws.getCell("G6").value).toBe(0);
 });

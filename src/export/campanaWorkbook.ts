@@ -1,7 +1,8 @@
 import ExcelJS from "exceljs";
 import Decimal from "decimal.js";
 import type { Campana } from "@/db/repos/campanas";
-import type { CampanaView, DepositoCalculado } from "@/domain/campanaView";
+import type { CampanaView, DepositoCalculado, GerenteResumen } from "@/domain/campanaView";
+import { formatPct, formatUsd } from "@/domain/money";
 import { formatFecha, formatPeriodo, todayIso } from "@/domain/dates";
 import { COLOR, argb, textoRestante } from "./estilo";
 
@@ -158,24 +159,64 @@ function addResumen(ws: ExcelJS.Worksheet, campana: Campana, view: CampanaView, 
   ws.getColumn(5).width = 14;
   ws.getColumn(6).width = 12;
   ws.getColumn(7).width = 16;
+  imprimir(ws, filaEncabezado);
 }
 
-function addDepositos(ws: ExcelJS.Worksheet, deps: DepositoCalculado[], general: boolean): void {
+function imprimir(ws: ExcelJS.Worksheet, filaEncabezado: number): void {
+  ws.pageSetup = {
+    ...ws.pageSetup,
+    orientation: "landscape",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 },
+    printTitlesRow: `${filaEncabezado}:${filaEncabezado}`,
+  };
+}
+
+type HojaDepositos = { titulo: string; resumen?: GerenteResumen };
+
+function addDepositos(ws: ExcelJS.Worksheet, campana: Campana, deps: DepositoCalculado[], hoja: HojaDepositos, generadoEn: Date): void {
+  const general = !hoja.resumen;
   ws.columns = [
-    { header: "Fecha", key: "fecha", width: 12, style: { numFmt: FECHA } },
-    ...(general ? [{ header: "Gerente", key: "gerente", width: 24 }] : []),
-    { header: "Banco", key: "banco", width: 18 },
-    { header: "Referencia", key: "referencia", width: 18 },
-    { header: "Cuenta destino", key: "cuenta", width: 26 },
-    { header: "Monto Bs", key: "montoBs", width: 16, style: { numFmt: MONEY } },
-    { header: "Tasa", key: "tasa", width: 12, style: { numFmt: TASA } },
-    { header: "USD", key: "usd", width: 14, style: { numFmt: MONEY } },
-    { header: general ? "Saldo general restante" : "Saldo restante", key: "saldo", width: 20, style: { numFmt: MONEY } },
-    { header: "Observaciones", key: "obs", width: 30 },
-    { header: "Comprobante", key: "img", width: 40 },
+    { key: "fecha", width: 12, style: { numFmt: FECHA } },
+    ...(general ? [{ key: "gerente", width: 24 }] : []),
+    { key: "banco", width: 18 },
+    { key: "referencia", width: 18 },
+    { key: "cuenta", width: 26 },
+    { key: "montoBs", width: 16, style: { numFmt: MONEY } },
+    { key: "tasa", width: 12, style: { numFmt: TASA } },
+    { key: "usd", width: 14, style: { numFmt: MONEY } },
+    { key: "saldo", width: 20, style: { numFmt: MONEY_NEG } },
+    { key: "obs", width: 30 },
+    { key: "img", width: 40 },
   ];
-  for (const d of deps) {
-    ws.addRow({
+  const columnas = ws.columns.length;
+  franjaTitulo(ws, columnas, hoja.titulo, `Campaña ${campana.nombre} · ${corte(generadoEn)}`);
+  if (hoja.resumen) {
+    const r = hoja.resumen;
+    const restante = textoRestante(r);
+    const cell = ws.getCell(3, 1);
+    cell.value = `Asignado ${formatUsd(r.asignado)} · Pagado ${formatUsd(r.pagado)} · ${restante.etiqueta} ${restante.monto} · Avance ${formatPct(r.pct)}`;
+    cell.font = { bold: true, color: { argb: argb(restante.excedido ? COLOR.textoRojo : COLOR.azul) } };
+  }
+
+  const filaEncabezado = 5;
+  ws.getRow(filaEncabezado).values = [
+    "Fecha",
+    ...(general ? ["Gerente"] : []),
+    "Banco",
+    "Referencia",
+    "Cuenta destino",
+    "Monto Bs",
+    "Tasa",
+    "USD",
+    general ? "Saldo general restante" : "Saldo restante",
+    "Observaciones",
+    "Comprobante",
+  ];
+  deps.forEach((d, i) => {
+    ws.getRow(filaEncabezado + 1 + i).values = {
       fecha: isoToExcelDate(d.fecha),
       gerente: d.gerenteNombre,
       banco: d.banco,
@@ -187,11 +228,15 @@ function addDepositos(ws: ExcelJS.Worksheet, deps: DepositoCalculado[], general:
       saldo: num(general ? d.saldoGeneralRestante : d.saldoGerenteRestante),
       obs: d.observaciones ?? "",
       img: d.imagenPath ? (d.imagenPath.split("/").pop() ?? "") : "",
-    });
-  }
+    };
+  });
+  const ultimaFila = filaEncabezado + deps.length;
+  estilarTabla(ws, filaEncabezado, ultimaFila, columnas);
   const sum = (k: "montoBs" | "usd") => deps.reduce((acc, d) => acc.plus(d[k]), new Decimal(0)).toNumber();
-  ws.addRow({ banco: "TOTAL", montoBs: sum("montoBs"), usd: sum("usd") }).font = { bold: true };
-  estilarTabla(ws, 1, ws.rowCount - 1, ws.columns.length);
+  const total = ws.getRow(ultimaFila + 1);
+  total.values = { banco: "TOTAL", montoBs: sum("montoBs"), usd: sum("usd") };
+  estilarTotal(total, columnas);
+  imprimir(ws, filaEncabezado);
 }
 
 export function buildCampanaWorkbook(campana: Campana, view: CampanaView, generadoEn: Date = new Date()): ExcelJS.Workbook {
@@ -200,12 +245,14 @@ export function buildCampanaWorkbook(campana: Campana, view: CampanaView, genera
   wb.created = generadoEn;
   const used = new Set<string>();
   addResumen(wb.addWorksheet(safeSheetName("Resumen", used)), campana, view, generadoEn);
-  addDepositos(wb.addWorksheet(safeSheetName("Todos los depósitos", used)), view.depositos, true);
+  addDepositos(wb.addWorksheet(safeSheetName("Todos los depósitos", used)), campana, view.depositos, { titulo: "Todos los depósitos" }, generadoEn);
   for (const g of view.gerentes) {
     addDepositos(
       wb.addWorksheet(safeSheetName(g.gerenteNombre, used)),
+      campana,
       view.depositos.filter((d) => d.asignacionId === g.asignacionId),
-      false,
+      { titulo: g.gerenteNombre, resumen: g },
+      generadoEn,
     );
   }
   return wb;
