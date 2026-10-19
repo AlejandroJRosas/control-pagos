@@ -1,9 +1,13 @@
-export function archivoExcel(nombre: string, fecha: string): string {
-  const slug = nombre
+/** Nombre apto para archivo: sin acentos, minúsculas y guiones. */
+export function archivoBase(nombre: string): string {
+  return nombre
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .toLowerCase();
-  return `${slug || "reporte"}-${fecha}.xlsx`;
+}
+
+export function archivoExcel(nombre: string, fecha: string): string {
+  return `${archivoBase(nombre) || "reporte"}-${fecha}.xlsx`;
 }

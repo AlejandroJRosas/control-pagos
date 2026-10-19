@@ -8,6 +8,7 @@ export type AsignacionDetalle = {
   gerenteId: number;
   saldoUsd: string;
   gerenteNombre: string;
+  gerenteTelefono: string | null;
   campanaNombre: string;
   campanaEstado: EstadoCampana;
 };
@@ -15,7 +16,7 @@ export type AsignacionDetalle = {
 export async function getAsignacion(db: SqlDriver, id: number): Promise<AsignacionDetalle | null> {
   const [row] = await db.select<AsignacionDetalle>(
     `SELECT a.id, a.campana_id AS campanaId, a.gerente_id AS gerenteId, a.saldo_usd AS saldoUsd,
-            g.nombre AS gerenteNombre, c.nombre AS campanaNombre, c.estado AS campanaEstado
+            g.nombre AS gerenteNombre, g.telefono AS gerenteTelefono, c.nombre AS campanaNombre, c.estado AS campanaEstado
      FROM asignaciones a JOIN gerentes g ON g.id = a.gerente_id JOIN campanas c ON c.id = a.campana_id
      WHERE a.id = ?`,
     [id],

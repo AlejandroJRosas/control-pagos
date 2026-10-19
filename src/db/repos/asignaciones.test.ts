@@ -22,6 +22,7 @@ it("crea y obtiene con detalle", async () => {
     gerenteId: anaId,
     saldoUsd: "100",
     gerenteNombre: "Ana",
+    gerenteTelefono: null,
     campanaNombre: "Marzo",
     campanaEstado: "activa",
   });
