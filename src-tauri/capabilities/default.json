@@ -19,6 +19,7 @@
     "fs:allow-remove",
     "dialog:default",
     "log:default",
+    "updater:default",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://wa.me/*" }]

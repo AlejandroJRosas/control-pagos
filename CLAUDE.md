@@ -14,7 +14,7 @@ pnpm test                    # vitest: dominio, BD (sql.js en memoria), Excel, p
 pnpm build                   # tsc + vite build — única verificación de tipos de la UI
 cd src-tauri; cargo test --lib   # pruebas de respaldo/restauración y OCR en Rust
 cd src-tauri; cargo run --example ocr -- <imagen>   # JSON del OCR de una imagen (para fixtures)
-pnpm tauri build             # instalador .msi en src-tauri/target/release/bundle/msi/
+pnpm tauri build             # instalador NSIS en src-tauri/target/release/bundle/nsis/ (con TAURI_SIGNING_PRIVATE_KEY para el .sig del updater)
 ```
 
 Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). Gestor: **pnpm**.
@@ -42,6 +42,7 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - `src/platform/` — imágenes en AppData (plugin-fs) y respaldos (invoca comandos Rust).
 - `src/extraction/` — OCR de comprobantes y tasas. `ocr/` = motor intercambiable (`OcrEngine`; hoy `windowsOcr.ts` → comando `ocr_imagen`), `filas.ts` agrupa líneas por altura, `formatos/` = un reconocedor por formato (registro en `formatos/index.ts`), `normalizar.ts` valida y asigna confianza, `autollenado.ts` decide qué campos llena (sin tocar / OCR / tocado), `extractor.ts` lo une.
 - `src-tauri/src/backup.rs` — crear/restaurar/podar/listar zips, podar `antes-de-*` (30 días, quedan 5) y borrar imágenes huérfanas (`mantenimientoAlIniciar` en `platform/backup.ts`, siempre después del respaldo automático); `ocr.rs` — OCR de Windows (`Windows.Media.Ocr`, amplía la imagen a 2000 px); `lib.rs` — comandos y plugins.
+- Actualizaciones: `platform/actualizacion.ts` (tauri-plugin-updater; busca al abrir, salvo en dev) + `components/AvisoActualizacion.tsx` y la tarjeta en Configuración. Respalda `antes-de-actualizar-*` y cierra la BD antes de instalar. Publicar = subir la versión en `package.json` + etiqueta anotada `vX.Y.Z` (el mensaje son las notas); `.github/workflows/release.yml` publica el release con `latest.json`. Instalador NSIS por usuario; clave privada en `%USERPROFILE%\.tauri\control-pagos.key` y en el secreto del repo.
 - Datos en `%APPDATA%\com.controlpagos.app\`: `control-pagos.db` (modo WAL), `imagenes\`, `respaldos\`.
 
 ## Reglas del dominio (no romper)

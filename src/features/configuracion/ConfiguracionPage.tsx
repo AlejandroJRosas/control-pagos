@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Archive, Check, Moon, RotateCcw, Sun } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
+import { Archive, Check, Moon, RefreshCw, RotateCcw, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { getDb } from "@/db";
 import { createBackup, getDataPaths, listBackups, restoreBackup, type BackupInfo } from "@/platform/backup";
+import { buscarActualizacion } from "@/platform/actualizacion";
 import { todayIso } from "@/domain/dates";
 import { formatNumberVE } from "@/domain/money";
 import { invalidate, useData } from "@/hooks/useData";
@@ -30,7 +32,10 @@ const COLUMNAS: Columnas<BackupInfo, Col> = {
 };
 
 export function ConfiguracionPage() {
-  const { data, error } = useData(async () => ({ paths: await getDataPaths(), backups: await listBackups() }), []);
+  const { data, error } = useData(
+    async () => ({ paths: await getDataPaths(), backups: await listBackups(), version: await getVersion() }),
+    [],
+  );
   const [restaurar, setRestaurar] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { orden, alternar } = useOrden<Col>();
@@ -76,6 +81,7 @@ export function ConfiguracionPage() {
     <div className="space-y-6">
       <PageHeader title="Configuración" />
       <Apariencia />
+      <Actualizaciones version={data.version} />
       <Card>
         <CardHeader>
           <CardTitle>Datos</CardTitle>
@@ -164,6 +170,36 @@ export function ConfiguracionPage() {
         onConfirm={confirmarRestaurar}
       />
     </div>
+  );
+}
+
+function Actualizaciones({ version }: { version: string }) {
+  const [buscando, setBuscando] = useState(false);
+
+  async function buscar() {
+    setBuscando(true);
+    try {
+      if (!(await buscarActualizacion())) toast.success("Ya tienes la versión más reciente");
+    } catch (e) {
+      reportError(e, "No se pudo buscar actualizaciones (¿hay internet?)");
+    } finally {
+      setBuscando(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Actualizaciones</CardTitle>
+        <CardDescription>Versión {version}. Al abrir la app se revisa si hay una versión nueva (hace falta internet).</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button variant="outline" onClick={() => void buscar()} disabled={buscando}>
+          <RefreshCw className={cn(buscando && "animate-spin")} />
+          Buscar actualizaciones
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

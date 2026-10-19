@@ -1,0 +1,73 @@
+# Publica una versión: compila el instalador NSIS firmado y crea el release de GitHub con
+# `latest.json`, que es lo que consultan las apps instaladas para actualizarse.
+# Se dispara al subir una etiqueta vX.Y.Z (anotada: su mensaje son las notas que ve el usuario).
+# Requiere los secretos TAURI_SIGNING_PRIVATE_KEY (contenido de la clave privada) y, si la
+# clave tiene contraseña, TAURI_SIGNING_PRIVATE_KEY_PASSWORD.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Etiqueta = versión de package.json
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "La etiqueta ${GITHUB_REF_NAME} no coincide con la versión ${version} de package.json"
+            exit 1
+          fi
+
+      - name: Notas de la versión (mensaje de la etiqueta)
+        id: notas
+        run: |
+          git fetch --force --tags
+          {
+            echo "texto<<FIN_NOTAS"
+            git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)'
+            echo "FIN_NOTAS"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Control de Pagos ${{ github.ref_name }}
+          releaseBody: ${{ steps.notas.outputs.texto }}
+          releaseDraft: false
+          includeUpdaterJson: true

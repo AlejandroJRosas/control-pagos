@@ -4,6 +4,7 @@ import { FolderKanban, FolderOpen, Keyboard, LineChart, PanelLeftClose, PanelLef
 import { Toaster } from "@/components/ui/sonner";
 import { BusquedaGlobal } from "@/components/BusquedaGlobal";
 import { AyudaAtajos, Tecla } from "@/components/AyudaAtajos";
+import { AvisoActualizacion } from "@/components/AvisoActualizacion";
 import { useAtajo } from "@/hooks/useAtajo";
 import { getCampana } from "@/db/repos/campanas";
 import { useData } from "@/hooks/useData";
@@ -117,6 +118,7 @@ export function AppLayout() {
       <Toaster richColors position="bottom-right" />
       <BusquedaGlobal open={buscar} onOpenChange={setBuscar} />
       <AyudaAtajos open={ayuda} onOpenChange={setAyuda} />
+      <AvisoActualizacion />
     </div>
   );
 }
