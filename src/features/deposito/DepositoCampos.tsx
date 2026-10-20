@@ -13,6 +13,7 @@ import type { Gerente } from "@/db/repos/gerentes";
 import type { CampanaData } from "@/db/queries/campanaData";
 import { fechaDeTasa, formatFecha, isValidIsoDate, nombreDia } from "@/domain/dates";
 import { useFeriados } from "@/hooks/useFeriados";
+import { MontoInput } from "@/components/MontoInput";
 import { formatBs, formatTasa, formatUsd, parseMonto, toInputVE } from "@/domain/money";
 import { cn } from "@/lib/utils";
 import { confClass } from "@/lib/confianza";
@@ -112,12 +113,11 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
             />
           </Field>
           <Field id="d-monto" label="Monto en Bs" error={errors.montoBs} hint="Ej. 1.234.567,89">
-            <Input
+            <MontoInput
               id="d-monto"
-              inputMode="decimal"
               className={cn("text-right tabular-nums", confClass(form.auto.confianza.montoBs))}
               value={draft.montoBs}
-              onChange={(e) => set("montoBs", e.target.value)}
+              onChange={(v) => set("montoBs", v)}
               onBlur={() => {
                 const m = parseMonto(draft.montoBs);
                 if (m) f.setForm((s) => ({ ...s, draft: { ...s.draft, montoBs: toInputVE(m) } }));

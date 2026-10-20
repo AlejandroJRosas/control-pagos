@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBs, formatNumberVE, formatPct, formatTasa, formatUsd, parseMonto, parseTasa, toInputVE, toUsd } from "./money";
+import { formatBs, formatNumberVE, formatPct, formatTasa, formatUsd, mascaraMonto, parseMonto, parseTasa, toInputVE, toUsd } from "./money";
 
 describe("parseMonto", () => {
   it.each([
@@ -92,5 +92,44 @@ describe("toUsd", () => {
     expect(toUsd("1000", "36.5")).toBe("27.40");
     expect(toUsd("0.125", "1")).toBe("0.13");
     expect(toUsd("100", "3")).toBe("33.33");
+  });
+});
+
+describe("mascaraMonto", () => {
+  /** Simula escribir `texto` tecla por tecla al final del campo. */
+  const escribir = (texto: string) =>
+    [...texto].reduce((v, c) => mascaraMonto(v + c, v.length + 1, c === "." ? v.length : null).texto, "");
+
+  it("separa los miles mientras se escribe", () => {
+    expect(escribir("9")).toBe("9");
+    expect(escribir("9000")).toBe("9.000");
+    expect(escribir("1234567")).toBe("1.234.567");
+  });
+
+  it("el punto o la coma que se escribe es el decimal", () => {
+    expect(escribir("90000.543")).toBe("90.000,543");
+    expect(escribir("90000,543")).toBe("90.000,543");
+    expect(escribir("3.650")).toBe("3,650");
+    expect(escribir("12.")).toBe("12,");
+  });
+
+  it("un segundo separador decimal reemplaza al primero", () => {
+    expect(mascaraMonto("1.234,5.6", 8, 7).texto).toBe("12.345,6");
+  });
+
+  it("deja igual lo que no es un monto", () => {
+    expect(mascaraMonto("Bs 12", 5)).toEqual({ texto: "Bs 12", caret: 5 });
+  });
+
+  it("mantiene el cursor detrás del mismo dígito", () => {
+    // "1.234" con el cursor tras el 1, se escribe 5 → "15.234" con el cursor tras el 5.
+    expect(mascaraMonto("15.234", 2)).toEqual({ texto: "15.234", caret: 2 });
+    // "9.999" + "9" al final → "99.999", cursor al final.
+    expect(mascaraMonto("9.9999", 6)).toEqual({ texto: "99.999", caret: 6 });
+    // borrar el 1 de "1.234" → ".234" → "234", cursor al inicio.
+    expect(mascaraMonto(".234", 0)).toEqual({ texto: "234", caret: 0 });
+    // escribir 7 tras el 1 de "1.234,5" con 5 dígitos ya → "17.234,5", cursor tras el 7.
+    expect(mascaraMonto("17.234,5", 2)).toEqual({ texto: "17.234,5", caret: 2 });
+    expect(mascaraMonto("1234,56", 6)).toEqual({ texto: "1.234,56", caret: 7 });
   });
 });

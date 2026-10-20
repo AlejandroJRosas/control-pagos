@@ -72,6 +72,24 @@ export function formatTasa(v: Decimal.Value): string {
 
 export const formatPct = (pct: number): string => `${formatNumberVE(pct, 1)} %`;
 
+/**
+ * Formato del campo de monto mientras se escribe: los puntos de miles se ponen solos y el separador decimal es la
+ * coma. `decimalEn` es la posición de un punto que acaba de escribir el usuario: ese punto es el decimal (los demás
+ * puntos son los de miles que puso la máscara). `caret` se ajusta para quedar detrás del mismo dígito.
+ */
+export function mascaraMonto(texto: string, caret: number, decimalEn: number | null = null): { texto: string; caret: number } {
+  if (/[^\d.,]/.test(texto)) return { texto, caret };
+  const decimal = decimalEn ?? texto.lastIndexOf(",");
+  const digitos = (s: string) => s.replace(/\D/g, "");
+  const ent = digitos(decimal < 0 ? texto : texto.slice(0, decimal)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const out = decimal < 0 ? ent : `${ent},${digitos(texto.slice(decimal + 1))}`;
+  // Dígitos (y el separador decimal) que había antes del cursor: el cursor va detrás de los mismos en `out`.
+  const n = digitos(texto.slice(0, caret)).length + (decimal >= 0 && decimal < caret ? 1 : 0);
+  let pos = 0;
+  for (let vistos = 0; pos < out.length && vistos < n; pos++) if (out[pos] !== ".") vistos++;
+  return { texto: out, caret: pos };
+}
+
 export function toInputVE(canonical: string): string {
   const d = new Decimal(canonical);
   return formatNumberVE(d, Math.max(d.decimalPlaces(), 2));
