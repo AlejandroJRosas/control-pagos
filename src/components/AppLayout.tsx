@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet } from "react-router";
-import { Download, FolderKanban, FolderOpen, Keyboard, LayoutDashboard, LineChart, PanelLeftClose, PanelLeftOpen, Search, Settings, Users } from "lucide-react";
+import { Download, FolderKanban, FolderOpen, GraduationCap, Keyboard, LayoutDashboard, LineChart, PanelLeftClose, PanelLeftOpen, Search, Settings, Users } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { BusquedaGlobal } from "@/components/BusquedaGlobal";
 import { AyudaAtajos, Tecla } from "@/components/AyudaAtajos";
@@ -9,6 +9,7 @@ import { AvisoTasaFaltante } from "@/components/AvisoTasaFaltante";
 import { AvisoEspejo } from "@/components/AvisoEspejo";
 import { SoltarImagenes } from "@/components/SoltarImagenes";
 import { VolverArriba } from "@/components/VolverArriba";
+import { Tutorial } from "@/features/tutorial/Tutorial";
 import { useAtajo } from "@/hooks/useAtajo";
 import { getCampana } from "@/db/repos/campanas";
 import { useData } from "@/hooks/useData";
@@ -19,6 +20,7 @@ import { useCampanaActual } from "@/lib/campanaActual";
 import { cn } from "@/lib/utils";
 import { avisarErrorDeCierre } from "@/lib/instalarCierre";
 import { reportError } from "@/lib/reportError";
+import { abrirTutorial } from "@/lib/tutorial";
 
 const items = [
   { to: "/resumen", label: "Resumen", icon: LayoutDashboard },
@@ -80,6 +82,7 @@ export function AppLayout() {
           type="button"
           onClick={() => setBuscar(true)}
           title="Buscar (Ctrl+K)"
+          data-tour="buscar"
           className={cn(
             "mb-2 flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-fila-hover",
             c && "justify-center",
@@ -103,12 +106,14 @@ export function AppLayout() {
             </NavLink>
           </div>
         )}
-        {items.map(({ to, label, icon: Icon }) => (
-          <NavLink key={to} to={to} end={to === "/campanas"} className={linkClass(c)} title={c ? label : undefined}>
-            <Icon className="size-4 shrink-0" />
-            <span className={textoClass(c)}>{label}</span>
-          </NavLink>
-        ))}
+        <nav data-tour="navegacion" className="flex flex-col gap-1">
+          {items.map(({ to, label, icon: Icon }) => (
+            <NavLink key={to} to={to} end={to === "/campanas"} className={linkClass(c)} title={c ? label : undefined}>
+              <Icon className="size-4 shrink-0" />
+              <span className={textoClass(c)}>{label}</span>
+            </NavLink>
+          ))}
+        </nav>
         {update && (
           <button
             type="button"
@@ -123,20 +128,33 @@ export function AppLayout() {
             <span className={textoClass(c)}>Actualizar a {update.version}</span>
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setAyuda(true)}
-          title={c ? "Atajos de teclado (?)" : undefined}
-          className={cn(
-            "flex items-center gap-2 rounded-md px-2 py-2 text-xs whitespace-nowrap text-muted-foreground transition-colors hover:bg-fila-hover",
-            !update && "mt-auto",
-            c && "justify-center",
-          )}
-        >
-          <Keyboard className="size-4 shrink-0" />
-          <span className={textoClass(c)}>Atajos de teclado</span>
-          {!c && <Tecla>?</Tecla>}
-        </button>
+        <div data-tour="ayuda" className={cn("flex flex-col gap-1", !update && "mt-auto")}>
+          <button
+            type="button"
+            onClick={abrirTutorial}
+            title={c ? "Tutorial: recorrido por la app" : "Recorrido por la app"}
+            className={cn(
+              "flex items-center gap-2 rounded-md px-2 py-2 text-xs whitespace-nowrap text-muted-foreground transition-colors hover:bg-fila-hover",
+              c && "justify-center",
+            )}
+          >
+            <GraduationCap className="size-4 shrink-0" />
+            <span className={textoClass(c)}>Tutorial</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAyuda(true)}
+            title={c ? "Atajos de teclado (?)" : undefined}
+            className={cn(
+              "flex items-center gap-2 rounded-md px-2 py-2 text-xs whitespace-nowrap text-muted-foreground transition-colors hover:bg-fila-hover",
+              c && "justify-center",
+            )}
+          >
+            <Keyboard className="size-4 shrink-0" />
+            <span className={textoClass(c)}>Atajos de teclado</span>
+            {!c && <Tecla>?</Tecla>}
+          </button>
+        </div>
         <NavLink to="/configuracion" className={linkClass(c)} title={c ? "Configuración" : undefined}>
           <Settings className="size-4 shrink-0" />
           <span className={textoClass(c)}>Configuración</span>
@@ -153,6 +171,7 @@ export function AppLayout() {
       <AyudaAtajos open={ayuda} onOpenChange={setAyuda} />
       <AvisoActualizacion />
       <SoltarImagenes />
+      <Tutorial />
     </div>
   );
 }

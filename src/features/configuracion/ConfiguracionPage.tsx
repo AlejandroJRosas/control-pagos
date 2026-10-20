@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
-import { Archive, Check, Moon, RefreshCw, RotateCcw, Sun } from "lucide-react";
+import { Archive, Check, GraduationCap, Moon, RefreshCw, RotateCcw, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { MODOS, TEMAS, setModo, setTema, useModo, useTema } from "@/lib/tema";
 import { cn } from "@/lib/utils";
+import { abrirTutorial, setTutorialActivado, useTutorialActivado } from "@/lib/tutorial";
 import { CopiaDrive } from "./CopiaDrive";
 import { MensajesWhatsApp } from "./MensajesWhatsApp";
 
@@ -83,6 +84,7 @@ export function ConfiguracionPage() {
     <div className="space-y-6">
       <PageHeader title="Configuración" />
       <Apariencia />
+      <TutorialCard />
       <Actualizaciones version={data.version} />
       <Card>
         <CardHeader>
@@ -252,6 +254,28 @@ function Apariencia() {
             {t.nombre}
           </button>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TutorialCard() {
+  const activado = useTutorialActivado();
+  return (
+    <Card data-tour="tutorial-config">
+      <CardHeader>
+        <CardTitle>Tutorial</CardTitle>
+        <CardDescription>Recorrido por las opciones de la app para quien la usa por primera vez. Activado, se abre solo al iniciar la app hasta que se termina.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={activado} onChange={(e) => setTutorialActivado(e.target.checked)} />
+          Mostrar el tutorial al abrir la app
+        </label>
+        <Button variant="outline" onClick={abrirTutorial}>
+          <GraduationCap />
+          Ver el tutorial ahora
+        </Button>
       </CardContent>
     </Card>
   );

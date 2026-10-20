@@ -1,7 +1,8 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { reiniciarTauri, tauri } from "./tauri";
+import { reiniciarTutorial, setTutorialActivado } from "@/lib/tutorial";
 
 // jsdom no trae estas APIs del navegador que usan la app y Base UI.
 window.matchMedia ??= ((query: string) => ({
@@ -49,6 +50,12 @@ vi.mock("@tauri-apps/plugin-log", () => ({ error: async () => {}, warn: async ()
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: (u: string) => tauri.openUrl(u), openPath: async () => {} }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: async () => tauri.update }));
 vi.mock("@tauri-apps/plugin-sql", () => ({ default: { load: async () => ({}) } }));
+
+// El tutorial se abriría solo en cada prueba: se apaga salvo en las que lo prueban.
+beforeEach(() => {
+  reiniciarTutorial();
+  setTutorialActivado(false);
+});
 
 afterEach(() => {
   cleanup();
