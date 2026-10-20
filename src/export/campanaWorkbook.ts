@@ -246,10 +246,31 @@ function addDepositos(ws: ExcelJS.Worksheet, campana: Campana, totalCampana: Res
   imprimir(ws, filaEncabezado);
 }
 
-export function buildCampanaWorkbook(campana: Campana, view: CampanaView, generadoEn: Date = new Date()): ExcelJS.Workbook {
+function nuevoLibro(generadoEn: Date): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Control de Pagos";
   wb.created = generadoEn;
+  return wb;
+}
+
+/** Excel de un solo gerente en la campaña: su hoja de depósitos con su resumen. */
+export function buildGerenteWorkbook(campana: Campana, view: CampanaView, asignacionId: number, generadoEn: Date = new Date()): ExcelJS.Workbook {
+  const g = view.gerentes.find((x) => x.asignacionId === asignacionId);
+  if (!g) throw new Error(`Asignación ${asignacionId} fuera de la campaña ${campana.id}`);
+  const wb = nuevoLibro(generadoEn);
+  addDepositos(
+    wb.addWorksheet(safeSheetName(g.gerenteNombre, new Set())),
+    campana,
+    view.total,
+    view.depositos.filter((d) => d.asignacionId === asignacionId),
+    { titulo: g.gerenteNombre, resumen: g },
+    generadoEn,
+  );
+  return wb;
+}
+
+export function buildCampanaWorkbook(campana: Campana, view: CampanaView, generadoEn: Date = new Date()): ExcelJS.Workbook {
+  const wb = nuevoLibro(generadoEn);
   const used = new Set<string>();
   addResumen(wb.addWorksheet(safeSheetName("Resumen", used)), campana, view, generadoEn);
   addDepositos(wb.addWorksheet(safeSheetName("Todos los depósitos", used)), campana, view.total, view.depositos, { titulo: "Todos los depósitos" }, generadoEn);

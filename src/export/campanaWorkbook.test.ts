@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
-import { buildCampanaWorkbook, isoToExcelDate, safeSheetName } from "./campanaWorkbook";
+import { buildCampanaWorkbook, buildGerenteWorkbook, isoToExcelDate, safeSheetName } from "./campanaWorkbook";
 import { archivoExcel, archivoPdf } from "./fileName";
 import { COLOR, argb } from "./estilo";
 import { buildCampanaView, type DepositoData } from "@/domain/campanaView";
@@ -184,4 +184,29 @@ it("las celdas de título no heredan el formato de fecha de la columna", () => {
   const view = buildCampanaView([{ id: 1, gerenteId: 10, gerenteNombre: "Ana", saldoUsd: "100" }], []);
   const ws = buildCampanaWorkbook(campana, view).getWorksheet("Ana")!;
   for (const ref of ["A1", "A2", "A3"]) expect(ws.getCell(ref).numFmt ?? "General").toBe("General");
+});
+
+it("Excel de un gerente: una sola hoja con sus depósitos y su resumen", async () => {
+  const view = buildCampanaView(
+    [
+      { id: 1, gerenteId: 10, gerenteNombre: "Ana", saldoUsd: "100" },
+      { id: 2, gerenteId: 20, gerenteNombre: "Luis", saldoUsd: "50" },
+    ],
+    [dep(1, 1, "2026-03-02", "3650"), dep(2, 2, "2026-03-01", "730"), dep(3, 1, "2026-03-03", "365")],
+  );
+  const wb = await roundTrip(buildGerenteWorkbook(campana, view, 1, new Date("2026-10-18T12:00:00Z")));
+  expect(wb.worksheets.map((w) => w.name)).toEqual(["Ana"]);
+  const ws = wb.getWorksheet("Ana")!;
+  expect(ws.getCell("A1").value).toBe("Ana");
+  expect(String(ws.getCell("A2").value)).toBe("Campaña Marzo · Corte 18/10/2026");
+  expect(String(ws.getCell("A3").value)).toContain("Asignado $ 100,00 · Pagado $ 110,00");
+  expect(ws.getCell("C6").value).toBe("001");
+  expect(ws.getCell("C7").value).toBe("003");
+  expect(ws.getCell("B8").value).toBe("TOTAL");
+  expect(ws.getCell("G8").value).toBe(110);
+  expect(ws.pageSetup.printTitlesRow).toBe("5:5");
+});
+
+it("Excel de un gerente que no está en la campaña lanza error", () => {
+  expect(() => buildGerenteWorkbook(campana, buildCampanaView([], []), 99)).toThrow();
 });

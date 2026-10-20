@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { FileImage, Images, MessageCircle, Plus } from "lucide-react";
+import { FileImage, FileSpreadsheet, Images, Loader2, MessageCircle, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando, Vacio } from "@/components/Feedback";
@@ -11,6 +12,10 @@ import { getDb } from "@/db";
 import { getAsignacion } from "@/db/repos/asignaciones";
 import { getGerente, type Gerente } from "@/db/repos/gerentes";
 import { loadCampanaData } from "@/db/queries/campanaData";
+import { loadDuplicadosCampana } from "@/db/queries/duplicados";
+import { buildGerenteWorkbook } from "@/export/campanaWorkbook";
+import { archivoExcel } from "@/export/fileName";
+import { saveWorkbook } from "@/export/saveWorkbook";
 import { buildCampanaView, estadoGerente, filtrarDepositos } from "@/domain/campanaView";
 import { todayIso } from "@/domain/dates";
 import { mensajeEstadoCuenta, numeroWhatsApp, urlWhatsApp } from "@/domain/whatsapp";
@@ -36,7 +41,9 @@ export function AsignacionPage() {
       const view = buildCampanaView(d.asignaciones, d.depositos);
       const resumen = view.gerentes.find((g) => g.asignacionId === asignacionId);
       if (!resumen) throw new DomainError("NO_ENCONTRADO", "El gerente no está en esta campaña");
-      return { a, resumen, r: filtrarDepositos(view.depositos, { gerenteId: a.gerenteId }) };
+      // Con un depósito suyo duplicado no se exporta: los totales saldrían inflados.
+      const duplicado = (await loadDuplicadosCampana(db, a.campanaId)).some((g) => g.some((dep) => dep.asignacionId === asignacionId));
+      return { a, campana: d.campana, view, duplicado, resumen, r: filtrarDepositos(view.depositos, { gerenteId: a.gerenteId }) };
     },
     [asignacionId],
   );
@@ -46,6 +53,7 @@ export function AsignacionPage() {
   const volver = leerVolver(useLocation().state);
   const [estadoCuenta, setEstadoCuenta] = useState(false);
   const [editarGerente, setEditarGerente] = useState<Gerente | null>(null);
+  const [exportando, setExportando] = useState(false);
   const activa = data?.a.campanaEstado === "activa";
   const subirLote = () => data && navigate(`/campanas/${data.a.campanaId}/lote`, { state: { gerente: `a:${asignacionId}` } satisfies EstadoLote });
   useAtajo("n", () => navigate(`/asignaciones/${asignacionId}/depositos/nuevo`), { activo: activa });
@@ -60,7 +68,7 @@ export function AsignacionPage() {
   );
 
   if (!data) return <Cargando error={error} />;
-  const { a, resumen, r } = data;
+  const { a, campana, view, duplicado, resumen, r } = data;
   const cerrada = a.campanaEstado === "cerrada";
   const numero = numeroWhatsApp(a.gerenteTelefono);
   const hoy = todayIso();
@@ -74,6 +82,18 @@ export function AsignacionPage() {
       plantillas,
     );
     await openUrl(urlWhatsApp(numero, texto));
+  }
+
+  async function exportarExcel() {
+    setExportando(true);
+    try {
+      const wb = buildGerenteWorkbook(campana, view, asignacionId);
+      if (await saveWorkbook(wb, archivoExcel(`${a.gerenteNombre} ${a.campanaNombre}`, hoy))) toast.success("Excel guardado");
+    } catch (e) {
+      reportError(e, "Exportar");
+    } finally {
+      setExportando(false);
+    }
   }
 
   async function whatsapp() {
@@ -107,6 +127,15 @@ export function AsignacionPage() {
             >
               <MessageCircle />
               {numero ? "Recordatorio por WhatsApp" : "Agregar teléfono…"}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={exportando || duplicado}
+              title={duplicado ? "Resuelve los depósitos duplicados de la campaña para exportar" : "Excel con los depósitos y el saldo de este gerente"}
+              onClick={() => void exportarExcel()}
+            >
+              {exportando ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+              Exportar Excel
             </Button>
             <Button variant="outline" onClick={() => setEstadoCuenta(true)}>
               <FileImage />
