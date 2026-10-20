@@ -17,7 +17,7 @@ import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { TasaCampos } from "@/features/tasas/TasaCampos";
-import { ListaCola, RevisionLayout, type Filtro } from "./RevisionLayout";
+import { BarraAcciones, ListaCola, RevisionLayout, TeclaAtajo, type Filtro } from "./RevisionLayout";
 import { useAutoguardado } from "./useAutoguardado";
 
 export function RevisionTasasPage() {
@@ -164,20 +164,21 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
         <TasaCampos form={form} set={set} errors={errors} fechaBloqueada={false} fechaImagen={fechaImagen.current} />
       </fieldset>
       {!hecho && (
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" className="text-destructive" disabled={saving} onClick={() => setConfirmDescartar(true)}>
+        <BarraAcciones>
+          <Button type="button" variant="destructive" size="lg" className="mr-auto" disabled={saving} onClick={() => setConfirmDescartar(true)}>
             <Trash2 />
             Descartar
           </Button>
-          <Button type="button" variant="outline" disabled={saving} onClick={onSaltar}>
+          <Button type="button" variant="outline" size="lg" disabled={saving} onClick={onSaltar}>
             <SkipForward />
             Saltar
           </Button>
-          <Button type="submit" disabled={saving} title="Ctrl+Enter">
+          <Button type="submit" size="lg" className="px-4" disabled={saving} title="Ctrl+Enter">
             <Check />
             Hecho
+            <TeclaAtajo>Ctrl+Enter</TeclaAtajo>
           </Button>
-        </div>
+        </BarraAcciones>
       )}
       <ConfirmDialog
         open={confirmDescartar}

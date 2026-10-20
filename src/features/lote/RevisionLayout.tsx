@@ -33,9 +33,24 @@ export function RevisionLayout({ back, titulo, hechos, total, acciones, lista, i
             <Vacio texto="Sin imagen" />
           )}
         </div>
+        {/* Sin padding abajo: la barra de acciones (BarraAcciones) queda pegada al pie de esta columna. */}
         <div className="min-h-0 overflow-y-auto pr-1">{children}</div>
       </div>
     </div>
+  );
+}
+
+/** Hecho / Saltar / Descartar: siempre a la vista al pie de la columna del formulario, aunque este haga scroll. */
+export function BarraAcciones({ children }: { children: ReactNode }) {
+  return <div className="sticky bottom-0 z-10 -mt-1 flex justify-end gap-2 border-t bg-background pt-3 pb-1">{children}</div>;
+}
+
+/** Atajo que se muestra dentro de un botón (fuera del nombre accesible). */
+export function TeclaAtajo({ children }: { children: ReactNode }) {
+  return (
+    <kbd aria-hidden className="ml-1 rounded border border-current/25 px-1 font-sans text-[0.7rem] font-normal opacity-70">
+      {children}
+    </kbd>
   );
 }
 
@@ -62,6 +77,8 @@ const FILTROS: { id: Filtro; label: string }[] = [
 
 export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, seleccion, onSeleccion, pie }: ListaProps) {
   const visibles = items.filter((i) => filtro === "todos" || (filtro === "hechos" ? i.estado === "hecho" : i.estado === "pendiente"));
+  const nHechos = items.filter((i) => i.estado === "hecho").length;
+  const cuentas: Record<Filtro, number> = { pendientes: items.length - nHechos, hechos: nHechos, todos: items.length };
   const marcables = visibles.filter((i) => i.estado === "pendiente").map((i) => i.id);
   const conSeleccion = !!(seleccion && onSeleccion);
   const marcados = seleccion?.marcados ?? new Set<number>();
@@ -77,15 +94,23 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
   }
   return (
     <>
-      <div className="flex gap-1 rounded-lg bg-muted p-1 text-sm">
+      <div className="flex gap-1 rounded-lg border bg-muted p-1 text-sm">
         {FILTROS.map((f) => (
           <button
             key={f.id}
             type="button"
-            className={cn("flex-1 rounded-md px-2 py-1", filtro === f.id ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
+            aria-pressed={filtro === f.id}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1 rounded-md px-1.5 py-1 transition-colors",
+              // El activo con el color principal: en oscuro, "bg-background" quedaba más oscuro que el contenedor.
+              filtro === f.id ? "bg-primary font-medium text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
+            )}
             onClick={() => onFiltro(f.id)}
           >
             {f.label}
+            <span aria-hidden className="text-xs tabular-nums opacity-70">
+              {cuentas[f.id]}
+            </span>
           </button>
         ))}
       </div>
@@ -108,14 +133,15 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
               aria-selected={conSeleccion ? marcado : undefined}
               className={cn(
                 "flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm",
-                actual ? "border-primary" : "border-transparent",
-                marcado ? "bg-primary/15" : actual ? "bg-primary/5" : "hover:bg-accent",
+                // Colores de fila del tema (--fila-*): bg-primary/15 casi no se veía con los temas pastel.
+                actual ? "border-primary-intenso shadow-[inset_3px_0_0_var(--primary-intenso)]" : "border-transparent",
+                marcado ? "bg-fila-sel" : actual ? "bg-fila-hover" : "hover:bg-fila-hover",
               )}
             >
               {conSeleccion && (
                 <input
                   type="checkbox"
-                  className="mt-1"
+                  className="mt-0.5 size-4 accent-primary-intenso"
                   aria-label={`Marcar ${i.titulo}`}
                   checked={marcado}
                   disabled={i.estado === "hecho"}
@@ -146,5 +172,5 @@ function CasillaTodos({ marcados, total, onChange }: { marcados: number; total: 
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = marcados > 0 && marcados < total;
   }, [marcados, total]);
-  return <input ref={ref} type="checkbox" aria-label="Marcar todos" checked={total > 0 && marcados === total} onChange={onChange} />;
+  return <input ref={ref} type="checkbox" className="size-4 accent-primary-intenso" aria-label="Marcar todos" checked={total > 0 && marcados === total} onChange={onChange} />;
 }

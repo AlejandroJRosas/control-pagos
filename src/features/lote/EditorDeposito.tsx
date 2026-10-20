@@ -21,6 +21,7 @@ import { conVolver } from "@/lib/volver";
 import { DepositoCampos } from "@/features/deposito/DepositoCampos";
 import { useDepositoForm } from "@/features/deposito/useDepositoForm";
 import { useAutoguardado } from "./useAutoguardado";
+import { BarraAcciones, TeclaAtajo } from "./RevisionLayout";
 
 export type Editor = { setDestino: (d: DestinoDraft) => void };
 
@@ -170,20 +171,21 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
         }
       />
       {!hecho && (
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" className="text-destructive" disabled={cerrada || saving} title="Ctrl+D" onClick={() => setConfirmDescartar(true)}>
+        <BarraAcciones>
+          <Button type="button" variant="destructive" size="lg" className="mr-auto" disabled={cerrada || saving} title="Ctrl+D" onClick={() => setConfirmDescartar(true)}>
             <Trash2 />
             Descartar
           </Button>
-          <Button type="button" variant="outline" disabled={saving} onClick={onSaltar}>
+          <Button type="button" variant="outline" size="lg" disabled={saving} onClick={onSaltar}>
             <SkipForward />
             Saltar
           </Button>
-          <Button type="submit" disabled={cerrada || saving || f.tasa === undefined || duplicado} title="Ctrl+Enter">
+          <Button type="submit" size="lg" className="px-4" disabled={cerrada || saving || f.tasa === undefined || duplicado} title="Ctrl+Enter">
             <Check />
             Hecho
+            <TeclaAtajo>Ctrl+Enter</TeclaAtajo>
           </Button>
-        </div>
+        </BarraAcciones>
       )}
       <ConfirmDialog
         open={confirmDescartar}
