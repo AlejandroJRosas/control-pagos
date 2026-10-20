@@ -91,7 +91,7 @@ export const bdvTransferenciaTerceros: Reconocedor<CamposDeposito> = {
     return ["Operación", "Origen", "Destino", "Nombre"].filter((e) => valorDeEtiqueta(filas, e) !== null).length >= 2;
   },
   extrae(filas) {
-    const r: Partial<Record<CamposDeposito, CampoCrudo>> = { banco: crudo("Banco de Venezuela", "constante") };
+    const r: Partial<Record<CamposDeposito, CampoCrudo>> = { banco: crudo("Venezuela", "constante") };
     const campos = { montoBs: monto(filas), fecha: fecha(filas), referencia: referencia(filas), cuentaDestino: nombre(filas) };
     for (const [k, v] of Object.entries(campos) as [CamposDeposito, CampoCrudo | undefined][]) if (v) r[k] = v;
     return r;

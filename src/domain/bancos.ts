@@ -5,7 +5,6 @@ export const BANCOS_SUGERIDOS = [
   "Activo",
   "Bancamiga",
   "Bancaribe",
-  "Banco de Venezuela",
   "Banco del Tesoro",
   "Bancrecer",
   "Banesco",
@@ -21,6 +20,7 @@ export const BANCOS_SUGERIDOS = [
   "R4",
   "Sofitasa",
   "Venezolano de Crédito",
+  "Venezuela",
 ];
 
 export function sugerenciasBancos(usados: string[]): string[] {
@@ -34,9 +34,9 @@ export function sugerenciasBancos(usados: string[]): string[] {
 
 /** Otros nombres con que se escribe un banco → su nombre en `BANCOS_SUGERIDOS`. */
 const ALIAS: Record<string, string> = {
-  BDV: "Banco de Venezuela",
-  Venezuela: "Banco de Venezuela",
-  "Banco Venezuela": "Banco de Venezuela",
+  BDV: "Venezuela",
+  "Banco de Venezuela": "Venezuela",
+  "Banco Venezuela": "Venezuela",
   "Banco Mercantil": "Mercantil",
   "Mercantil Banco": "Mercantil",
   "Banesco Banco Universal": "Banesco",
@@ -53,7 +53,7 @@ const ALIAS: Record<string, string> = {
 
 const CANONICO = new Map(Object.entries(ALIAS).map(([alias, banco]) => [claveComparacion(alias), claveComparacion(banco)]));
 
-/** Clave para comparar bancos: sin mayúsculas, acentos ni espacios, y con los alias conocidos unificados ("BDV" = "Banco de Venezuela"). */
+/** Clave para comparar bancos: sin mayúsculas, acentos ni espacios, y con los alias conocidos unificados ("BDV" = "Venezuela"). */
 export function claveBanco(banco: string): string {
   const k = claveComparacion(banco);
   return CANONICO.get(k) ?? k;

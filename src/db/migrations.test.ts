@@ -72,3 +72,38 @@ it("una migración que quedó a medias (columna ya agregada) se puede volver a c
   const [{ user_version }] = await db.select<{ user_version: number }>("PRAGMA user_version");
   expect(user_version).toBe(SCHEMA_VERSION);
 });
+
+it("v5 renombra Banco de Venezuela (y sus variantes) a Venezuela en depósitos y en la cola", async () => {
+  const db = await createMemoryDriver();
+  await migrate(db, 4);
+  const t = "2026-01-01T00:00:00.000Z";
+  await db.execute("INSERT INTO gerentes (nombre, creado_en, uuid, actualizado_en) VALUES ('Ana', ?, 'g', ?)", [t, t]);
+  await db.execute("INSERT INTO campanas (nombre, fecha_inicio, creado_en, uuid, actualizado_en) VALUES ('Marzo', '2026-03-01', ?, 'c', ?)", [t, t]);
+  await db.execute("INSERT INTO asignaciones (campana_id, gerente_id, saldo_usd, uuid, actualizado_en) VALUES (1, 1, '100', 'a', ?)", [t]);
+  await db.execute("INSERT INTO tasas (fecha, valor, uuid, actualizado_en) VALUES ('2026-03-02', '36.5', 't', ?)", [t]);
+  for (const [i, banco] of ["Banco de Venezuela", "VENEZUELA", "BDV", "Venezuela", "Banesco"].entries()) {
+    await db.execute(
+      `INSERT INTO depositos (asignacion_id, tasa_id, fecha, banco, referencia, cuenta_destino, monto_bs, creado_en, actualizado_en, uuid)
+       VALUES (1, 1, '2026-03-02', ?, ?, 'X', '10', ?, ?, ?)`,
+      [banco, String(i), t, t, `d${i}`],
+    );
+  }
+  const borrador = (banco: string) => JSON.stringify({ draft: { fecha: "", banco, referencia: "" }, destino: { sel: "" }, auto: { estado: {}, confianza: {} } });
+  for (const [i, banco] of ["Banco de Venezuela", "Mercantil"].entries()) {
+    await db.execute("INSERT INTO cola_depositos (campana_id, imagen_path, borrador, orden, creado_en, actualizado_en) VALUES (1, ?, ?, ?, ?, ?)", [
+      `${i}.png`,
+      borrador(banco),
+      i,
+      t,
+      t,
+    ]);
+  }
+  await migrate(db);
+  const deps = await db.select<{ banco: string; actualizado_en: string }>("SELECT banco, actualizado_en FROM depositos ORDER BY id");
+  expect(deps.map((d) => d.banco)).toEqual(["Venezuela", "Venezuela", "Venezuela", "Venezuela", "Banesco"]);
+  expect(deps[0].actualizado_en).not.toBe(t);
+  expect(deps[3].actualizado_en).toBe(t); // ya se llamaba así
+  expect(deps[4].actualizado_en).toBe(t);
+  const cola = await db.select<{ borrador: string }>("SELECT borrador FROM cola_depositos ORDER BY id");
+  expect(cola.map((c) => JSON.parse(c.borrador).draft.banco)).toEqual(["Venezuela", "Mercantil"]);
+});

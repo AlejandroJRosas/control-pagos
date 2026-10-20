@@ -28,7 +28,7 @@ const filas = (...textos: string[]): Fila[] =>
     return { texto, caja, lineas: [{ texto, caja, palabras: [{ texto, caja }] }] };
   });
 
-const BANCO = "Banco de Venezuela";
+const BANCO = "Venezuela";
 const CUENTA = "M A Colecciones 2006 Ca";
 
 describe("bdv-transferencia-terceros con capturas reales", () => {

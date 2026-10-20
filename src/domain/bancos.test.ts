@@ -11,7 +11,7 @@ it("une sugeridos y usados sin duplicar ignorando mayúsculas", () => {
 });
 
 it("claveBanco reconoce los alias de un mismo banco", () => {
-  for (const b of ["BDV", "Venezuela", "banco venezuela", "Banco de Venezuela"]) expect(claveBanco(b)).toBe(claveBanco("Banco de Venezuela"));
+  for (const b of ["BDV", "Venezuela", "banco venezuela", "Banco de Venezuela"]) expect(claveBanco(b)).toBe(claveBanco("Venezuela"));
   expect(claveBanco("Banco Mercantil")).toBe(claveBanco("Mercantil"));
   expect(claveBanco("Banesco Banco Universal")).toBe(claveBanco("Banesco"));
   expect(claveBanco("Banco Nacional de Crédito")).toBe(claveBanco("BNC"));

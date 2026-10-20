@@ -139,6 +139,16 @@ const MIGRATIONS: Migration[] = [
       "CREATE INDEX IF NOT EXISTS idx_gerente_etiquetas_etiqueta ON gerente_etiquetas(etiqueta_id)",
     ],
   },
+  {
+    // "Banco de Venezuela" pasa a llamarse "Venezuela": se unifican también sus variantes escritas a mano.
+    version: 5,
+    statements: [
+      "UPDATE depositos SET banco = 'Venezuela', actualizado_en = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE banco <> 'Venezuela' AND lower(trim(banco)) IN ('banco de venezuela', 'banco venezuela', 'venezuela', 'bdv')",
+      `UPDATE cola_depositos SET borrador = json_set(borrador, '$.draft.banco', 'Venezuela')
+        WHERE json_valid(borrador) AND json_extract(borrador, '$.draft.banco') <> 'Venezuela'
+          AND lower(trim(json_extract(borrador, '$.draft.banco'))) IN ('banco de venezuela', 'banco venezuela', 'venezuela', 'bdv')`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
