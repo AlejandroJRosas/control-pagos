@@ -244,6 +244,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
             onAlternar={columnas.alternar}
             onMover={columnas.mover}
             onRestablecer={columnas.restablecer}
+            bloqueadas={porDia ? { fecha: "Agrupada por día, va en la fila del día", tasa: "Agrupada por día, va en la fila del día" } : undefined}
           />
         </div>
       </div>

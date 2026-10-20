@@ -85,3 +85,13 @@ it("el comprobante es la primera columna", async () => {
   // Tras la casilla de selección.
   expect(celdas[1]).toHaveAccessibleName("Comprobante");
 });
+
+it("agrupada, el menú de columnas no deja mostrar la fecha ni la tasa", async () => {
+  const { db, s } = await campanaConDosDias();
+  const { user } = await renderApp(`/campanas/${s.campanaId}`, { db });
+  await screen.findByText("Martes 03/03/2026");
+  await user.click(screen.getByRole("button", { name: /Columnas/ }));
+  expect(await screen.findByRole("checkbox", { name: /Fecha/ })).toBeDisabled();
+  expect(screen.getByRole("checkbox", { name: /Tasa/ })).toBeDisabled();
+  expect(screen.getByRole("checkbox", { name: /Banco/ })).toBeEnabled();
+});

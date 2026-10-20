@@ -10,10 +10,12 @@ type Props<K extends string> = {
   onAlternar: (k: K) => void;
   onMover: (k: K, delta: -1 | 1) => void;
   onRestablecer: () => void;
+  /** Columnas que no se pueden mostrar ahora (no se ven y no se pueden marcar), con el motivo. */
+  bloqueadas?: Partial<Record<K, string>>;
 };
 
 /** Botón "Columnas": mostrar u ocultar cada columna y cambiar su orden con las flechas. */
-export function ColumnasMenu<K extends string>({ estado, etiquetas, onAlternar, onMover, onRestablecer }: Props<K>) {
+export function ColumnasMenu<K extends string>({ estado, etiquetas, onAlternar, onMover, onRestablecer, bloqueadas = {} }: Props<K>) {
   const visibles = estado.orden.length - estado.ocultas.length;
   return (
     <Popover.Root>
@@ -34,14 +36,18 @@ export function ColumnasMenu<K extends string>({ estado, etiquetas, onAlternar, 
               {estado.orden.map((k, i) => {
                 const oculta = estado.ocultas.includes(k);
                 const ultimaVisible = !oculta && visibles <= 1;
+                const bloqueada = bloqueadas[k];
                 return (
                   <li key={k} className="flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-fila-hover">
-                    <label className={cn("flex flex-1 cursor-pointer items-center gap-2 py-1", oculta && "text-muted-foreground")}>
+                    <label
+                      className={cn("flex flex-1 cursor-pointer items-center gap-2 py-1", (oculta || bloqueada) && "text-muted-foreground", bloqueada && "cursor-default")}
+                      title={bloqueada}
+                    >
                       <input
                         type="checkbox"
-                        checked={!oculta}
-                        disabled={ultimaVisible}
-                        title={ultimaVisible ? "Debe quedar al menos una columna" : undefined}
+                        checked={!oculta && !bloqueada}
+                        disabled={ultimaVisible || !!bloqueada}
+                        title={bloqueada ?? (ultimaVisible ? "Debe quedar al menos una columna" : undefined)}
                         onChange={() => onAlternar(k)}
                       />
                       {etiquetas[k]}
