@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildCampanaView, calcResumen, estadoGerente, filtrarDepositos, type AsignacionData, type DepositoData } from "./campanaView";
+import { buildCampanaView, calcResumen, compareRecientePrimero, estadoGerente, filtrarDepositos, type AsignacionData, type DepositoData } from "./campanaView";
 
 const asig = (id: number, gerenteId: number, gerenteNombre: string, saldoUsd: string): AsignacionData => ({ id, gerenteId, gerenteNombre, saldoUsd });
 
@@ -136,5 +136,19 @@ describe("estadoGerente", () => {
     expect(estado("100", ["40", "60"])).toBe("completo");
     expect(estado("100", ["40", "60.01"])).toBe("excedido");
     expect(estado("0", [])).toBe("sin-pagos");
+  });
+});
+
+describe("compareRecientePrimero", () => {
+  it("días del más reciente al más viejo y, dentro del día, en el orden en que se registraron", () => {
+    const d = (id: number, fecha: string, creadoEn: string) => ({ id, fecha, creadoEn });
+    const filas = [
+      d(1, "2026-03-01", "2026-03-01T10:00:00.000Z"),
+      d(2, "2026-03-02", "2026-03-02T15:00:00.000Z"),
+      d(3, "2026-03-02", "2026-03-02T09:00:00.000Z"),
+      d(5, "2026-03-02", "2026-03-02T09:00:00.000Z"),
+      d(4, "2026-03-03", "2026-03-03T08:00:00.000Z"),
+    ];
+    expect(filas.sort(compareRecientePrimero).map((f) => f.id)).toEqual([4, 3, 5, 2, 1]);
   });
 });

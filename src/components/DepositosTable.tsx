@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { FilaDeposito } from "@/domain/campanaView";
+import { compareRecientePrimero, type FilaDeposito } from "@/domain/campanaView";
 import { formatFecha } from "@/domain/dates";
 import { formatNumberVE, formatTasa, formatUsd } from "@/domain/money";
 import { getDb } from "@/db";
@@ -97,7 +97,8 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
   const columnas = useColumnas(mostrarGerente ? "depositos-campana" : "depositos-gerente", mostrarGerente ? TODAS : SIN_GERENTE);
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
   const [borrar, setBorrar] = useState<number[] | null>(null);
-  const ordenadas = useMemo(() => ordenar(filas, COLUMNAS, orden), [filas, orden]);
+  // Sobre el orden base, para que los empates de cualquier columna (p. ej. la fecha) respeten el orden de registro.
+  const ordenadas = useMemo(() => ordenar([...filas].sort(compareRecientePrimero), COLUMNAS, orden), [filas, orden]);
   // Solo cuentan los marcados que siguen visibles (al filtrar se pueden ocultar).
   const elegidos = filas.filter((d) => marcados.has(d.id)).map((d) => d.id);
   const todos = filas.length > 0 && elegidos.length === filas.length;
