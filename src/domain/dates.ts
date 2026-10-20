@@ -36,10 +36,13 @@ const SIN_FERIADOS: ReadonlySet<string> = new Set();
 
 export const esDiaHabil = (iso: string, feriados: ReadonlySet<string> = SIN_FERIADOS): boolean => !esFinDeSemana(iso) && !feriados.has(iso);
 
-/** Fecha cuya tasa rige ese día: sábado, domingo y feriados usan la del último día hábil anterior. */
+/**
+ * Fecha cuya tasa rige ese día: sábado, domingo y feriados usan la del siguiente día hábil (la empresa da la del
+ * lunes por adelantado; si el lunes es feriado, la del martes).
+ */
 export function fechaDeTasa(iso: string, feriados: ReadonlySet<string> = SIN_FERIADOS): string {
   let f = iso;
-  while (!esDiaHabil(f, feriados)) f = sumarDias(f, -1);
+  while (!esDiaHabil(f, feriados)) f = sumarDias(f, 1);
   return f;
 }
 

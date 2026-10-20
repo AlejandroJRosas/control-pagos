@@ -70,7 +70,7 @@ export async function planificarImportacion(
     let tasaAplicada: string | null = null;
     let tasaEnApp = false;
     if (f.fecha) {
-      // Clave = fecha donde vive la tasa (sábado, domingo y feriados comparten la del día hábil anterior).
+      // Clave = fecha donde vive la tasa (sábado, domingo y feriados comparten la del siguiente día hábil).
       const t = await getTasaParaFecha(db, f.fecha);
       const clave = t?.fecha ?? fechaDeTasa(f.fecha, feriados);
       if (t && !tasas.has(clave)) tasas.set(clave, { valor: t.valor, registrada: true });
@@ -126,7 +126,7 @@ export type Importacion = {
 };
 
 /**
- * Registra los depósitos elegidos. Crea la tasa del día si no existe (la de un sábado o domingo, en su viernes); si existe, se usa la registrada
+ * Registra los depósitos elegidos. Crea la tasa del día si no existe (la de un sábado o domingo, en su lunes); si existe, se usa la registrada
  * (una fila sin tasa solo se acepta si ya hay tasa registrada para su fecha).
  * Si algo falla, borra lo creado y restaura el saldo (el plugin SQL no permite transacciones entre llamadas).
  */

@@ -100,8 +100,8 @@ export const PASOS: Paso[] = [
     objetivo: "acciones",
     texto: (
       <>
-        <p>La tasa del día (Bs por USD), una por día hábil. Sábados, domingos y feriados usan la del último día hábil. Puedes cargarla a mano o subir capturas.</p>
-        <p>Si falta la tasa de hoy, aparece un aviso arriba en todas las pantallas.</p>
+        <p>La tasa del día (Bs por USD), una por día hábil. Sábados, domingos y feriados usan la del siguiente día hábil: la del lunes, que la empresa da por adelantado (si el lunes es feriado, la del martes). Puedes cargarla a mano o subir capturas.</p>
+        <p>Si falta la tasa que rige hoy (en fin de semana, la del lunes), aparece un aviso arriba en todas las pantallas.</p>
       </>
     ),
   },

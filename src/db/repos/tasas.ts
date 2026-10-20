@@ -26,7 +26,7 @@ export async function getTasaByFecha(db: SqlDriver, fecha: string): Promise<Tasa
   return row ?? null;
 }
 
-/** Tasa que rige un día: la de esa fecha o, en sábado, domingo y feriados, la del último día hábil anterior. */
+/** Tasa que rige un día: la de esa fecha o, en sábado, domingo y feriados, la del siguiente día hábil. */
 export async function getTasaParaFecha(db: SqlDriver, fecha: string): Promise<Tasa | null> {
   const propia = await getTasaByFecha(db, fecha);
   if (propia) return propia;
@@ -36,7 +36,7 @@ export async function getTasaParaFecha(db: SqlDriver, fecha: string): Promise<Ta
 
 export async function createTasa(db: SqlDriver, v: TasaValida & { imagenPath: string | null }): Promise<number> {
   const fer = await feriadosSet(db);
-  // El día cuya tasa rige (puede no ser el viernes: Viernes Santo es feriado).
+  // El día cuya tasa rige (puede no ser el lunes si es feriado).
   const rige = `${nombreDia(fechaDeTasa(v.fecha, fer))} ${formatFecha(fechaDeTasa(v.fecha, fer))}`;
   if (esFinDeSemana(v.fecha)) throw new DomainError("VALIDACION", `Los sábados y domingos usan la tasa del ${rige}`);
   if (fer.has(v.fecha)) throw new DomainError("VALIDACION", `El ${formatFecha(v.fecha)} es feriado: usa la tasa del ${rige}`);

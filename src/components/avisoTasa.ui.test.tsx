@@ -12,9 +12,14 @@ it("avisa que falta la tasa de hoy y desaparece al registrarla", async () => {
   await waitFor(() => expect(screen.queryByText(/Falta la tasa de hoy/)).not.toBeInTheDocument());
 });
 
-it("en fin de semana no avisa", async () => {
-  await renderApp("/campanas", { hoy: "2026-10-18" });
-  await screen.findByRole("heading", { name: "Campañas" });
-  await new Promise((r) => setTimeout(r, 100));
-  expect(screen.queryByText(/Falta la tasa de hoy/)).not.toBeInTheDocument();
+it("en fin de semana avisa la del lunes y la registra en esa fecha", async () => {
+  const { user } = await renderApp("/campanas", { hoy: "2026-10-18" });
+  expect(await screen.findByText("Falta la tasa del lunes 19/10/2026, que rige hoy")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Hoy es feriado" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Registrar tasa" }));
+  const dialogo = await screen.findByRole("dialog");
+  expect(within(dialogo).getByDisplayValue("19/10/2026")).toBeInTheDocument();
+  await user.type(within(dialogo).getByLabelText("Bs por USD"), "40,5");
+  await user.click(within(dialogo).getByRole("button", { name: "Guardar" }));
+  await waitFor(() => expect(screen.queryByText(/Falta la tasa/)).not.toBeInTheDocument());
 });

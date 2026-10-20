@@ -28,14 +28,14 @@ it("sumarDias cruza meses y años", () => {
   expect(sumarDias("2026-01-01", -1)).toBe("2025-12-31");
 });
 
-it("fechaDeTasa: sábado y domingo usan la tasa del viernes", () => {
+it("fechaDeTasa: sábado y domingo usan la tasa del lunes", () => {
   expect(esFinDeSemana("2026-10-17")).toBe(true); // sábado
   expect(esFinDeSemana("2026-10-18")).toBe(true); // domingo
   expect(esFinDeSemana("2026-10-16")).toBe(false);
-  expect(fechaDeTasa("2026-10-17")).toBe("2026-10-16");
-  expect(fechaDeTasa("2026-10-18")).toBe("2026-10-16");
-  expect(fechaDeTasa("2026-10-19")).toBe("2026-10-19");
-  expect(fechaDeTasa("2026-11-01")).toBe("2026-10-30"); // domingo con viernes del mes anterior
+  expect(fechaDeTasa("2026-10-17")).toBe("2026-10-19");
+  expect(fechaDeTasa("2026-10-18")).toBe("2026-10-19");
+  expect(fechaDeTasa("2026-10-16")).toBe("2026-10-16");
+  expect(fechaDeTasa("2026-10-31")).toBe("2026-11-02"); // sábado con lunes del mes siguiente
 });
 
 it("parseFechaVE lee dd/mm/aaaa y variantes", () => {
@@ -60,13 +60,14 @@ it("mascaraFecha agrega las barras al escribir solo dígitos", () => {
   expect(mascaraFecha("1/5/2026")).toBe("1/5/2026");
 });
 
-it("fechaDeTasa: un feriado usa la tasa del último día hábil anterior", () => {
+it("fechaDeTasa: un feriado usa la tasa del siguiente día hábil", () => {
   const fer = new Set(["2026-04-02", "2026-04-03"]);
-  expect(fechaDeTasa("2026-04-05", fer)).toBe("2026-04-01"); // domingo de Pascua → Miércoles Santo
-  expect(fechaDeTasa("2026-04-02", fer)).toBe("2026-04-01");
-  expect(fechaDeTasa("2026-04-06", fer)).toBe("2026-04-06");
-  expect(fechaDeTasa("2026-12-25", new Set(["2026-12-24", "2026-12-25"]))).toBe("2026-12-23");
-  expect(fechaDeTasa("2026-10-12", new Set(["2026-10-12"]))).toBe("2026-10-09"); // lunes feriado → viernes
+  expect(fechaDeTasa("2026-04-02", fer)).toBe("2026-04-06"); // Jueves Santo → lunes
+  expect(fechaDeTasa("2026-04-05", fer)).toBe("2026-04-06");
+  expect(fechaDeTasa("2026-04-01", fer)).toBe("2026-04-01");
+  expect(fechaDeTasa("2026-12-24", new Set(["2026-12-24", "2026-12-25"]))).toBe("2026-12-28");
+  const lunes = new Set(["2026-10-12"]);
+  for (const f of ["2026-10-10", "2026-10-11", "2026-10-12"]) expect(fechaDeTasa(f, lunes)).toBe("2026-10-13"); // lunes feriado → martes
 });
 
 it("esDiaHabil: ni fin de semana ni feriado", () => {

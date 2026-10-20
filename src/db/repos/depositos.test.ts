@@ -95,12 +95,12 @@ it("elimina y lista bancos usados sin repetir", async () => {
   expect(await getDeposito(db, id)).toBeNull();
 });
 
-it("un depósito de sábado o domingo usa la tasa del viernes", async () => {
-  const viernes = await createTasa(db, { fecha: "2026-03-06", valor: "40", notas: null, imagenPath: null });
-  const id = await createDeposito(db, s.asignacionId, depositoBase(viernes, { fecha: "2026-03-07" }));
-  await updateDeposito(db, id, depositoBase(viernes, { fecha: "2026-03-08" }));
-  expect(await getDeposito(db, id)).toMatchObject({ fecha: "2026-03-08", tasaId: viernes });
-  await expect(updateDeposito(db, id, depositoBase(viernes, { fecha: "2026-03-09" }))).rejects.toMatchObject({ code: "VALIDACION" });
+it("un depósito de sábado o domingo usa la tasa del lunes", async () => {
+  const lunes = await createTasa(db, { fecha: "2026-03-09", valor: "40", notas: null, imagenPath: null });
+  const id = await createDeposito(db, s.asignacionId, depositoBase(lunes, { fecha: "2026-03-07" }));
+  await updateDeposito(db, id, depositoBase(lunes, { fecha: "2026-03-08" }));
+  expect(await getDeposito(db, id)).toMatchObject({ fecha: "2026-03-08", tasaId: lunes });
+  await expect(updateDeposito(db, id, depositoBase(lunes, { fecha: "2026-03-06" }))).rejects.toMatchObject({ code: "VALIDACION" });
 });
 
 it("elimina varios depósitos a la vez, o ninguno si alguno es de una campaña cerrada", async () => {

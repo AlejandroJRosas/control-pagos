@@ -1,6 +1,6 @@
 import { diaSemana, esFinDeSemana, fechaDeTasa, sumarDias } from "./dates";
 
-/** tasa: con tasa propia · finde: sábado o domingo (usa la del viernes) · falta: día hábil sin tasa · futuro: aún no llega. */
+/** tasa: con tasa propia · finde: sábado o domingo (usa la del lunes) · falta: día hábil sin tasa · futuro: aún no llega. */
 export type EstadoDia = "tasa" | "finde" | "feriado" | "falta" | "futuro";
 
 export type DiaCalendario<T> = { fecha: string; dia: number; delMes: boolean; estado: EstadoDia; tasa: T | null };

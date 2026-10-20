@@ -15,7 +15,7 @@ import { formatFecha, isValidIsoDate, nombreDia, todayIso } from "@/domain/dates
 import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 
-/** Feriados bancarios: no llevan tasa propia y usan la del último día hábil anterior. */
+/** Feriados bancarios: no llevan tasa propia y usan la del siguiente día hábil. */
 export function FeriadosCard({ feriados }: { feriados: Feriado[] }) {
   const anioActual = todayIso().slice(0, 4);
   const [anio, setAnio] = useState(anioActual);
@@ -55,7 +55,7 @@ export function FeriadosCard({ feriados }: { feriados: Feriado[] }) {
       <CardHeader>
         <CardTitle>Feriados</CardTitle>
         <CardDescription>
-          Un feriado no lleva tasa propia: sus depósitos usan la del último día hábil anterior. Los nacionales se cargan solos; agrega aquí los
+          Un feriado no lleva tasa propia: sus depósitos usan la del siguiente día hábil. Los nacionales se cargan solos; agrega aquí los
           bancarios.
         </CardDescription>
       </CardHeader>

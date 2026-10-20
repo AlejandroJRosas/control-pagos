@@ -12,13 +12,13 @@ it("arma semanas de lunes a domingo con relleno de los meses vecinos", () => {
   expect(c.semanas.every((s) => s.length === 7)).toBe(true);
 });
 
-it("clasifica cada día: con tasa, fin de semana (usa la del viernes), falta o futuro", () => {
-  const viernes = t("2026-10-16", "41");
-  const c = calendarioTasas("2026-10", [t("2026-10-15"), viernes], "2026-10-21");
+it("clasifica cada día: con tasa, fin de semana (usa la del lunes), falta o futuro", () => {
+  const lunes = t("2026-10-19", "41");
+  const c = calendarioTasas("2026-10", [t("2026-10-15"), lunes], "2026-10-21");
   const dia = (f: string) => c.semanas.flat().find((d) => d.fecha === f)!;
   expect(dia("2026-10-15")).toMatchObject({ estado: "tasa", tasa: t("2026-10-15") });
-  expect(dia("2026-10-17")).toMatchObject({ estado: "finde", tasa: viernes });
-  expect(dia("2026-10-18")).toMatchObject({ estado: "finde", tasa: viernes });
+  expect(dia("2026-10-17")).toMatchObject({ estado: "finde", tasa: lunes });
+  expect(dia("2026-10-18")).toMatchObject({ estado: "finde", tasa: lunes });
   expect(dia("2026-10-11")).toMatchObject({ estado: "finde", tasa: null });
   expect(dia("2026-10-14")).toMatchObject({ estado: "falta", tasa: null });
   expect(dia("2026-10-21")).toMatchObject({ estado: "falta" });
@@ -32,12 +32,12 @@ it("mesSiguiente avanza y retrocede cruzando el año", () => {
   expect(mesSiguiente("2026-01", -1)).toBe("2025-12");
 });
 
-it("un feriado sin tasa propia usa la del día hábil anterior y no cuenta como falta", () => {
-  const viernes = t("2026-10-09", "39");
-  const c = calendarioTasas("2026-10", [viernes], "2026-10-12", new Set(["2026-10-12"]));
+it("un feriado sin tasa propia usa la del siguiente día hábil y no cuenta como falta", () => {
+  const martes = t("2026-10-13", "39");
+  const c = calendarioTasas("2026-10", [martes], "2026-10-12", new Set(["2026-10-12"]));
   const dia = (f: string) => c.semanas.flat().find((d) => d.fecha === f)!;
-  expect(dia("2026-10-12")).toMatchObject({ estado: "feriado", tasa: viernes });
-  expect(dia("2026-10-11")).toMatchObject({ estado: "finde", tasa: viernes });
-  // Hábiles del 1 al 12 (sin el 12, feriado) menos el viernes 9 registrado.
-  expect(c.faltan).toBe(6);
+  expect(dia("2026-10-12")).toMatchObject({ estado: "feriado", tasa: martes });
+  expect(dia("2026-10-11")).toMatchObject({ estado: "finde", tasa: martes });
+  // Hábiles del 1 al 12 (sin el 12, feriado); el martes 13 está registrado pero aún no llega.
+  expect(c.faltan).toBe(7);
 });

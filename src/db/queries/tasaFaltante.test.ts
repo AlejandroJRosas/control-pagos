@@ -25,12 +25,13 @@ it("avisa la de hoy y las que necesitan los pendientes de la cola", async () => 
   const hecho = await encolar("2026-03-05");
   await marcarDepositoHecho(db, hecho, await createDeposito(db, s.asignacionId, depositoBase(s.tasaId)));
   await encolar("2026-03-02"); // ya tiene tasa
-  expect(await getTasasFaltantes(db, "2026-03-09")).toEqual({ hoy: true, anteriores: ["2026-03-04"] });
+  expect(await getTasasFaltantes(db, "2026-03-09")).toEqual({ hoy: "2026-03-09", anteriores: ["2026-03-04"] });
 });
 
 it("respeta tasas y feriados registrados", async () => {
   await createTasa(db, { fecha: "2026-03-09", valor: "40", notas: null, imagenPath: null });
   await createFeriado(db, { fecha: "2026-03-10", nombre: null });
-  expect((await getTasasFaltantes(db, "2026-03-09")).hoy).toBe(false);
-  expect((await getTasasFaltantes(db, "2026-03-10")).hoy).toBe(false);
+  expect((await getTasasFaltantes(db, "2026-03-09")).hoy).toBeNull();
+  expect((await getTasasFaltantes(db, "2026-03-07")).hoy).toBeNull(); // sábado: usa la del lunes 09
+  expect((await getTasasFaltantes(db, "2026-03-10")).hoy).toBe("2026-03-11"); // feriado: la del miércoles
 });

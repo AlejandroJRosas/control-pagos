@@ -24,7 +24,10 @@ function useHoy(): string {
   return hoy;
 }
 
-/** La tasa se registra en la mañana al abrir: si falta la de hoy (o la que necesitan depósitos en revisión), se avisa. */
+/**
+ * La tasa se registra en la mañana al abrir: si falta la que rige hoy (en fin de semana, la del lunes, que la empresa
+ * da por adelantado) o la que necesitan depósitos en revisión, se avisa.
+ */
 export function AvisoTasaFaltante() {
   const hoy = useHoy();
   const { data } = useData((db) => getTasasFaltantes(db, hoy), [hoy]);
@@ -50,7 +53,9 @@ export function AvisoTasaFaltante() {
         <div className={ambar} role="status">
           <CalendarX2 className="size-4 shrink-0" />
           <span className="mr-auto font-medium">
-            Falta la tasa de hoy ({nombreDia(hoy)} {formatFecha(hoy)})
+            {data.hoy === hoy
+              ? `Falta la tasa de hoy (${nombreDia(hoy)} ${formatFecha(hoy)})`
+              : `Falta la tasa del ${nombreDia(data.hoy)} ${formatFecha(data.hoy)}, que rige hoy`}
           </span>
           <Button size="sm" onClick={() => setRegistrar(true)}>
             Registrar tasa
@@ -58,9 +63,11 @@ export function AvisoTasaFaltante() {
           <Button size="sm" variant="outline" onClick={() => navigate("/tasas/lote")}>
             Subir captura
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setFeriado(true)}>
-            Hoy es feriado
-          </Button>
+          {data.hoy === hoy && (
+            <Button size="sm" variant="ghost" onClick={() => setFeriado(true)}>
+              Hoy es feriado
+            </Button>
+          )}
         </div>
       )}
       {data.anteriores.length > 0 && (
@@ -75,12 +82,12 @@ export function AvisoTasaFaltante() {
           </Link>
         </div>
       )}
-      <TasaFormDialog tasa={null} fechaFija={hoy} open={registrar} onOpenChange={setRegistrar} />
+      <TasaFormDialog tasa={null} fechaFija={data.hoy ?? hoy} open={registrar} onOpenChange={setRegistrar} />
       <ConfirmDialog
         open={feriado}
         onOpenChange={setFeriado}
         title="Marcar hoy como feriado"
-        description={`El ${formatFecha(hoy)} no llevará tasa propia: sus depósitos usarán la del último día hábil anterior.`}
+        description={`El ${formatFecha(hoy)} no llevará tasa propia: sus depósitos usarán la del siguiente día hábil.`}
         confirmLabel="Es feriado"
         onConfirm={marcarFeriado}
       />

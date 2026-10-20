@@ -54,7 +54,7 @@ export function useDepositoForm({ inicial, data, asignacion, depositoId }: Opcio
   const [duplicados, setDuplicados] = useState<Duplicado[]>([]);
   const draft = form.draft;
 
-  // La tasa siempre es la de la fecha del depósito (sábado y domingo: la del viernes).
+  // La tasa siempre es la de la fecha del depósito (sábado y domingo: la del lunes).
   useEffect(() => {
     let alive = true;
     setTasaState(undefined);

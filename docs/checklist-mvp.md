@@ -51,10 +51,10 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 
 ## Fines de semana, calendario de tasas y tablas
 
-- [ ] Depósito con fecha sábado o domingo: toma la tasa del viernes y lo indica "(la del viernes dd/mm/aaaa)"; sin tasa del viernes, "Registrar tasa" abre con la fecha del viernes.
-- [ ] Registrar una tasa con fecha sábado o domingo: aviso y error "Los sábados y domingos usan la tasa del viernes…".
-- [ ] Importar un Excel con depósitos de sábado/domingo: se comparan con la tasa del viernes (o la crean en el viernes).
-- [ ] Tasas → Calendario: verde = con tasa (clic para editar), ámbar = día hábil sin tasa (clic para registrar con esa fecha), gris = fin de semana con la tasa del viernes; contador de días pendientes; navegar meses y "Hoy".
+- [ ] Depósito con fecha sábado o domingo: toma la tasa del lunes y lo indica "(la del lunes dd/mm/aaaa)"; sin tasa del lunes, "Registrar tasa" abre con la fecha del lunes (si el lunes es feriado, la del martes).
+- [ ] Registrar una tasa con fecha sábado o domingo: aviso y error "Los sábados y domingos usan la tasa del lunes…".
+- [ ] Importar un Excel con depósitos de sábado/domingo: se comparan con la tasa del lunes (o la crean en el lunes).
+- [ ] Tasas → Calendario: verde = con tasa (clic para editar), ámbar = día hábil sin tasa (clic para registrar con esa fecha), gris = fin de semana con la tasa del lunes; contador de días pendientes; navegar meses y "Hoy".
 - [ ] Todas las tablas: clic en el encabezado ordena ascendente → descendente → original; montos ordenan como número; filas alternadas con color.
 - [ ] Rueda del ratón sobre cualquier imagen (formulario, diálogo de tasa, visor, revisión): acerca hacia el cursor sin desplazar la página; arrastrar mueve; doble clic ajusta; el visor conserva − / + / Ajustar / Tamaño real.
 - [ ] Depósitos: botón de eliminar por fila con confirmación; marcar varios (o todos) y "Eliminar seleccionados"; en campaña cerrada no hay casillas ni botón.
@@ -104,8 +104,8 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 - [ ] Con Google Drive cerrado (o la carpeta borrada), "Copiar ahora": error claro; el respaldo local existe igual y arriba aparece la franja roja con "Reintentar". Con más de 3 días sin copia exitosa, franja ámbar.
 - [ ] Hacer un cambio y cerrar la ventana: "Respaldando antes de cerrar…" y `auto-<hoy>.zip` queda con la hora del cierre (y en Drive). Cerrar sin cambios: cierra al instante. Formulario sin guardar + cerrar: primero el diálogo; Cancelar deja la app abierta.
 - [ ] En la revisión en lote, editar un campo y cerrar la ventana enseguida: al volver la edición sigue ahí. Abrir "Descartar" y pulsar Ctrl+Enter: no se da Hecho.
-- [ ] Tasas → Feriados: aparecen los nacionales del año (Carnaval y Semana Santa en sus fechas); agregar uno bancario; no deja marcar un día con tasa ni quitar uno con depósitos. En el calendario el feriado sale en gris con su nombre y la tasa del día hábil anterior.
-- [ ] Depósito con fecha de un feriado: toma la tasa del día hábil anterior ("Feriado: la del viernes …"); registrar una tasa en un feriado da error.
+- [ ] Tasas → Feriados: aparecen los nacionales del año (Carnaval y Semana Santa en sus fechas); agregar uno bancario; no deja marcar un día con tasa ni quitar uno con depósitos. En el calendario el feriado sale en gris con su nombre y la tasa del siguiente día hábil.
+- [ ] Depósito con fecha de un feriado: toma la tasa del siguiente día hábil ("Feriado: la del …"); registrar una tasa en un feriado da error.
 - [ ] Abrir la app un día hábil sin tasa: franja "Falta la tasa de hoy"; "Registrar tasa" la guarda y la franja se va; "Hoy es feriado" la marca como feriado. Un pendiente de la cola con fecha sin tasa: "Faltan tasas de N día(s)…".
 - [ ] Copiar un `control-pagos.db` dañado (o con una referencia rota) en la instancia aislada: al abrir aparece "La base de datos parece dañada" con los respaldos para restaurar, sin hacer el respaldo automático.
 - [ ] Configuración → Mensajes de WhatsApp: editar, ver la vista previa, un `{campo}` mal escrito avisa; Guardar; el estado de cuenta individual usa el texto nuevo; "Restaurar el texto original".

@@ -47,7 +47,7 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
   const { usd, restanteGerente, restanteGeneral } = f.calculo;
   const fechaValida = isValidIsoDate(draft.fecha);
   const feriados = useFeriados();
-  // Día cuya tasa rige: sábado, domingo y feriados usan la del último día hábil anterior.
+  // Día cuya tasa rige: sábado, domingo y feriados usan la del siguiente día hábil.
   const fechaTasa = fechaValida ? fechaDeTasa(draft.fecha, feriados) : draft.fecha;
   const motivo = feriados.has(draft.fecha) ? "Feriado: " : "";
 

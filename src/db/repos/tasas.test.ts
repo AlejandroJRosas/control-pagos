@@ -42,18 +42,18 @@ it("no borra una tasa en uso", async () => {
   expect(await getTasa(db, libre)).toBeNull();
 });
 
-it("sábado y domingo no llevan tasa propia: usan la del viernes", async () => {
+it("sábado y domingo no llevan tasa propia: usan la del lunes", async () => {
   await expect(createTasa(db, { fecha: "2026-10-17", valor: "40", notas: null, imagenPath: null })).rejects.toMatchObject({ code: "VALIDACION" });
   expect(await getTasaParaFecha(db, "2026-10-18")).toBeNull();
-  const viernes = await createTasa(db, { fecha: "2026-10-16", valor: "40", notas: null, imagenPath: null });
-  expect((await getTasaParaFecha(db, "2026-10-17"))?.id).toBe(viernes);
-  expect((await getTasaParaFecha(db, "2026-10-18"))?.id).toBe(viernes);
-  expect((await getTasaParaFecha(db, "2026-10-16"))?.id).toBe(viernes);
-  expect(await getTasaParaFecha(db, "2026-10-19")).toBeNull();
+  const lunes = await createTasa(db, { fecha: "2026-10-19", valor: "40", notas: null, imagenPath: null });
+  expect((await getTasaParaFecha(db, "2026-10-17"))?.id).toBe(lunes);
+  expect((await getTasaParaFecha(db, "2026-10-18"))?.id).toBe(lunes);
+  expect((await getTasaParaFecha(db, "2026-10-19"))?.id).toBe(lunes);
+  expect(await getTasaParaFecha(db, "2026-10-16")).toBeNull();
 });
 
 it("una tasa de fin de semana registrada antes sigue teniendo prioridad", async () => {
-  await createTasa(db, { fecha: "2026-10-16", valor: "40", notas: null, imagenPath: null });
+  await createTasa(db, { fecha: "2026-10-19", valor: "40", notas: null, imagenPath: null });
   await db.execute("INSERT INTO tasas (fecha, valor) VALUES ('2026-10-17', '41')");
   expect((await getTasaParaFecha(db, "2026-10-17"))?.valor).toBe("41");
   expect((await getTasaParaFecha(db, "2026-10-18"))?.valor).toBe("40");

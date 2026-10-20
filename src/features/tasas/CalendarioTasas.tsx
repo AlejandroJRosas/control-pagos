@@ -53,7 +53,7 @@ export function CalendarioTasas({ tasas, feriados, onRegistrar, onEditar }: Prop
         <div className="ml-auto flex flex-wrap gap-3 text-xs text-muted-foreground">
           <Leyenda className="border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950" texto="Con tasa" />
           <Leyenda className="border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" texto="Falta la tasa" />
-          <Leyenda className="border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900" texto="Fin de semana o feriado (usa la del día hábil anterior)" />
+          <Leyenda className="border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900" texto="Fin de semana o feriado (usa la del siguiente día hábil)" />
         </div>
       </div>
       <div className="grid grid-cols-7 gap-1.5">
@@ -144,7 +144,7 @@ function Dia({ d, hoy, feriado, onRegistrar, onEditar, onVerCaptura }: DiaProps)
             <span>la del {nombreDia(d.tasa.fecha)}</span>
           </>
         ) : (
-          <span className="mt-auto text-amber-700 dark:text-amber-400">falta la del día hábil anterior</span>
+          <span className="mt-auto text-amber-700 dark:text-amber-400">falta la del día hábil siguiente</span>
         )}
       </div>
     );
