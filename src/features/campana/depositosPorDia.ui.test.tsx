@@ -53,3 +53,35 @@ it("cuenta destino y tasa arrancan ocultas, y el comprobante es un ícono", asyn
   expect(within(encabezado).getByText("Gerente")).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Ver comprobante" })).toHaveLength(1);
 });
+
+it("agrupada, la fecha y la tasa van en la fila del día y no como columnas", async () => {
+  const { db, s } = await campanaConDosDias();
+  const { user } = await renderApp(`/campanas/${s.campanaId}`, { db });
+  await screen.findByText("Martes 03/03/2026");
+  const texto = filas();
+  expect(texto[texto.findIndex((t) => t.includes("Martes 03/03/2026"))]).toContain("Tasa 36,50");
+  const encabezado = () => screen.getAllByRole("rowgroup")[0];
+  expect(within(encabezado()).queryByText("Fecha")).not.toBeInTheDocument();
+  // Al pasar a lista vuelve la columna de fecha.
+  await user.click(screen.getByRole("button", { name: /Monto Bs/ }));
+  expect(within(encabezado()).getByText("Fecha")).toBeInTheDocument();
+});
+
+it("agrupada se puede ver del día más antiguo al más reciente", async () => {
+  const { db, s } = await campanaConDosDias();
+  const { user } = await renderApp(`/campanas/${s.campanaId}`, { db });
+  await screen.findByText("Martes 03/03/2026");
+  await user.click(screen.getByRole("button", { name: "Recientes primero" }));
+  const texto = filas();
+  expect(texto.findIndex((t) => t.includes("Lunes 02/03/2026"))).toBeLessThan(texto.findIndex((t) => t.includes("Martes 03/03/2026")));
+  expect(screen.getByRole("button", { name: "Antiguos primero" })).toBeInTheDocument();
+});
+
+it("el comprobante es la primera columna", async () => {
+  const { db, s } = await campanaConDosDias();
+  await renderApp(`/campanas/${s.campanaId}`, { db });
+  await screen.findByText("Martes 03/03/2026");
+  const celdas = within(screen.getAllByRole("row")[0]).getAllByRole("columnheader");
+  // Tras la casilla de selección.
+  expect(celdas[1]).toHaveAccessibleName("Comprobante");
+});

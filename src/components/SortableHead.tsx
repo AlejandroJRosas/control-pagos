@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 export function useOrden<K extends string>(inicial: Orden<K> = null) {
   const [orden, setOrden] = useState<Orden<K>>(inicial);
-  return { orden, alternar: (key: K) => setOrden((o) => siguienteOrden(o, key)) };
+  return { orden, setOrden, alternar: (key: K) => setOrden((o) => siguienteOrden(o, key)) };
 }
 
 type Props<K extends string> = {

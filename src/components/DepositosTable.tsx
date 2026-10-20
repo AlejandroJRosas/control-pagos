@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import Decimal from "decimal.js";
 import { useLocation, useNavigate } from "react-router";
-import { Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ImageIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { agruparPorDia, compareRecientePrimero, type FilaDeposito, type GrupoDia } from "@/domain/campanaView";
@@ -37,11 +37,13 @@ type Props = {
 
 type Ordenable = "fecha" | "gerente" | "banco" | "referencia" | "cuenta" | "montoBs" | "tasa" | "usd" | "saldo" | "observaciones";
 type Col = Ordenable | "comprobante";
-const TODAS: Col[] = ["fecha", "gerente", "banco", "referencia", "cuenta", "montoBs", "tasa", "usd", "saldo", "observaciones", "comprobante"];
+const TODAS: Col[] = ["comprobante", "fecha", "gerente", "banco", "referencia", "cuenta", "montoBs", "tasa", "usd", "saldo", "observaciones"];
 const SIN_GERENTE = TODAS.filter((c) => c !== "gerente");
 // Se recuperan con el menú de columnas; a quien ya guardó las suyas no le cambia nada.
 const OCULTAS_POR_DEFECTO: Col[] = ["cuenta", "tasa"];
 const CON_TOTAL: Col[] = ["montoBs", "usd"];
+// Agrupada por día, la fecha y la tasa (una por día) van en la fila del día.
+const EN_FILA_DIA: Col[] = ["fecha", "tasa"];
 const NUMERICAS: Col[] = ["montoBs", "tasa", "usd", "saldo"];
 const COLUMNAS: Columnas<FilaDeposito, Ordenable> = {
   fecha: { tipo: "texto", valor: (d) => d.fecha },
@@ -61,11 +63,10 @@ const num = "text-right tabular-nums";
 // border-collapse los bordes de una celda sticky no la acompañan.
 const STICKY_DIA = "sticky top-10 z-10 bg-muted py-1.5 shadow-[inset_0_-1px_0_var(--border)]";
 
-function Celda({ col, d, porDia }: { col: Col; d: FilaDeposito; porDia: boolean }) {
+function Celda({ col, d }: { col: Col; d: FilaDeposito }) {
   switch (col) {
     case "fecha":
-      // Agrupada por día, la fecha ya está en la fila del día.
-      return <TableCell>{porDia ? null : formatFecha(d.fecha)}</TableCell>;
+      return <TableCell>{formatFecha(d.fecha)}</TableCell>;
     case "gerente":
       return <TableCell>{d.gerenteNombre}</TableCell>;
     case "banco":
@@ -91,14 +92,18 @@ function Celda({ col, d, porDia }: { col: Col; d: FilaDeposito; porDia: boolean 
         </TableCell>
       );
     case "comprobante":
-      return <TableCell className="py-0">{d.imagenPath ? <ComprobanteIcono path={d.imagenPath} /> : <span className="pl-2.5 text-muted-foreground">—</span>}</TableCell>;
+      return (
+        <TableCell className="w-9 py-0 pr-0">
+          {d.imagenPath ? <ComprobanteIcono path={d.imagenPath} /> : <span className="pl-2.5 text-muted-foreground">—</span>}
+        </TableCell>
+      );
   }
 }
 
 export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, soloLectura = false, vacio, volverLabel }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { orden, alternar } = useOrden<Ordenable>();
+  const { orden, setOrden, alternar } = useOrden<Ordenable>();
   // Cada vista recuerda sus columnas: la de la campaña (con gerente) y la de un gerente.
   const columnas = useColumnas(mostrarGerente ? "depositos-campana" : "depositos-gerente", mostrarGerente ? TODAS : SIN_GERENTE, OCULTAS_POR_DEFECTO);
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
@@ -107,6 +112,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
   const ordenadas = useMemo(() => ordenar([...filas].sort(compareRecientePrimero), COLUMNAS, orden), [filas, orden]);
   // En orden de fecha (el de siempre o al ordenar por ella) se agrupa por día; ordenada por otra columna, lista plana.
   const porDia = !orden || orden.key === "fecha";
+  const antiguosPrimero = orden?.key === "fecha" && orden.dir === 1;
   const grupos = useMemo<GrupoDia<FilaDeposito>[]>(
     () => (porDia ? agruparPorDia(ordenadas) : [{ fecha: "", filas: ordenadas, totalBs: "", totalUsd: "" }]),
     [porDia, ordenadas],
@@ -116,6 +122,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
   const todos = filas.length > 0 && elegidos.length === filas.length;
 
   if (filas.length === 0) return vacio ?? <Vacio texto="No hay depósitos." />;
+  const visibles = porDia ? columnas.visibles.filter((c) => !EN_FILA_DIA.includes(c)) : columnas.visibles;
   const etiquetas: Record<Col, string> = {
     fecha: "Fecha",
     gerente: "Gerente",
@@ -131,7 +138,9 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
   };
   const head = (col: Col) =>
     col === "comprobante" ? (
-      <TableHead key={col}>{etiquetas[col]}</TableHead>
+      <TableHead key={col} className="w-9 pr-0" aria-label={etiquetas[col]} title={etiquetas[col]}>
+        <ImageIcon className="ml-1.5 size-4" />
+      </TableHead>
     ) : (
       <SortableHead key={col} col={col} orden={orden} onOrden={alternar} className={cn(NUMERICAS.includes(col) && "text-right")}>
         {etiquetas[col]}
@@ -139,9 +148,9 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
     );
   // En el pie se juntan las columnas sin total, incluidas la de selección y la de eliminar.
   const extra = soloLectura ? [] : (["accion"] as const);
-  const pie = agruparPie<Col | "accion">([...extra, ...columnas.visibles, ...extra], CON_TOTAL);
+  const pie = agruparPie<Col | "accion">([...extra, ...visibles, ...extra], CON_TOTAL);
   // La fila del día lleva aparte la casilla de selección; el resto se agrupa como el pie.
-  const pieDia = agruparPie<Col | "accion">([...columnas.visibles, ...extra], CON_TOTAL);
+  const pieDia = agruparPie<Col | "accion">([...visibles, ...extra], CON_TOTAL);
 
   function marcar(ids: number[], si: boolean) {
     setMarcados((m) => {
@@ -194,7 +203,10 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
                   <span className="font-semibold">
                     {dia[0].toUpperCase() + dia.slice(1)} {formatFecha(g.fecha)}
                   </span>
-                  <span className="text-muted-foreground"> · {g.filas.length === 1 ? "1 depósito" : `${g.filas.length} depósitos`}</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {g.filas.length === 1 ? "1 depósito" : `${g.filas.length} depósitos`} · Tasa {formatTasa(g.filas[0].tasaValor)}
+                  </span>
                 </span>
               )}
             </TableCell>
@@ -219,7 +231,13 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
             </Button>
           </div>
         )}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {porDia && (
+            <Button size="sm" variant="ghost" title="Cambiar el orden de los días" onClick={() => setOrden(antiguosPrimero ? null : { key: "fecha", dir: 1 })}>
+              {antiguosPrimero ? <ArrowUp /> : <ArrowDown />}
+              {antiguosPrimero ? "Antiguos primero" : "Recientes primero"}
+            </Button>
+          )}
           <ColumnasMenu
             estado={columnas.estado}
             etiquetas={etiquetas}
@@ -243,7 +261,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
                 />
               </TableHead>
             )}
-            {columnas.visibles.map(head)}
+            {visibles.map(head)}
             {!soloLectura && <TableHead className="w-10" />}
           </TableRow>
         </TableHeader>
@@ -272,8 +290,8 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
                       />
                     </TableCell>
                   )}
-                  {columnas.visibles.map((col) => (
-                    <Celda key={col} col={col} d={d} porDia={porDia} />
+                  {visibles.map((col) => (
+                    <Celda key={col} col={col} d={d} />
                   ))}
                   {!soloLectura && (
                     <TableCell className="py-0" onClick={(e) => e.stopPropagation()}>
