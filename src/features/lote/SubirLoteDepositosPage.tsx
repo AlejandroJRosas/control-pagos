@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 import { ListChecks } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -14,6 +14,7 @@ import { ajustarCuentaDestino } from "@/extraction/cuentaConocida";
 import { listCuentasDestinoUsadas } from "@/db/repos/depositos";
 import { deleteImage, saveImage } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
+import type { EstadoLote } from "@/components/SoltarImagenes";
 import { borradorDepositoConOcr } from "./leerEnBorrador";
 import { useLote } from "./useLote";
 import { BarraIrARevisar, TablaLote, ZonaLote } from "./ZonaLote";
@@ -28,7 +29,8 @@ export function SubirLoteDepositosPage() {
 function SubirLote({ data }: { data: CampanaData }) {
   const campana = data.campana;
   const cerrada = campana.estado === "cerrada";
-  const [gerente, setGerente] = useState("");
+  const preelegido = (useLocation().state as EstadoLote | null)?.gerente;
+  const [gerente, setGerente] = useState(() => (preelegido && data.asignaciones.some((a) => `a:${a.id}` === preelegido) ? preelegido : ""));
   // Gerente vigente al encolar cada imagen (la lista puede cambiar entre tandas).
   const gerenteRef = useRef(gerente);
   gerenteRef.current = gerente;

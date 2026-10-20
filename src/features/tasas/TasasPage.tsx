@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { FileSpreadsheet, Images, ListChecks, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -20,6 +20,8 @@ import { archivoExcel } from "@/export/fileName";
 import { saveWorkbook } from "@/export/saveWorkbook";
 import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
+import { useReceptorArchivos } from "@/lib/soltarArchivos";
+import { receptorLoteTasas } from "@/components/SoltarImagenes";
 import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { TasaFormDialog } from "./TasaFormDialog";
@@ -42,15 +44,23 @@ export function TasasPage() {
   const { data, error } = useData((db) => listTasas(db), []);
   const { data: pendientes } = useData((db) => contarPendientesTasas(db), []);
   const { data: feriados } = useData((db) => listFeriados(db), []);
-  // fecha: tasa nueva de un día elegido en el calendario.
-  const [dialog, setDialog] = useState<{ open: boolean; tasa: TasaConUsos | null; fecha?: string }>({ open: false, tasa: null });
+  // fecha: tasa nueva de un día elegido en el calendario; imagen: captura soltada sobre la pantalla.
+  const [dialog, setDialog] = useState<{ open: boolean; tasa: TasaConUsos | null; fecha?: string; imagen?: File }>({ open: false, tasa: null });
   const [borrar, setBorrar] = useState<TasaConUsos | null>(null);
   const [vista, setVistaState] = useState(vistaRecordada);
   const setVista = (v: string) => {
     vistaRecordada = v;
     setVistaState(v);
   };
+  const navigate = useNavigate();
   useAtajo("n", () => setDialog({ open: true, tasa: null }));
+  useAtajo("l", () => navigate("/tasas/lote"));
+  // Una captura soltada abre la tasa nueva con ella; varias van al lote de tasas.
+  const lote = receptorLoteTasas(navigate);
+  useReceptorArchivos({
+    destino: (n) => (n === 1 ? "Suelta para registrar una tasa con esta captura" : lote.destino(n)),
+    recibir: (files) => (files.length === 1 ? setDialog({ open: true, tasa: null, imagen: files[0] }) : lote.recibir?.(files)),
+  });
   const { orden, alternar } = useOrden<Col>();
   const filas = useMemo(() => ordenar(data ?? [], COLUMNAS, orden), [data, orden]);
 
@@ -91,7 +101,7 @@ export function TasasPage() {
                 Revisar ({pendientes})
               </Link>
             )}
-            <Link to="/tasas/lote" className={buttonVariants({ variant: "outline" })}>
+            <Link to="/tasas/lote" title="L · también puedes soltar las capturas en cualquier parte" className={buttonVariants({ variant: "outline" })}>
               <Images />
               Subir lote
             </Link>
@@ -189,6 +199,7 @@ export function TasasPage() {
       <TasaFormDialog
         tasa={dialog.tasa}
         fechaFija={dialog.fecha}
+        imagenInicial={dialog.imagen}
         open={dialog.open}
         onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
       />

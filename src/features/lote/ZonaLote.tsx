@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { AlertTriangle, CheckCircle2, Images, ListChecks, Loader2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tecla } from "@/components/AyudaAtajos";
 import { useAtajo } from "@/hooks/useAtajo";
+import { tomarArchivos, useReceptorArchivos } from "@/lib/soltarArchivos";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ACCEPTED_IMAGE_TYPES, separarImagenes } from "@/platform/images";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,18 @@ export function ZonaLote({ onArchivos, disabled = false }: { onArchivos: (files:
   };
   const recibirRef = useRef(recibir);
   recibirRef.current = recibir;
+  const { pathname } = useLocation();
+
+  // Soltadas en cualquier parte de la pantalla (o en otra pantalla, que las manda aquí) van al lote.
+  useReceptorArchivos({
+    destino: (n) => (disabled ? "La campaña está cerrada: no se pueden agregar comprobantes" : n === 1 ? "Suelta para agregar la imagen al lote" : `Suelta para agregar ${n} imágenes al lote`),
+    recibir: disabled ? null : (files) => onArchivosRef.current(files),
+  });
+  useEffect(() => {
+    const files = tomarArchivos(pathname);
+    if (files.length > 0 && !disabled) onArchivosRef.current(files);
+    // Solo al llegar a la pantalla.
+  }, []);
 
   useEffect(() => {
     if (disabled) return;

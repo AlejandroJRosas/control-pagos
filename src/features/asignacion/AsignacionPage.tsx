@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { FileImage, MessageCircle, Plus } from "lucide-react";
+import { FileImage, Images, MessageCircle, Plus } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando, Vacio } from "@/components/Feedback";
@@ -23,6 +23,8 @@ import { getPlantillas } from "@/db/repos/plantillas";
 import { DomainError } from "@/domain/errors";
 import { useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
+import { useReceptorArchivos } from "@/lib/soltarArchivos";
+import { receptorCampana, receptorCerrada, type EstadoLote } from "@/components/SoltarImagenes";
 
 export function AsignacionPage() {
   const asignacionId = Number(useParams().asignacionId);
@@ -44,7 +46,18 @@ export function AsignacionPage() {
   const volver = leerVolver(useLocation().state);
   const [estadoCuenta, setEstadoCuenta] = useState(false);
   const [editarGerente, setEditarGerente] = useState<Gerente | null>(null);
-  useAtajo("n", () => navigate(`/asignaciones/${asignacionId}/depositos/nuevo`), { activo: data?.a.campanaEstado === "activa" });
+  const activa = data?.a.campanaEstado === "activa";
+  const subirLote = () => data && navigate(`/campanas/${data.a.campanaId}/lote`, { state: { gerente: `a:${asignacionId}` } satisfies EstadoLote });
+  useAtajo("n", () => navigate(`/asignaciones/${asignacionId}/depositos/nuevo`), { activo: activa });
+  useAtajo("l", subirLote, { activo: activa });
+  // Las imágenes soltadas aquí quedan para este gerente.
+  useReceptorArchivos(
+    !data
+      ? { destino: () => "Cargando…", recibir: null }
+      : activa
+        ? receptorCampana(navigate, { id: data.a.campanaId, nombre: `${data.a.gerenteNombre} (${data.a.campanaNombre})`, asignacionId })
+        : receptorCerrada(data.a.campanaNombre),
+  );
 
   if (!data) return <Cargando error={error} />;
   const { a, resumen, r } = data;
@@ -98,6 +111,10 @@ export function AsignacionPage() {
             <Button variant="outline" onClick={() => setEstadoCuenta(true)}>
               <FileImage />
               Estado de cuenta
+            </Button>
+            <Button variant="outline" disabled={cerrada} title="L · también puedes soltar las imágenes en cualquier parte" onClick={subirLote}>
+              <Images />
+              Subir lote
             </Button>
             {cerrada ? (
               <Button disabled>

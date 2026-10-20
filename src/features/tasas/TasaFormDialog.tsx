@@ -20,12 +20,14 @@ import { aplicarExtraccion, autollenadoExistente, autollenadoNuevo, marcarTocado
 type Props = {
   tasa: TasaConUsos | null;
   fechaFija?: string;
+  /** Captura con la que abre una tasa nueva (soltada sobre la pantalla de Tasas). */
+  imagenInicial?: File;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: (t: Tasa) => void;
 };
 
-export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }: Props) {
+export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenChange, onSaved }: Props) {
   const [form, setForm] = useState<{ draft: TasaDraft; auto: Autollenado<CamposTasa> }>({
     draft: { fecha: "", valor: "", notas: "" },
     auto: autollenadoNuevo(),
@@ -52,7 +54,8 @@ export function TasaFormDialog({ tasa, fechaFija, open, onOpenChange, onSaved }:
     setFechaImagen(null);
     setImagen(tasa?.imagenPath ? { kind: "stored", path: tasa.imagenPath } : null);
     setErrors({});
-  }, [open, tasa, fechaFija]);
+    if (!tasa && imagenInicial) void onImagen({ kind: "new", file: imagenInicial, previewUrl: URL.createObjectURL(imagenInicial) });
+  }, [open, tasa, fechaFija, imagenInicial]);
 
   function set(k: keyof TasaDraft, v: string) {
     setForm((f) => ({ draft: { ...f.draft, [k]: v }, auto: k === "notas" ? f.auto : marcarTocado(f.auto, k) }));

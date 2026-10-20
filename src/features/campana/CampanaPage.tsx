@@ -60,6 +60,7 @@ export function CampanaPage() {
 
   const cerradaAtajo = data?.campana.estado !== "activa";
   useAtajo("n", () => navigate(`/campanas/${campanaId}/depositos/nuevo`), { activo: !cerradaAtajo });
+  useAtajo("l", () => navigate(`/campanas/${campanaId}/lote`), { activo: !cerradaAtajo });
 
   const existe = data !== undefined;
   useEffect(() => {
@@ -188,6 +189,10 @@ export function CampanaPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button variant="outline" disabled={cerrada} title="L · también puedes soltar las imágenes en cualquier parte" onClick={() => navigate(`/campanas/${campanaId}/lote`)}>
+              <Images />
+              Subir lote
+            </Button>
             <div className="flex">
               <Button disabled={cerrada} title="N" className="rounded-r-none" onClick={() => navigate(`/campanas/${campanaId}/depositos/nuevo`)}>
                 <Plus />
@@ -201,10 +206,6 @@ export function CampanaPage() {
                   <ChevronDown />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-auto min-w-48">
-                  <DropdownMenuItem onClick={() => navigate(`/campanas/${campanaId}/lote`)}>
-                    <Images />
-                    Subir lote de comprobantes
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate(`/campanas/${campanaId}/importar`)}>
                     <FileUp />
                     Importar Excel

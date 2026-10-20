@@ -7,6 +7,7 @@ import { AyudaAtajos, Tecla } from "@/components/AyudaAtajos";
 import { AvisoActualizacion } from "@/components/AvisoActualizacion";
 import { AvisoTasaFaltante } from "@/components/AvisoTasaFaltante";
 import { AvisoEspejo } from "@/components/AvisoEspejo";
+import { SoltarImagenes } from "@/components/SoltarImagenes";
 import { useAtajo } from "@/hooks/useAtajo";
 import { getCampana } from "@/db/repos/campanas";
 import { useData } from "@/hooks/useData";
@@ -148,6 +149,7 @@ export function AppLayout() {
       <BusquedaGlobal open={buscar} onOpenChange={setBuscar} />
       <AyudaAtajos open={ayuda} onOpenChange={setAyuda} />
       <AvisoActualizacion />
+      <SoltarImagenes />
     </div>
   );
 }

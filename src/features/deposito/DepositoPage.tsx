@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +27,8 @@ import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { avisarDepositosEliminados } from "@/lib/deshacer";
 import { leerVolver } from "@/lib/volver";
+import { tomarArchivos, useReceptorArchivos } from "@/lib/soltarArchivos";
+import { receptorCampana, receptorCerrada } from "@/components/SoltarImagenes";
 import { sugerenciasBancos } from "@/domain/bancos";
 import { DepositoCampos } from "./DepositoCampos";
 import { camposOcr, conExtraccion, depositoVacio, SIN_DESTINO, useDepositoForm, type DepositoFormState } from "./useDepositoForm";
@@ -62,6 +64,7 @@ export function DepositoPage() {
 
 function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const campana = data.campana;
   // Vuelve a la lista desde la que se abrió (con sus filtros); si no se sabe, al gerente o a la campaña.
   const volver =
@@ -103,6 +106,28 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   // Uno nuevo con el banco y la referencia de otro no se guarda: se actualiza el existente o se descarta.
   const duplicado = !deposito && f.duplicados.length > 0;
   useAtajo("Enter", () => void guardar(false), { ctrl: true, activo: !cerrada && !saving && !buscandoTasa && !duplicado });
+
+  // Una imagen soltada en cualquier parte es el comprobante; varias se van a la subida en lote de la campaña.
+  const lote = receptorCampana(navigate, { id: campana.id, nombre: campana.nombre, asignacionId: asignacion?.id });
+  useReceptorArchivos(
+    cerrada
+      ? receptorCerrada(campana.nombre)
+      : {
+          destino: (n) => (n === 1 ? "Suelta para usar la imagen como comprobante" : lote.destino(n)),
+          recibir: (files) => (files.length === 1 ? usarArchivo(files[0]) : lote.recibir?.(files)),
+        },
+  );
+  // La imagen que se soltó en otra pantalla para abrir este registro.
+  useEffect(() => {
+    const [file] = tomarArchivos(pathname);
+    if (file && !cerrada) usarArchivo(file);
+    // Solo al abrir el formulario.
+  }, []);
+
+  function usarArchivo(file: File) {
+    if (imagen?.kind === "new") URL.revokeObjectURL(imagen.previewUrl);
+    void onImagen({ kind: "new", file, previewUrl: URL.createObjectURL(file) });
+  }
 
   async function onImagen(v: ImagenValue) {
     setImagen(v);

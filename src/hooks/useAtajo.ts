@@ -41,6 +41,8 @@ export const ATAJOS: { teclas: string[]; que: string }[] = [
   { teclas: ["Ctrl", "K"], que: "Buscar en todas las campañas (depósitos, gerentes, campañas)" },
   { teclas: ["/"], que: "Ir al buscador de la tabla" },
   { teclas: ["N"], que: "Nuevo: depósito en la campaña o gerente, tasa, gerente o campaña según la pantalla" },
+  { teclas: ["L"], que: "Subir comprobantes en lote (en la campaña o el gerente) o capturas de tasa (en Tasas)" },
+  { teclas: ["Arrastrar"], que: "Soltar imágenes en cualquier pantalla: una abre el registro del depósito; varias, la subida en lote" },
   { teclas: ["Ctrl", "Enter"], que: "Guardar el depósito (o Hecho en la revisión en lote)" },
   { teclas: ["Ctrl", "D"], que: "Descartar el depósito que se está registrando si está duplicado (en la revisión en lote, descartar el comprobante)" },
   { teclas: ["1", "2"], que: "En Depósitos duplicados: quedarse con el de la izquierda o el de la derecha (también ← y →)" },
