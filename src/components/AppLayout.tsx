@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { Download, FolderKanban, FolderOpen, Keyboard, LayoutDashboard, LineChart, PanelLeftClose, PanelLeftOpen, Search, Settings, Users } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
@@ -8,6 +8,7 @@ import { AvisoActualizacion } from "@/components/AvisoActualizacion";
 import { AvisoTasaFaltante } from "@/components/AvisoTasaFaltante";
 import { AvisoEspejo } from "@/components/AvisoEspejo";
 import { SoltarImagenes } from "@/components/SoltarImagenes";
+import { VolverArriba } from "@/components/VolverArriba";
 import { useAtajo } from "@/hooks/useAtajo";
 import { getCampana } from "@/db/repos/campanas";
 import { useData } from "@/hooks/useData";
@@ -42,6 +43,7 @@ export function AppLayout() {
   const [buscar, setBuscar] = useState(false);
   const [ayuda, setAyuda] = useState(false);
   const barra = useBarraLateral();
+  const main = useRef<HTMLElement>(null);
   useZoomApp();
   const { update } = useActualizacion();
   useEffect(() => {
@@ -140,10 +142,11 @@ export function AppLayout() {
           <span className={textoClass(c)}>Configuración</span>
         </NavLink>
       </aside>
-      <main className="flex-1 overflow-auto p-6">
+      <main ref={main} className="flex-1 overflow-auto p-6">
         <AvisoEspejo />
         <AvisoTasaFaltante />
         <Outlet />
+        <VolverArriba contenedor={main} />
       </main>
       <Toaster richColors position="bottom-right" />
       <BusquedaGlobal open={buscar} onOpenChange={setBuscar} />

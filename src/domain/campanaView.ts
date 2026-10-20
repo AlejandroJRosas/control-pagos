@@ -135,6 +135,20 @@ export type FiltroDepositos = {
 };
 export type FilaDeposito = DepositoCalculado & { saldoMostrado: string };
 
+export type GrupoDia<T> = { fecha: string; filas: T[]; totalBs: string; totalUsd: string };
+
+/** Junta los depósitos seguidos del mismo día (respeta el orden recibido); los subtotales suman los USD ya redondeados. */
+export function agruparPorDia<T extends { fecha: string; montoBs: string; usd: string }>(filas: T[]): GrupoDia<T>[] {
+  const grupos: { fecha: string; filas: T[] }[] = [];
+  for (const f of filas) {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo?.fecha === f.fecha) ultimo.filas.push(f);
+    else grupos.push({ fecha: f.fecha, filas: [f] });
+  }
+  const sum = (fs: T[], key: "montoBs" | "usd") => fs.reduce((acc, d) => acc.plus(d[key]), new Decimal(0)).toFixed(2);
+  return grupos.map((g) => ({ ...g, totalBs: sum(g.filas, "montoBs"), totalUsd: sum(g.filas, "usd") }));
+}
+
 export function filtrarDepositos(
   depositos: DepositoCalculado[],
   f: FiltroDepositos,

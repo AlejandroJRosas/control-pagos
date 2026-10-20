@@ -33,6 +33,16 @@ describe("normalizarColumnas", () => {
   });
 });
 
+describe("ocultas por defecto", () => {
+  it("sin nada guardado arrancan ocultas", () => {
+    expect(normalizarColumnas<K>(null, TODAS, ["b", "d"])).toEqual({ orden: ["a", "b", "c", "d"], ocultas: ["b", "d"] });
+  });
+
+  it("lo que el usuario guardó manda, aunque haya mostrado una de ellas", () => {
+    expect(normalizarColumnas<K>({ orden: ["a", "b", "c", "d"], ocultas: [] }, TODAS, ["b"]).ocultas).toEqual([]);
+  });
+});
+
 describe("cambios", () => {
   const base = normalizarColumnas<K>(null, TODAS);
 

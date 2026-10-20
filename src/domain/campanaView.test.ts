@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildCampanaView, calcResumen, compareRecientePrimero, estadoGerente, filtrarDepositos, type AsignacionData, type DepositoData } from "./campanaView";
+import { agruparPorDia, buildCampanaView, calcResumen, compareRecientePrimero, estadoGerente, filtrarDepositos, type AsignacionData, type DepositoData } from "./campanaView";
 
 const asig = (id: number, gerenteId: number, gerenteNombre: string, saldoUsd: string): AsignacionData => ({ id, gerenteId, gerenteNombre, saldoUsd });
 
@@ -150,5 +150,20 @@ describe("compareRecientePrimero", () => {
       d(4, "2026-03-03", "2026-03-03T08:00:00.000Z"),
     ];
     expect(filas.sort(compareRecientePrimero).map((f) => f.id)).toEqual([4, 3, 5, 2, 1]);
+  });
+});
+
+describe("agruparPorDia", () => {
+  it("junta los depósitos seguidos del mismo día, en el orden en que vienen, con sus subtotales", () => {
+    const d = (id: number, fecha: string, montoBs: string, usd: string) => ({ id, fecha, montoBs, usd });
+    const grupos = agruparPorDia([d(1, "2026-03-03", "100", "2.74"), d(2, "2026-03-03", "50.5", "1.38"), d(3, "2026-03-02", "10", "0.27")]);
+    expect(grupos).toEqual([
+      { fecha: "2026-03-03", filas: [expect.objectContaining({ id: 1 }), expect.objectContaining({ id: 2 })], totalBs: "150.50", totalUsd: "4.12" },
+      { fecha: "2026-03-02", filas: [expect.objectContaining({ id: 3 })], totalBs: "10.00", totalUsd: "0.27" },
+    ]);
+  });
+
+  it("sin depósitos no hay grupos", () => {
+    expect(agruparPorDia([])).toEqual([]);
   });
 });

@@ -49,6 +49,7 @@ export const ATAJOS: { teclas: string[]; que: string }[] = [
   { teclas: ["Enter"], que: "Al subir en lote: ir a revisar (si todavía se está leyendo, espera a que termine)" },
   { teclas: ["Ctrl", "A"], que: "En la revisión en lote: marcar todos los pendientes (Ctrl o Shift + clic para marcar varios)" },
   { teclas: ["Esc"], que: "Volver a la pantalla anterior" },
+  { teclas: ["Inicio"], que: "Volver arriba de la página (también el botón que aparece abajo a la derecha al bajar)" },
   { teclas: ["Ctrl", "B"], que: "Colapsar o expandir la barra lateral" },
   { teclas: ["Ctrl", "Rueda"], que: "Agrandar o achicar la app (también Ctrl + / Ctrl − ; Ctrl 0 vuelve al 100 %)" },
   { teclas: ["?"], que: "Mostrar esta ayuda" },

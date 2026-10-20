@@ -3,9 +3,12 @@ import { useState } from "react";
 /** Columnas de una tabla que el usuario puede ocultar y reordenar; se recuerda por tabla en localStorage. */
 export type EstadoColumnas<K extends string> = { orden: K[]; ocultas: K[] };
 
-/** Ajusta lo guardado a las columnas actuales: quita las que ya no existen y agrega las nuevas junto a su vecina original. */
-export function normalizarColumnas<K extends string>(guardado: unknown, todas: readonly K[]): EstadoColumnas<K> {
-  const g = (guardado ?? {}) as Partial<EstadoColumnas<string>>;
+/**
+ * Ajusta lo guardado a las columnas actuales: quita las que ya no existen y agrega las nuevas junto a su vecina original.
+ * `ocultasPorDefecto` solo vale sin nada guardado (o al restablecer).
+ */
+export function normalizarColumnas<K extends string>(guardado: unknown, todas: readonly K[], ocultasPorDefecto: readonly K[] = []): EstadoColumnas<K> {
+  const g = (guardado ?? { ocultas: ocultasPorDefecto }) as Partial<EstadoColumnas<string>>;
   const validas = (xs: unknown) => (Array.isArray(xs) ? xs.filter((x): x is K => todas.includes(x as K)) : []);
   const orden = [...new Set(validas(g.orden))];
   todas.forEach((k, i) => {
@@ -58,12 +61,12 @@ export function agruparPie<K extends string>(cols: readonly K[], conTotal: reado
 
 const prefijo = "control-pagos:columnas:";
 
-function leer<K extends string>(clave: string, todas: readonly K[]): EstadoColumnas<K> {
+function leer<K extends string>(clave: string, todas: readonly K[], ocultas: readonly K[]): EstadoColumnas<K> {
   try {
     const crudo = localStorage.getItem(prefijo + clave);
-    return normalizarColumnas(crudo ? JSON.parse(crudo) : null, todas);
+    return normalizarColumnas(crudo ? JSON.parse(crudo) : null, todas, ocultas);
   } catch {
-    return normalizarColumnas(null, todas);
+    return normalizarColumnas(null, todas, ocultas);
   }
 }
 
@@ -76,8 +79,8 @@ function guardar<K extends string>(clave: string, e: EstadoColumnas<K> | null): 
   }
 }
 
-export function useColumnas<K extends string>(clave: string, todas: readonly K[]) {
-  const [estado, setEstado] = useState(() => leer(clave, todas));
+export function useColumnas<K extends string>(clave: string, todas: readonly K[], ocultasPorDefecto: readonly K[] = []) {
+  const [estado, setEstado] = useState(() => leer(clave, todas, ocultasPorDefecto));
   // Actualización funcional: dos clics seguidos no se pisan con un estado viejo.
   const cambiar = (f: (e: EstadoColumnas<K>) => EstadoColumnas<K>) =>
     setEstado((e) => {
@@ -92,7 +95,7 @@ export function useColumnas<K extends string>(clave: string, todas: readonly K[]
     mover: (k: K, delta: -1 | 1) => cambiar((e) => moverColumna(e, k, delta)),
     restablecer: () => {
       guardar(clave, null);
-      setEstado(normalizarColumnas(null, todas));
+      setEstado(normalizarColumnas(null, todas, ocultasPorDefecto));
     },
   };
 }

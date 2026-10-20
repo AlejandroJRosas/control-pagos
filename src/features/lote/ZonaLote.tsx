@@ -153,7 +153,7 @@ export function BarraIrARevisar({ to, filas }: { to: string; filas: FilaLote[] }
   if (filas.length === 0) return null;
 
   return (
-    <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-end gap-3 border-t bg-background/95 px-6 py-3 backdrop-blur">
+    <div data-barra-inferior className="sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-end gap-3 border-t bg-background/95 px-6 py-3 backdrop-blur">
       <span className="mr-auto text-sm text-muted-foreground" aria-live="polite">
         {filas.length} subido(s)
         {porLeer > 0 && ` · leyendo ${porLeer}…`}

@@ -3,11 +3,12 @@
 import * as React from "react"
 import { cn } from "cn"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+// contenedorClassName: p. ej. "overflow-visible" para que un encabezado sticky se pegue al scroll de la página.
+function Table({ className, contenedorClassName, ...props }: React.ComponentProps<"table"> & { contenedorClassName?: string }) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full overflow-x-auto", contenedorClassName)}
     >
       <table
         data-slot="table"
