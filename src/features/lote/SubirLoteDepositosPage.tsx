@@ -8,12 +8,13 @@ import { Field } from "@/components/Field";
 import { BuscadorSelect } from "@/components/BuscadorSelect";
 import { getDb } from "@/db";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
-import { borradorDepositoVacio, encolarDeposito, getItemColaDeposito, guardarBorradorDeposito } from "@/db/repos/cola";
+import { asignarGerenteCola, borradorDepositoVacio, encolarDeposito, getItemColaDeposito, guardarBorradorDeposito } from "@/db/repos/cola";
 import { extractor } from "@/extraction/extractor";
 import { ajustarCuentaDestino } from "@/extraction/cuentaConocida";
 import { listCuentasDestinoUsadas } from "@/db/repos/depositos";
 import { deleteImage, saveImage } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
+import { reportError } from "@/lib/reportError";
 import type { EstadoLote } from "@/components/SoltarImagenes";
 import { borradorDepositoConOcr } from "./leerEnBorrador";
 import { useLote } from "./useLote";
@@ -34,6 +35,18 @@ function SubirLote({ data }: { data: CampanaData }) {
   // Gerente vigente al encolar cada imagen (la lista puede cambiar entre tandas).
   const gerenteRef = useRef(gerente);
   gerenteRef.current = gerente;
+  // Comprobantes subidos en esta pantalla: cambiar el gerente también los cambia a ellos.
+  const subidos = useRef<number[]>([]);
+
+  function elegirGerente(sel: string) {
+    setGerente(sel);
+    gerenteRef.current = sel;
+    if (subidos.current.length === 0) return;
+    getDb()
+      .then((db) => asignarGerenteCola(db, subidos.current, sel))
+      .then(() => invalidate())
+      .catch((e) => reportError(e));
+  }
 
   const { filas, agregar } = useLote({
     async encolar(file) {
@@ -41,6 +54,7 @@ function SubirLote({ data }: { data: CampanaData }) {
       try {
         const db = await getDb();
         const id = await encolarDeposito(db, campana.id, { imagenPath, nombreArchivo: file.name, borrador: borradorDepositoVacio(gerenteRef.current) });
+        subidos.current.push(id);
         invalidate();
         return id;
       } catch (e) {
@@ -81,7 +95,7 @@ function SubirLote({ data }: { data: CampanaData }) {
             id="lote-gerente"
             value={gerente}
             disabled={cerrada}
-            onChange={setGerente}
+            onChange={elegirGerente}
             opciones={data.asignaciones.map((a) => ({ value: `a:${a.id}`, label: a.gerenteNombre }))}
             placeholder="Sin asignar (lo eliges al revisar)"
           />
