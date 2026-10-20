@@ -112,7 +112,7 @@ export function BdDanada({ detalle, onContinuar }: Props) {
         destructive
         onConfirm={confirmar}
       />
-      <Toaster richColors position="bottom-right" />
+      <Toaster richColors position="top-right" />
     </div>
   );
 }
