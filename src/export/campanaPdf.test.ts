@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContextPageSize, DynamicContent } from "pdfmake/interfaces";
-import { buildCampanaPdf } from "./campanaPdf";
+import { buildCampanaPdf, buildGerentePdf } from "./campanaPdf";
 import { buildCampanaView, type DepositoData } from "@/domain/campanaView";
 import type { Campana } from "@/db/repos/campanas";
 
@@ -136,5 +136,34 @@ describe("buildCampanaPdf", () => {
   it("carta vertical", () => {
     expect(dd.pageSize).toBe("LETTER");
     expect(dd.pageOrientation).toBe("portrait");
+  });
+});
+
+describe("buildGerentePdf", () => {
+  const ana = buildGerentePdf(campana, view, 1, generadoEn);
+
+  it("solo el gerente: su nombre, la campaña, su avance y sus depósitos, sin el resumen de la campaña", () => {
+    const t = textos(ana.content);
+    for (const s of ["ESTADO DE CUENTA · CORTE 18/10/2026", "Ana Peña", "Total (2 depósitos)", "4.745,00", "$ 130,00 pagado", "Pagado de más"]) {
+      expect(t).toContain(s);
+    }
+    expect(t.some((s) => s.includes("Campaña Marzo"))).toBe(true);
+    expect(t).not.toContain("Luis");
+    expect(t).not.toContain("Resumen por gerente");
+    expect(bloquesGerente(ana)).toHaveLength(0);
+    expect(ana.info?.title).toBe("Ana Peña · Marzo");
+  });
+
+  it("encabezado desde la página 2 con el gerente y la campaña", () => {
+    const h2 = textos((ana.header as DynamicContent)(2, 2, pagina));
+    expect(h2).toContain("Ana Peña · Marzo");
+  });
+
+  it("gerente sin depósitos", () => {
+    expect(textos(buildGerentePdf(campana, view, 2, generadoEn).content)).toContain("Sin depósitos registrados");
+  });
+
+  it("asignación fuera de la campaña lanza error", () => {
+    expect(() => buildGerentePdf(campana, view, 99)).toThrow();
   });
 });

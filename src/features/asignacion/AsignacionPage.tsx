@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { FileImage, FileSpreadsheet, Images, Loader2, MessageCircle, Plus } from "lucide-react";
+import { ChevronDown, Download, FileImage, FileSpreadsheet, FileText, Images, Loader2, MessageCircle, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando, Vacio } from "@/components/Feedback";
 import { ResumenCards } from "@/components/ResumenCards";
@@ -14,7 +15,9 @@ import { getGerente, type Gerente } from "@/db/repos/gerentes";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { loadDuplicadosCampana } from "@/db/queries/duplicados";
 import { buildGerenteWorkbook } from "@/export/campanaWorkbook";
-import { archivoExcel } from "@/export/fileName";
+import { buildGerentePdf } from "@/export/campanaPdf";
+import { archivoExcel, archivoPdf } from "@/export/fileName";
+import { precargarPdfMake, savePdf } from "@/export/savePdf";
 import { saveWorkbook } from "@/export/saveWorkbook";
 import { buildCampanaView, estadoGerente, filtrarDepositos } from "@/domain/campanaView";
 import { todayIso } from "@/domain/dates";
@@ -84,17 +87,29 @@ export function AsignacionPage() {
     await openUrl(urlWhatsApp(numero, texto));
   }
 
-  async function exportarExcel() {
+  const archivo = `${a.gerenteNombre} ${a.campanaNombre}`;
+
+  /** Mientras se exporta, el menú queda deshabilitado: generar el PDF tarda unos segundos la primera vez. */
+  async function conExportando(guardar: (avisar: (texto: string) => void) => Promise<boolean>, mensaje: string) {
     setExportando(true);
+    let aviso: string | number | undefined;
     try {
-      const wb = buildGerenteWorkbook(campana, view, asignacionId);
-      if (await saveWorkbook(wb, archivoExcel(`${a.gerenteNombre} ${a.campanaNombre}`, hoy))) toast.success("Excel guardado");
+      const guardado = await guardar((texto) => (aviso = toast.loading(texto)));
+      if (guardado) toast.success(mensaje, { id: aviso });
     } catch (e) {
+      if (aviso !== undefined) toast.dismiss(aviso);
       reportError(e, "Exportar");
     } finally {
       setExportando(false);
     }
   }
+
+  const exportarExcel = () => conExportando(() => saveWorkbook(buildGerenteWorkbook(campana, view, asignacionId), archivoExcel(archivo, hoy)), "Excel guardado");
+  const exportarPdf = () =>
+    conExportando(
+      (avisar) => savePdf(buildGerentePdf(campana, view, asignacionId), archivoPdf(archivo, hoy), () => avisar("Generando PDF…")),
+      "PDF guardado",
+    );
 
   async function whatsapp() {
     try {
@@ -128,15 +143,32 @@ export function AsignacionPage() {
               <MessageCircle />
               {numero ? "Recordatorio por WhatsApp" : "Agregar teléfono…"}
             </Button>
-            <Button
-              variant="outline"
-              disabled={exportando || duplicado}
-              title={duplicado ? "Resuelve los depósitos duplicados de la campaña para exportar" : "Excel con los depósitos y el saldo de este gerente"}
-              onClick={() => void exportarExcel()}
-            >
-              {exportando ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
-              Exportar Excel
-            </Button>
+            {/* Al abrir el menú se va cargando pdfmake, para que el PDF salga más rápido. */}
+            <DropdownMenu onOpenChange={(abierto) => abierto && void precargarPdfMake().catch(() => {})}>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    disabled={exportando || duplicado}
+                    title={duplicado ? "Resuelve los depósitos duplicados de la campaña para exportar" : "Los depósitos y el saldo de este gerente"}
+                  />
+                }
+              >
+                {exportando ? <Loader2 className="animate-spin" /> : <Download />}
+                {exportando ? "Exportando…" : "Exportar"}
+                <ChevronDown data-icon="inline-end" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-auto min-w-48">
+                <DropdownMenuItem onClick={() => void exportarExcel()}>
+                  <FileSpreadsheet />
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void exportarPdf()}>
+                  <FileText />
+                  PDF (.pdf)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" onClick={() => setEstadoCuenta(true)}>
               <FileImage />
               Estado de cuenta

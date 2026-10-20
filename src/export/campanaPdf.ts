@@ -75,8 +75,9 @@ function avance(r: Resumen, deTexto: string, color: string, cola: string): Conte
   ];
 }
 
-function franja(campana: Campana, corte: string): Content {
-  const estado = campana.estado === "activa" ? "Activa" : "Cerrada";
+const periodoYEstado = (campana: Campana) => `${formatPeriodo(campana.fechaInicio, campana.fechaFin)} · ${campana.estado === "activa" ? "Activa" : "Cerrada"}`;
+
+function franja(etiqueta: string, titulo: string, subtitulo: string): Content {
   return {
     table: {
       widths: ["*"],
@@ -87,9 +88,9 @@ function franja(campana: Campana, corte: string): Content {
             color: "#ffffff",
             margin: [10, 8, 10, 8],
             stack: [
-              { text: `REPORTE DE CAMPAÑA · CORTE ${corte}`, fontSize: 7, color: "#c9d6e8", characterSpacing: 0.5 },
-              { text: campana.nombre, fontSize: 18, bold: true },
-              { text: `${formatPeriodo(campana.fechaInicio, campana.fechaFin)} · ${estado}`, color: "#c9d6e8" },
+              { text: etiqueta, fontSize: 7, color: "#c9d6e8", characterSpacing: 0.5 },
+              { text: titulo, fontSize: 18, bold: true },
+              { text: subtitulo, color: "#c9d6e8" },
             ],
           },
         ],
@@ -169,23 +170,23 @@ function tablaDepositos(g: GerenteResumen, deps: DepositoCalculado[]): Content {
   };
 }
 
+const textoDepositos = (n: number) => `${n} ${n === 1 ? "depósito" : "depósitos"}`;
+
 function paginaGerente(g: GerenteResumen, deps: DepositoCalculado[]): Content {
-  const n = `${g.cantidad} ${g.cantidad === 1 ? "depósito" : "depósitos"}`;
   return {
     pageBreak: "before",
     stack: [
       { text: g.gerenteNombre, fontSize: 16, bold: true },
-      ...avance(g, " asignado", colorBarra(g), `${formatPct(g.pct)} · ${n}`),
+      ...avance(g, " asignado", colorBarra(g), `${formatPct(g.pct)} · ${textoDepositos(g.cantidad)}`),
       tablaDepositos(g, deps),
     ],
   };
 }
 
-/** Reporte de la campaña para compartir: resumen por gerente y una página de depósitos por gerente. */
-export function buildCampanaPdf(campana: Campana, view: CampanaView, generadoEn: Date = new Date()): TDocumentDefinitions {
-  const corte = formatFecha(todayIso(generadoEn));
+/** Carta vertical; desde la página 2, `encabezado` y el corte arriba; en la primera, solo el número de página al pie. */
+function documento(titulo: string, encabezado: string, corte: string, content: Content[]): TDocumentDefinitions {
   return {
-    info: { title: `Campaña ${campana.nombre}`, creator: "Control de Pagos" },
+    info: { title: titulo, creator: "Control de Pagos" },
     pageSize: "LETTER",
     pageOrientation: "portrait",
     pageMargins: [40, 50, 40, 40],
@@ -199,7 +200,7 @@ export function buildCampanaPdf(campana: Campana, view: CampanaView, generadoEn:
             stack: [
               {
                 columns: [
-                  { text: campana.nombre },
+                  { text: encabezado },
                   { text: `Corte ${corte} · Pág. ${pagina} de ${total}`, alignment: "right" },
                 ],
                 fontSize: 8,
@@ -210,17 +211,39 @@ export function buildCampanaPdf(campana: Campana, view: CampanaView, generadoEn:
           },
     footer: (pagina: number, total: number): Content | null =>
       pagina === 1 ? { text: `Pág. 1 de ${total}`, alignment: "center", fontSize: 8, color: hex(COLOR.gris), margin: [0, 12, 0, 0] } : null,
-    content: [
-      franja(campana, corte),
-      ...avance(view.total, "", COLOR.barraAzul, `${formatPct(view.total.pct)} de avance`),
-      { text: "Resumen por gerente", bold: true, fontSize: 11, margin: [0, 16, 0, 6] },
-      tablaResumen(view),
-      ...view.gerentes.map((g) =>
-        paginaGerente(
-          g,
-          view.depositos.filter((d) => d.asignacionId === g.asignacionId),
-        ),
-      ),
-    ],
+    content,
   };
+}
+
+/** Reporte de la campaña para compartir: resumen por gerente y una página de depósitos por gerente. */
+export function buildCampanaPdf(campana: Campana, view: CampanaView, generadoEn: Date = new Date()): TDocumentDefinitions {
+  const corte = formatFecha(todayIso(generadoEn));
+  return documento(`Campaña ${campana.nombre}`, campana.nombre, corte, [
+    franja(`REPORTE DE CAMPAÑA · CORTE ${corte}`, campana.nombre, periodoYEstado(campana)),
+    ...avance(view.total, "", COLOR.barraAzul, `${formatPct(view.total.pct)} de avance`),
+    { text: "Resumen por gerente", bold: true, fontSize: 11, margin: [0, 16, 0, 6] },
+    tablaResumen(view),
+    ...view.gerentes.map((g) =>
+      paginaGerente(
+        g,
+        view.depositos.filter((d) => d.asignacionId === g.asignacionId),
+      ),
+    ),
+  ]);
+}
+
+/** Estado de cuenta de un gerente en la campaña: su avance y sus depósitos. */
+export function buildGerentePdf(campana: Campana, view: CampanaView, asignacionId: number, generadoEn: Date = new Date()): TDocumentDefinitions {
+  const g = view.gerentes.find((x) => x.asignacionId === asignacionId);
+  if (!g) throw new Error(`Asignación ${asignacionId} fuera de la campaña ${campana.id}`);
+  const corte = formatFecha(todayIso(generadoEn));
+  const titulo = `${g.gerenteNombre} · ${campana.nombre}`;
+  return documento(titulo, titulo, corte, [
+    franja(`ESTADO DE CUENTA · CORTE ${corte}`, g.gerenteNombre, `Campaña ${campana.nombre} · ${periodoYEstado(campana)}`),
+    ...avance(g, " asignado", colorBarra(g), `${formatPct(g.pct)} · ${textoDepositos(g.cantidad)}`),
+    tablaDepositos(
+      g,
+      view.depositos.filter((d) => d.asignacionId === asignacionId),
+    ),
+  ]);
 }
