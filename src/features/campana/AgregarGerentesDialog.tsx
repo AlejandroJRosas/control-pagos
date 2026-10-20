@@ -5,9 +5,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getDb } from "@/db";
-import { listGerentes } from "@/db/repos/gerentes";
+import { EtiquetaChip } from "@/components/EtiquetaChip";
+import { listGerentesConCampanas } from "@/db/repos/gerentes";
+import { listEtiquetas, type Etiqueta } from "@/db/repos/etiquetas";
 import { claveComparacion } from "@/db/repos/depositos";
 import { agregarGerentes } from "@/db/operaciones/agregarGerentes";
+import { conEtiquetas } from "@/domain/etiquetas";
 import { validateSaldo } from "@/domain/validation";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
@@ -23,9 +26,11 @@ type Props = {
 type Fila = { marcado: boolean; saldo: string };
 
 export function AgregarGerentesDialog({ campanaId, gerentesEnCampana, open, onOpenChange }: Props) {
-  const { data: gerentes } = useData((db) => listGerentes(db, { soloActivos: true }), []);
+  const { data: gerentes } = useData(async (db) => (await listGerentesConCampanas(db)).filter((g) => g.activo), []);
+  const { data: etiquetas } = useData((db) => listEtiquetas(db), []);
   const [filas, setFilas] = useState<Record<number, Fila>>({});
   const [buscar, setBuscar] = useState("");
+  const [elegidas, setElegidas] = useState<number[]>([]);
   const [saldoComun, setSaldoComun] = useState("");
   const [errores, setErrores] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
@@ -34,13 +39,20 @@ export function AgregarGerentesDialog({ campanaId, gerentesEnCampana, open, onOp
     if (!open) return;
     setFilas({});
     setBuscar("");
+    setElegidas([]);
     setSaldoComun("");
     setErrores({});
   }, [open]);
 
   const disponibles = (gerentes ?? []).filter((g) => !gerentesEnCampana.includes(g.id));
+  const porId = new Map<number, Etiqueta>((etiquetas ?? []).map((e) => [e.id, e]));
+  // Solo las etiquetas que tiene algún gerente disponible: las demás dejarían la lista vacía.
+  const etiquetasUsadas = (etiquetas ?? []).filter((e) => disponibles.some((g) => g.etiquetas.includes(e.id)));
   const clave = claveComparacion(buscar);
-  const visibles = clave ? disponibles.filter((g) => claveComparacion(g.nombre).includes(clave)) : disponibles;
+  const coincide = (g: (typeof disponibles)[number]) =>
+    !clave || claveComparacion(g.nombre).includes(clave) || g.etiquetas.some((id) => claveComparacion(porId.get(id)?.nombre ?? "").includes(clave));
+  const visibles = disponibles.filter((g) => conEtiquetas(g.etiquetas, elegidas) && coincide(g));
+  const filtrando = !!clave || elegidas.length > 0;
   const fila = (id: number): Fila => filas[id] ?? { marcado: false, saldo: "" };
   const elegidos = disponibles.filter((g) => fila(g.id).marcado);
   const todosVisiblesMarcados = visibles.length > 0 && visibles.every((g) => fila(g.id).marcado);
@@ -106,8 +118,27 @@ export function AgregarGerentesDialog({ campanaId, gerentesEnCampana, open, onOp
             <>
               <div className="relative">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Buscar gerente…" className="pl-8" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
+                <Input placeholder="Buscar gerente o etiqueta…" className="pl-8" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
               </div>
+
+              {etiquetasUsadas.length > 0 && (
+                <div role="group" aria-label="Filtrar por etiqueta" className="-mt-1 flex flex-wrap items-center gap-1.5">
+                  {etiquetasUsadas.map((e) => (
+                    <EtiquetaChip
+                      key={e.id}
+                      nombre={e.nombre}
+                      color={e.color}
+                      activo={elegidas.includes(e.id)}
+                      onClick={() => setElegidas((l) => (l.includes(e.id) ? l.filter((x) => x !== e.id) : [...l, e.id]))}
+                    />
+                  ))}
+                  {elegidas.length > 0 && (
+                    <Button type="button" variant="link" size="sm" className="h-6 px-1 text-xs" onClick={() => setElegidas([])}>
+                      Quitar filtro
+                    </Button>
+                  )}
+                </div>
+              )}
 
               <div className="max-h-80 overflow-y-auto rounded-lg border">
                 <label className="sticky top-0 z-10 flex items-center gap-3 border-b bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
@@ -117,17 +148,21 @@ export function AgregarGerentesDialog({ campanaId, gerentesEnCampana, open, onOp
                     disabled={visibles.length === 0}
                     onChange={(e) => marcarVisibles(e.target.checked)}
                   />
-                  {clave ? "Marcar los encontrados" : "Marcar todos"}
+                  {filtrando ? "Marcar los encontrados" : "Marcar todos"}
                   <span className="ml-auto">Saldo (USD)</span>
                 </label>
-                {visibles.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">Ningún gerente coincide con la búsqueda.</p>}
+                {visibles.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">Ningún gerente coincide con la búsqueda o las etiquetas.</p>}
                 {visibles.map((g) => {
                   const f = fila(g.id);
                   return (
                     <div key={g.id} className="flex items-center gap-3 border-b px-3 py-1.5 last:border-b-0">
                       <label className="flex min-w-0 flex-1 items-center gap-3 text-sm">
-                        <input type="checkbox" checked={f.marcado} onChange={(e) => cambiar(g.id, { marcado: e.target.checked })} />
+                        <input type="checkbox" aria-label={g.nombre} checked={f.marcado} onChange={(e) => cambiar(g.id, { marcado: e.target.checked })} />
                         <span className="truncate">{g.nombre}</span>
+                        {g.etiquetas.map((id) => {
+                          const e = porId.get(id);
+                          return e && <EtiquetaChip key={id} nombre={e.nombre} color={e.color} className="h-5 px-2" />;
+                        })}
                       </label>
                       <div className="w-36">
                         <Input

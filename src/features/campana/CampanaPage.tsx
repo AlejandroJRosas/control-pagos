@@ -6,7 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
-import { Aviso, Cargando } from "@/components/Feedback";
+import { Aviso, Cargando, Vacio } from "@/components/Feedback";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { ResumenCards } from "@/components/ResumenCards";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -230,39 +230,49 @@ export function CampanaPage() {
           </div>
         </Aviso>
       )}
-      <ResumenCards resumen={view.total} etiquetaAsignado="Saldo general" />
-      <Tabs
-        value={tab}
-        onValueChange={(v) =>
-          setParams(
-            (p) => {
-              const n = new URLSearchParams(p);
-              if (v === "gerentes") n.set("tab", "gerentes");
-              else n.delete("tab");
-              return n;
-            },
-            { replace: true },
-          )
-        }
-      >
-        <TabsList>
-          <TabsTrigger value="depositos">Todos los depósitos ({view.depositos.length})</TabsTrigger>
-          <TabsTrigger value="gerentes">Por gerente ({view.gerentes.length})</TabsTrigger>
-        </TabsList>
-        <TabsContent value="gerentes">
-          <PorGerenteTab
-            campanaId={campanaId}
-            gerentes={view.gerentes}
-            cerrada={cerrada}
-            onEditarSaldo={(g) => setAsig({ id: g.asignacionId, gerenteNombre: g.gerenteNombre, saldoUsd: g.asignado })}
-            onQuitar={setQuitar}
-            onAgregar={() => setAgregar(true)}
-          />
-        </TabsContent>
-        <TabsContent value="depositos">
-          <TodosDepositosTab campanaId={campanaId} campanaNombre={campana.nombre} view={view} cerrada={cerrada} />
-        </TabsContent>
-      </Tabs>
+      {view.gerentes.length === 0 ? (
+        cerrada ? (
+          <Vacio texto="La campaña no tiene gerentes." />
+        ) : (
+          <InicioCampana onAgregar={() => setAgregar(true)} onImportar={() => navigate(`/campanas/${campanaId}/importar`)} />
+        )
+      ) : (
+        <>
+          <ResumenCards resumen={view.total} etiquetaAsignado="Saldo general" />
+          <Tabs
+            value={tab}
+            onValueChange={(v) =>
+              setParams(
+                (p) => {
+                  const n = new URLSearchParams(p);
+                  if (v === "gerentes") n.set("tab", "gerentes");
+                  else n.delete("tab");
+                  return n;
+                },
+                { replace: true },
+              )
+            }
+          >
+            <TabsList>
+              <TabsTrigger value="depositos">Todos los depósitos ({view.depositos.length})</TabsTrigger>
+              <TabsTrigger value="gerentes">Por gerente ({view.gerentes.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="gerentes">
+              <PorGerenteTab
+                campanaId={campanaId}
+                gerentes={view.gerentes}
+                cerrada={cerrada}
+                onEditarSaldo={(g) => setAsig({ id: g.asignacionId, gerenteNombre: g.gerenteNombre, saldoUsd: g.asignado })}
+                onQuitar={setQuitar}
+                onAgregar={() => setAgregar(true)}
+              />
+            </TabsContent>
+            <TabsContent value="depositos">
+              <TodosDepositosTab campanaId={campanaId} campanaNombre={campana.nombre} view={view} cerrada={cerrada} />
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
 
       <CampanaFormDialog campana={campana} open={editar} onOpenChange={setEditar} />
       <EliminarCampanaDialog campana={campana} open={eliminar} onOpenChange={setEliminar} />
@@ -294,5 +304,49 @@ export function CampanaPage() {
       />
       <EnvioLoteDialog campanaId={campanaId} open={envio} onOpenChange={setEnvio} />
     </div>
+  );
+}
+
+const PASOS = [
+  { titulo: "Agrega los gerentes", texto: "Elige quiénes participan (puedes filtrarlos por etiqueta) y el saldo a pagar en USD de cada uno." },
+  { titulo: "Registra sus depósitos", texto: "Uno a uno, subiendo un lote de comprobantes o importando sus Excel." },
+  { titulo: "Sigue los saldos", texto: "Lo pagado y lo que falta por gerente, listo para enviar por WhatsApp o exportar." },
+];
+
+/** Campaña sin gerentes: no hay nada que mostrar todavía, así que se explica por dónde empezar. */
+function InicioCampana({ onAgregar, onImportar }: { onAgregar: () => void; onImportar: () => void }) {
+  return (
+    <section aria-labelledby="inicio-campana" className="grid justify-items-center gap-6 rounded-xl border border-dashed px-6 py-12 text-center">
+      <div className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+        <UserPlus className="size-6" />
+      </div>
+      <div className="grid gap-1.5">
+        <h2 id="inicio-campana" className="text-lg font-semibold">
+          Empieza agregando gerentes
+        </h2>
+        <p className="max-w-md text-sm text-muted-foreground">La campaña todavía está vacía. Para registrar depósitos, primero agrega a los gerentes que participan.</p>
+      </div>
+      <ol className="grid w-full max-w-3xl gap-3 text-left sm:grid-cols-3">
+        {PASOS.map((p, i) => (
+          <li key={p.titulo} className="flex gap-3 rounded-lg bg-muted/50 p-3">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-background text-xs font-semibold tabular-nums ring-1 ring-border">{i + 1}</span>
+            <div className="grid gap-0.5">
+              <span className="text-sm font-medium">{p.titulo}</span>
+              <span className="text-xs text-muted-foreground">{p.texto}</span>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className="flex flex-wrap justify-center gap-2">
+        <Button onClick={onAgregar}>
+          <UserPlus />
+          Agregar gerentes
+        </Button>
+        <Button variant="outline" onClick={onImportar}>
+          <FileUp />
+          Importar Excel
+        </Button>
+      </div>
+    </section>
   );
 }
