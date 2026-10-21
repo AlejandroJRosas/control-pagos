@@ -241,7 +241,10 @@ export function AsignacionPage() {
         open={estadoCuenta}
         onOpenChange={setEstadoCuenta}
         gerenteNombre={a.gerenteNombre}
-        campanaNombre={a.campanaNombre}
+        campana={campana}
+        view={view}
+        asignacionId={asignacionId}
+        duplicado={duplicado}
         fechaCorte={hoy}
         resumen={resumen}
         filas={r.filas}

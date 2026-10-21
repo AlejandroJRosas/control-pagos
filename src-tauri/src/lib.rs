@@ -1,4 +1,5 @@
 mod backup;
+mod envios;
 pub mod ocr;
 
 use serde::Serialize;
@@ -146,6 +147,22 @@ fn restore_backup(app: AppHandle, zip_path: String) -> Result<(), String> {
     backup::restore_zip(Path::new(&zip_path), &p.db, &p.images)
 }
 
+/// Copia al portapapeles, como archivo, `envios\<nombre>` (lo escribe JS antes) y borra los envíos de más de 7 días.
+#[tauri::command]
+fn copiar_envio(app: AppHandle, nombre: String) -> Result<(), String> {
+    if !envios::nombre_valido(&nombre) {
+        return Err("Nombre de archivo inválido".into());
+    }
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("envios");
+    let ruta = dir.join(&nombre);
+    if !ruta.is_file() {
+        return Err("No se encontró el archivo para enviar".into());
+    }
+    envios::copiar_al_portapapeles(&ruta)?;
+    let _ = envios::podar(&dir, Duration::from_secs(7 * 24 * 60 * 60), SystemTime::now());
+    Ok(())
+}
+
 /// Recibe los bytes de la imagen como cuerpo crudo del invoke.
 #[tauri::command]
 async fn ocr_imagen(request: tauri::ipc::Request<'_>) -> Result<ocr::OcrResultado, String> {
@@ -195,6 +212,7 @@ pub fn run() {
             clean_orphan_images,
             list_backups,
             restore_backup,
+            copiar_envio,
             ocr_imagen
         ])
         .run(tauri::generate_context!())

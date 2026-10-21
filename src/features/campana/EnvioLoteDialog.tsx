@@ -5,33 +5,44 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Aviso, Cargando } from "@/components/Feedback";
+import { BotonConMotivo } from "@/components/BotonConMotivo";
 import type { SqlDriver } from "@/db/driver";
-import { getCampana } from "@/db/repos/campanas";
 import { listGerentes, type Gerente } from "@/db/repos/gerentes";
 import { getPlantillas } from "@/db/repos/plantillas";
-import { loadCampanaData } from "@/db/queries/campanaData";
-import { buildCampanaView, filtrarDepositos, type FilaDeposito, type GerenteResumen } from "@/domain/campanaView";
+import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
+import { loadDuplicadosCampana } from "@/db/queries/duplicados";
+import { buildCampanaView, filtrarDepositos, type CampanaView, type FilaDeposito, type GerenteResumen } from "@/domain/campanaView";
 import { todayIso } from "@/domain/dates";
 import { seleccionInicial } from "@/domain/envioLote";
 import { formatUsd } from "@/domain/money";
 import { mensajeEstadoCuenta, numeroWhatsApp, urlWhatsApp, type Plantillas } from "@/domain/whatsapp";
 import { useData } from "@/hooks/useData";
+import { ETIQUETA_FORMATO, useFormatoEnvio } from "@/lib/formatoEnvio";
 import { reportError } from "@/lib/reportError";
 import { GerenteFormDialog } from "@/features/gerentes/GerenteFormDialog";
-import { copiarImagen, HojaEstadoCuenta, imagenDeHoja } from "@/features/asignacion/HojaEstadoCuenta";
+import { HojaEstadoCuenta } from "@/features/asignacion/HojaEstadoCuenta";
+import { copiarEstadoCuenta } from "@/features/asignacion/envioEstadoCuenta";
+import { FormatoEnvioSelector } from "@/features/asignacion/FormatoEnvioSelector";
 
 type Fila = GerenteResumen & { telefono: string | null; numero: string | null; filas: FilaDeposito[] };
-type Datos = { campanaNombre: string; filas: Fila[]; gerentes: Gerente[]; plantillas: Plantillas };
+type Datos = { campana: CampanaData["campana"]; view: CampanaView; filas: Fila[]; gerentes: Gerente[]; plantillas: Plantillas; conDuplicados: Set<number> };
 
 async function cargar(db: SqlDriver, campanaId: number): Promise<Datos> {
-  const [campana, d, gerentes, plantillas] = await Promise.all([getCampana(db, campanaId), loadCampanaData(db, campanaId), listGerentes(db), getPlantillas(db)]);
+  const [d, gerentes, plantillas, duplicados] = await Promise.all([
+    loadCampanaData(db, campanaId),
+    listGerentes(db),
+    getPlantillas(db),
+    loadDuplicadosCampana(db, campanaId),
+  ]);
   const view = buildCampanaView(d.asignaciones, d.depositos);
   const tel = new Map(gerentes.map((g) => [g.id, g.telefono]));
   const filas = view.gerentes.map((g) => {
     const telefono = tel.get(g.gerenteId) ?? null;
     return { ...g, telefono, numero: numeroWhatsApp(telefono), filas: filtrarDepositos(view.depositos, { gerenteId: g.gerenteId }).filas };
   });
-  return { campanaNombre: campana?.nombre ?? "", filas, gerentes, plantillas };
+  // Como en Exportar: con un depósito duplicado, su PDF o Excel saldría con los totales inflados.
+  const conDuplicados = new Set(duplicados.flatMap((g) => g.map((dep) => dep.asignacionId)));
+  return { campana: d.campana, view, filas, gerentes, plantillas, conDuplicados };
 }
 
 type Props = { campanaId: number; open: boolean; onOpenChange: (open: boolean) => void };
@@ -46,6 +57,7 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
   const [editar, setEditar] = useState<Gerente | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const hoja = useRef<HTMLDivElement>(null);
+  const [formato, setFormato] = useFormatoEnvio();
   const hoy = todayIso();
 
   // Cada vez que se abre se empieza de nuevo (el avance no se guarda).
@@ -77,14 +89,21 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
     if (!f.numero || !data) return;
     setOcupado(true);
     try {
-      await copiarImagen(await imagenDeHoja(hoja.current));
+      const aviso = await copiarEstadoCuenta(formato, {
+        hoja: hoja.current,
+        campana: data.campana,
+        view: data.view,
+        asignacionId: f.asignacionId,
+        gerenteNombre: f.gerenteNombre,
+        fechaCorte: hoy,
+      });
       const texto = mensajeEstadoCuenta(
-        { gerenteNombre: f.gerenteNombre, campanaNombre: data.campanaNombre, fechaCorte: hoy, asignado: f.asignado, pagado: f.pagado, restante: f.restante, cantidad: f.cantidad },
+        { gerenteNombre: f.gerenteNombre, campanaNombre: data.campana.nombre, fechaCorte: hoy, asignado: f.asignado, pagado: f.pagado, restante: f.restante, cantidad: f.cantidad },
         data.plantillas,
       );
       await openUrl(urlWhatsApp(f.numero, texto));
       setEnviados((s) => new Set(s).add(f.asignacionId));
-      toast.success("Imagen copiada: pégala en el chat con Ctrl+V");
+      toast.success(`${aviso}: pégalo en el chat con Ctrl+V`);
     } catch (e) {
       reportError(e, "WhatsApp");
     } finally {
@@ -94,6 +113,11 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
 
   const conTelefono = data?.filas.filter((f) => f.numero) ?? [];
   const elegidos = conTelefono.filter((f) => marcados?.has(f.asignacionId));
+  const nombre = ETIQUETA_FORMATO[formato].toLowerCase();
+  const motivo =
+    actual && formato !== "imagen" && data?.conDuplicados.has(actual.asignacionId)
+      ? `Tiene depósitos duplicados: resuélvelos para enviar el ${nombre}, o envía la imagen`
+      : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -102,7 +126,7 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
           <DialogTitle>Enviar estados de cuenta</DialogTitle>
           <DialogDescription>
             {cola === null
-              ? "Elige a quién enviarlo. Luego se abre el chat de cada uno con el mensaje listo; pega la imagen con Ctrl+V y envía."
+              ? `Elige a quién enviarlo. Luego se abre el chat de cada uno con el mensaje listo; pega el ${nombre} con Ctrl+V y envía.`
               : terminado
                 ? "Listo."
                 : `${indice + 1} de ${cola.length}`}
@@ -152,7 +176,7 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
             <HojaEstadoCuenta
               ref={hoja}
               gerenteNombre={actual.gerenteNombre}
-              campanaNombre={data.campanaNombre}
+              campanaNombre={data.campana.nombre}
               fechaCorte={hoy}
               resumen={actual}
               filas={actual.filas}
@@ -164,25 +188,30 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
           </Aviso>
         )}
 
-        <DialogFooter>
-          {cola === null ? (
-            <Button disabled={elegidos.length === 0} onClick={() => setCola(elegidos.map((f) => f.asignacionId))}>
-              Empezar ({elegidos.length})
-            </Button>
-          ) : actual ? (
-            <>
-              <Button variant="ghost" disabled={ocupado} onClick={() => setIndice((i) => i + 1)}>
-                <SkipForward />
-                {enviados.has(actual.asignacionId) ? "Siguiente" : "Omitir"}
+        <DialogFooter className="sm:justify-between">
+          {!terminado && <FormatoEnvioSelector formato={formato} onChange={setFormato} />}
+          <div className="ml-auto flex flex-wrap justify-end gap-2">
+            {cola === null ? (
+              <Button disabled={elegidos.length === 0} onClick={() => setCola(elegidos.map((f) => f.asignacionId))}>
+                Empezar ({elegidos.length})
               </Button>
-              <Button disabled={ocupado} onClick={() => void enviar(actual)}>
-                <MessageCircle />
-                Copiar y abrir WhatsApp
-              </Button>
-            </>
-          ) : (
-            <Button onClick={() => onOpenChange(false)}>Cerrar</Button>
-          )}
+            ) : actual ? (
+              <>
+                <Button variant="ghost" disabled={ocupado} onClick={() => setIndice((i) => i + 1)}>
+                  <SkipForward />
+                  {enviados.has(actual.asignacionId) ? "Siguiente" : "Omitir"}
+                </Button>
+                <BotonConMotivo motivo={motivo}>
+                  <Button disabled={ocupado || !!motivo} onClick={() => void enviar(actual)}>
+                    <MessageCircle />
+                    Copiar y abrir WhatsApp
+                  </Button>
+                </BotonConMotivo>
+              </>
+            ) : (
+              <Button onClick={() => onOpenChange(false)}>Cerrar</Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
       <GerenteFormDialog gerente={editar} open={editar !== null} onOpenChange={(o) => !o && setEditar(null)} />
