@@ -24,6 +24,17 @@ it("actualiza y desactiva", async () => {
   expect(await listGerentes(db, { soloActivos: true })).toEqual([]);
 });
 
+it("guarda, cambia y quita la fecha de nacimiento", async () => {
+  const id = await createGerente(db, { nombre: "Ana", telefono: null, nacimiento: "1990-10-23" });
+  expect(await getGerente(db, id)).toMatchObject({ nacimiento: "1990-10-23" });
+  expect((await listGerentesConCampanas(db))[0]).toMatchObject({ nacimiento: "1990-10-23" });
+  await updateGerente(db, id, { nombre: "Ana", telefono: null, nacimiento: "1991-01-02" });
+  expect(await getGerente(db, id)).toMatchObject({ nacimiento: "1991-01-02" });
+  await updateGerente(db, id, { nombre: "Ana", telefono: null, nacimiento: null });
+  expect(await getGerente(db, id)).toMatchObject({ nacimiento: null });
+  expect(await getGerente(db, await createGerente(db, { nombre: "Luis", telefono: null }))).toMatchObject({ nacimiento: null });
+});
+
 it("lista las campañas de cada gerente", async () => {
   const ana = await createGerente(db, { nombre: "Ana", telefono: null });
   await createGerente(db, { nombre: "Luis", telefono: null });

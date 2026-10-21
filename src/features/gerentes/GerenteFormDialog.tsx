@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Field } from "@/components/Field";
+import { FechaInput } from "@/components/FechaInput";
 import { EtiquetaChip } from "@/components/EtiquetaChip";
 import { getDb } from "@/db";
 import { createGerente, updateGerente, type Gerente } from "@/db/repos/gerentes";
@@ -16,7 +17,7 @@ import { reportError } from "@/lib/reportError";
 type Props = { gerente: Gerente | null; open: boolean; onOpenChange: (open: boolean) => void };
 
 export function GerenteFormDialog({ gerente, open, onOpenChange }: Props) {
-  const [draft, setDraft] = useState<GerenteDraft>({ nombre: "", telefono: "" });
+  const [draft, setDraft] = useState<GerenteDraft>({ nombre: "", telefono: "", nacimiento: "" });
   const [errors, setErrors] = useState<Partial<Record<keyof GerenteDraft, string>>>({});
   const [saving, setSaving] = useState(false);
   const [etiquetas, setEtiquetas] = useState<number[]>([]);
@@ -24,7 +25,7 @@ export function GerenteFormDialog({ gerente, open, onOpenChange }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setDraft({ nombre: gerente?.nombre ?? "", telefono: gerente?.telefono ?? "" });
+    setDraft({ nombre: gerente?.nombre ?? "", telefono: gerente?.telefono ?? "", nacimiento: gerente?.nacimiento ?? "" });
     setErrors({});
     setEtiquetas([]);
     if (!gerente) return;
@@ -73,6 +74,9 @@ export function GerenteFormDialog({ gerente, open, onOpenChange }: Props) {
           </Field>
           <Field id="g-tel" label="Teléfono (opcional)">
             <Input id="g-tel" value={draft.telefono} onChange={(e) => setDraft({ ...draft, telefono: e.target.value })} />
+          </Field>
+          <Field id="g-nacimiento" label="Fecha de nacimiento (opcional)" error={errors.nacimiento}>
+            <FechaInput id="g-nacimiento" value={draft.nacimiento} onChange={(nacimiento) => setDraft({ ...draft, nacimiento })} />
           </Field>
           {todas && todas.length > 0 && (
             <div className="grid gap-1.5">

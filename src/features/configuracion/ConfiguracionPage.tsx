@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { abrirTutorial, setTutorialActivado, useTutorialActivado } from "@/lib/tutorial";
 import { CopiaDrive } from "./CopiaDrive";
 import { MensajesWhatsApp } from "./MensajesWhatsApp";
+import { AvisoCumpleanosCard } from "./AvisoCumpleanosCard";
 
 const tamano = (bytes: number) =>
   bytes < 1024 * 1024 ? `${formatNumberVE(bytes / 1024, 0)} KB` : `${formatNumberVE(bytes / 1024 / 1024, 1)} MB`;
@@ -164,6 +165,7 @@ export function ConfiguracionPage() {
 
       <CopiaDrive />
       <MensajesWhatsApp />
+      <AvisoCumpleanosCard />
 
       <ConfirmDialog
         open={restaurar !== null}

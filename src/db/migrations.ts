@@ -149,6 +149,11 @@ const MIGRATIONS: Migration[] = [
           AND lower(trim(json_extract(borrador, '$.draft.banco'))) IN ('banco de venezuela', 'banco venezuela', 'venezuela', 'bdv')`,
     ],
   },
+  {
+    // Fecha de nacimiento de los gerentes (YYYY-MM-DD), para el aviso de cumpleaños.
+    version: 6,
+    statements: ["ALTER TABLE gerentes ADD COLUMN nacimiento TEXT"],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

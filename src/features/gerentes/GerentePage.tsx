@@ -15,7 +15,8 @@ import { getDb } from "@/db";
 import { setGerenteActivo } from "@/db/repos/gerentes";
 import { loadGerenteData, type CampanaDelGerente } from "@/db/queries/gerenteData";
 import { buildCampanaView, estadoGerente, type EstadoGerente, type GerenteResumen } from "@/domain/campanaView";
-import { formatFecha } from "@/domain/dates";
+import { formatFecha, todayIso } from "@/domain/dates";
+import { proximoCumple, textoFaltan } from "@/domain/cumpleanos";
 import { formatPct, formatUsd } from "@/domain/money";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
@@ -71,6 +72,7 @@ export function GerentePage() {
 
   if (!data) return <Cargando error={error} />;
   const { gerente: g, total } = data;
+  const cumple = g.nacimiento ? proximoCumple(g.nacimiento, todayIso()) : null;
 
   async function toggleActivo() {
     try {
@@ -94,7 +96,11 @@ export function GerentePage() {
             ))}
           </span>
         }
-        subtitle={`${g.telefono ?? "Sin teléfono"} · ${data.campanas.length} campaña(s)`}
+        subtitle={[
+          g.telefono ?? "Sin teléfono",
+          `${data.campanas.length} campaña(s)`,
+          ...(cumple ? [`Cumple ${cumple.edad} años ${cumple.dias <= 1 ? textoFaltan(cumple.dias) : `el ${formatFecha(cumple.fecha)}`}`] : []),
+        ].join(" · ")}
         actions={
           <>
             <Button variant="ghost" onClick={() => void toggleActivo()}>

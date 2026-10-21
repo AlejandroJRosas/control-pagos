@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { parseMonto, parseTasa } from "./money";
-import { isValidIsoDate } from "./dates";
+import { isValidIsoDate, todayIso } from "./dates";
 
 export type Result<T, K extends string> = { ok: true; value: T } | { ok: false; errors: Partial<Record<K, string>> };
 
@@ -93,13 +93,17 @@ export function validateCampana(d: CampanaDraft): Result<CampanaValida, keyof Ca
   }));
 }
 
-export type GerenteDraft = { nombre: string; telefono: string };
-export type GerenteValido = { nombre: string; telefono: string | null };
+/** `nacimiento`: YYYY-MM-DD o "". */
+export type GerenteDraft = { nombre: string; telefono: string; nacimiento: string };
+/** Sin `nacimiento` al crear queda vacía (gerentes creados desde la campaña o la importación). */
+export type GerenteValido = { nombre: string; telefono: string | null; nacimiento?: string | null };
 
-export function validateGerente(d: GerenteDraft): Result<GerenteValido, keyof GerenteDraft> {
+export function validateGerente(d: GerenteDraft, hoy = todayIso()): Result<GerenteValido, keyof GerenteDraft> {
   const errors: Errors<keyof GerenteDraft> = {};
   if (!d.nombre.trim()) errors.nombre = "Indica el nombre";
-  return finish(errors, () => ({ nombre: d.nombre.trim(), telefono: opcional(d.telefono) }));
+  if (d.nacimiento && !isValidIsoDate(d.nacimiento)) errors.nacimiento = "Fecha inválida";
+  else if (d.nacimiento > hoy) errors.nacimiento = "La fecha de nacimiento no puede ser futura";
+  return finish(errors, () => ({ nombre: d.nombre.trim(), telefono: opcional(d.telefono), nacimiento: d.nacimiento || null }));
 }
 
 /** A quién va un depósito registrado desde la campaña. `sel`: "a:<asignaciónId>", "g:<gerenteId>" o "nuevo". */

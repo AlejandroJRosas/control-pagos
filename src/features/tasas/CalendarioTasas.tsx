@@ -16,8 +16,8 @@ type Props = {
   onEditar: (t: TasaConUsos) => void;
 };
 
-const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-const nombreMes = (mes: string) =>
+export const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+export const nombreMes = (mes: string) =>
   new Date(`${mes}-15T12:00:00`).toLocaleDateString("es-VE", { month: "long", year: "numeric" }).replace(/^./, (c) => c.toUpperCase());
 
 /** Mes visto durante la sesión, para no perderlo al ir a otra pantalla y volver. */

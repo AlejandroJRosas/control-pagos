@@ -77,8 +77,16 @@ describe("validateCampana", () => {
 
 describe("validateGerente", () => {
   it("requiere nombre", () => {
-    expect(validateGerente({ nombre: " Ana ", telefono: "" })).toEqual({ ok: true, value: { nombre: "Ana", telefono: null } });
-    expect(validateGerente({ nombre: " ", telefono: "" }).ok).toBe(false);
+    expect(validateGerente({ nombre: " Ana ", telefono: "", nacimiento: "" })).toEqual({ ok: true, value: { nombre: "Ana", telefono: null, nacimiento: null } });
+    expect(validateGerente({ nombre: " ", telefono: "", nacimiento: "" }).ok).toBe(false);
+  });
+
+  it("la fecha de nacimiento es opcional y no puede ser futura", () => {
+    expect(validateGerente({ nombre: "Ana", telefono: "", nacimiento: "1990-10-23" }, "2026-10-20")).toMatchObject({ ok: true, value: { nacimiento: "1990-10-23" } });
+    expect(validateGerente({ nombre: "Ana", telefono: "", nacimiento: "2026-10-21" }, "2026-10-20")).toEqual({
+      ok: false,
+      errors: { nacimiento: "La fecha de nacimiento no puede ser futura" },
+    });
   });
 });
 

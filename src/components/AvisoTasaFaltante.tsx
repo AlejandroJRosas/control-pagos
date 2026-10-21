@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { CalendarX2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -6,23 +6,13 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { getDb } from "@/db";
 import { createFeriado } from "@/db/repos/feriados";
 import { getTasasFaltantes } from "@/db/queries/tasaFaltante";
-import { formatFecha, nombreDia, todayIso } from "@/domain/dates";
+import { formatFecha, nombreDia } from "@/domain/dates";
 import { invalidate, useData } from "@/hooks/useData";
+import { useHoy } from "@/hooks/useHoy";
 import { reportError } from "@/lib/reportError";
 import { TasaFormDialog } from "@/features/tasas/TasaFormDialog";
 
 const ambar = "flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200";
-
-/** Hoy, actualizado al volver a la ventana (puede quedar abierta de un día a otro). */
-function useHoy(): string {
-  const [hoy, setHoy] = useState(todayIso);
-  useEffect(() => {
-    const onFocus = () => setHoy(todayIso());
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, []);
-  return hoy;
-}
 
 /**
  * La tasa se registra en la mañana al abrir: si falta la que rige hoy (en fin de semana, la del lunes, que la empresa

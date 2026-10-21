@@ -4,6 +4,7 @@ import { Plus, Search, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/PageHeader";
 import { Cargando, Vacio } from "@/components/Feedback";
@@ -21,6 +22,7 @@ import { claveComparacion } from "@/domain/texto";
 import { conEtiquetas, filtroDeIds, idsDeFiltro } from "@/domain/etiquetas";
 import { GerenteFormDialog } from "./GerenteFormDialog";
 import { EtiquetasDialog } from "./EtiquetasDialog";
+import { CalendarioCumpleanos } from "./CalendarioCumpleanos";
 
 type Col = "nombre" | "telefono" | "campanas" | "estado";
 const COLUMNAS: Columnas<GerenteConCampanas, Col> = {
@@ -30,12 +32,21 @@ const COLUMNAS: Columnas<GerenteConCampanas, Col> = {
   estado: { tipo: "numero", valor: (g) => (g.activo ? 0 : 1) },
 };
 
+/** Pestaña vista durante la sesión. */
+let vistaRecordada = "lista";
+
 export function GerentesPage() {
   const { data, error } = useData((db) => listGerentesConCampanas(db), []);
   const { data: etiquetas } = useData((db) => listEtiquetas(db), []);
   const [verEtiquetas, setVerEtiquetas] = useState(false);
   const [dialog, setDialog] = useState<{ open: boolean; gerente: Gerente | null }>({ open: false, gerente: null });
   const [verInactivos, setVerInactivos] = useState(false);
+  const [vista, setVistaState] = useState(vistaRecordada);
+  const setVista = (v: string) => {
+    vistaRecordada = v;
+    setVistaState(v);
+  };
+  const activos = useMemo(() => (data ?? []).filter((g) => g.activo), [data]);
 
   async function toggleActivo(g: Gerente) {
     try {
@@ -99,107 +110,116 @@ export function GerentesPage() {
           </>
         }
       />
-      {etiquetas && etiquetas.length > 0 && (
-        <div role="group" aria-label="Filtrar por etiqueta" className="mb-4 flex flex-wrap items-center gap-1.5">
-          {etiquetas.map((e) => (
-            <EtiquetaChip key={e.id} nombre={e.nombre} color={e.color} activo={elegidas.includes(e.id)} onClick={() => alternarEtiqueta(e.id)} />
-          ))}
-          {elegidas.length > 0 && (
-            <Button variant="link" size="sm" className="h-6 px-1 text-xs" onClick={() => set({ etiquetas: "" })}>
-              Quitar filtro
-            </Button>
+      <Tabs value={vista} onValueChange={(v) => setVista(String(v))}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="lista">Lista</TabsTrigger>
+          <TabsTrigger value="cumpleanos">Cumpleaños</TabsTrigger>
+        </TabsList>
+        <TabsContent value="cumpleanos">{!data ? <Cargando error={error} /> : <CalendarioCumpleanos gerentes={activos} />}</TabsContent>
+        <TabsContent value="lista">
+          {etiquetas && etiquetas.length > 0 && (
+            <div role="group" aria-label="Filtrar por etiqueta" className="mb-4 flex flex-wrap items-center gap-1.5">
+              {etiquetas.map((e) => (
+                <EtiquetaChip key={e.id} nombre={e.nombre} color={e.color} activo={elegidas.includes(e.id)} onClick={() => alternarEtiqueta(e.id)} />
+              ))}
+              {elegidas.length > 0 && (
+                <Button variant="link" size="sm" className="h-6 px-1 text-xs" onClick={() => set({ etiquetas: "" })}>
+                  Quitar filtro
+                </Button>
+              )}
+            </div>
           )}
-        </div>
-      )}
-      {!data ? (
-        <Cargando error={error} />
-      ) : filas.length === 0 ? (
-        data.length === 0 ? (
-          <Vacio texto="Todavía no hay gerentes.">
-            <Button onClick={nuevo}>
-              <Plus />
-              Nuevo gerente
-            </Button>
-          </Vacio>
-        ) : (
-          <Vacio texto="Ningún gerente coincide con la búsqueda.">
-            {elegidas.length > 0 && (
-              <Button variant="outline" onClick={() => set({ etiquetas: "" })}>
-                Quitar filtro de etiquetas
-              </Button>
-            )}
-            {f.q && (
-              <Button variant="outline" onClick={() => set({ q: "" })}>
-                Limpiar búsqueda
-              </Button>
-            )}
-            {!verInactivos && (
-              <Button variant="outline" onClick={() => setVerInactivos(true)}>
-                Ver inactivos
-              </Button>
-            )}
-          </Vacio>
-        )
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <SortableHead col="nombre" orden={orden} onOrden={alternar}>
-                Nombre
-              </SortableHead>
-              <TableHead>Etiquetas</TableHead>
-              <SortableHead col="telefono" orden={orden} onOrden={alternar}>
-                Teléfono
-              </SortableHead>
-              <SortableHead col="campanas" orden={orden} onOrden={alternar}>
-                Campañas
-              </SortableHead>
-              <SortableHead col="estado" orden={orden} onOrden={alternar}>
-                Estado
-              </SortableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filas.map((g) => (
-              <TableRow key={g.id} className="cursor-pointer" onClick={() => navigate(`/gerentes/${g.id}`)}>
-                <TableCell className="font-medium">{g.nombre}</TableCell>
-                <TableCell className="max-w-64">
-                  <div className="flex flex-wrap gap-1">
-                    {g.etiquetas.length === 0
-                      ? "—"
-                      : g.etiquetas.map((id) => {
-                          const e = porId.get(id);
-                          return e && <EtiquetaChip key={id} nombre={e.nombre} color={e.color} />;
-                        })}
-                  </div>
-                </TableCell>
-                <TableCell>{g.telefono ?? "—"}</TableCell>
-                <TableCell className="max-w-80">
-                  <div className="flex flex-wrap gap-1">
-                    {g.campanas.length === 0
-                      ? "—"
-                      : g.campanas.map((c) => (
-                          <Badge key={c} variant="outline">
-                            {c}
-                          </Badge>
-                        ))}
-                  </div>
-                </TableCell>
-                <TableCell>{g.activo ? <Badge>Activo</Badge> : <Badge variant="secondary">Inactivo</Badge>}</TableCell>
-                <TableCell className="space-x-2 text-right" onClick={(e) => e.stopPropagation()}>
-                  <Button size="sm" variant="outline" onClick={() => setDialog({ open: true, gerente: g })}>
-                    Editar
+          {!data ? (
+            <Cargando error={error} />
+          ) : filas.length === 0 ? (
+            data.length === 0 ? (
+              <Vacio texto="Todavía no hay gerentes.">
+                <Button onClick={nuevo}>
+                  <Plus />
+                  Nuevo gerente
+                </Button>
+              </Vacio>
+            ) : (
+              <Vacio texto="Ningún gerente coincide con la búsqueda.">
+                {elegidas.length > 0 && (
+                  <Button variant="outline" onClick={() => set({ etiquetas: "" })}>
+                    Quitar filtro de etiquetas
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => toggleActivo(g)}>
-                    {g.activo ? "Desactivar" : "Activar"}
+                )}
+                {f.q && (
+                  <Button variant="outline" onClick={() => set({ q: "" })}>
+                    Limpiar búsqueda
                   </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+                )}
+                {!verInactivos && (
+                  <Button variant="outline" onClick={() => setVerInactivos(true)}>
+                    Ver inactivos
+                  </Button>
+                )}
+              </Vacio>
+            )
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableHead col="nombre" orden={orden} onOrden={alternar}>
+                    Nombre
+                  </SortableHead>
+                  <TableHead>Etiquetas</TableHead>
+                  <SortableHead col="telefono" orden={orden} onOrden={alternar}>
+                    Teléfono
+                  </SortableHead>
+                  <SortableHead col="campanas" orden={orden} onOrden={alternar}>
+                    Campañas
+                  </SortableHead>
+                  <SortableHead col="estado" orden={orden} onOrden={alternar}>
+                    Estado
+                  </SortableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filas.map((g) => (
+                  <TableRow key={g.id} className="cursor-pointer" onClick={() => navigate(`/gerentes/${g.id}`)}>
+                    <TableCell className="font-medium">{g.nombre}</TableCell>
+                    <TableCell className="max-w-64">
+                      <div className="flex flex-wrap gap-1">
+                        {g.etiquetas.length === 0
+                          ? "—"
+                          : g.etiquetas.map((id) => {
+                              const e = porId.get(id);
+                              return e && <EtiquetaChip key={id} nombre={e.nombre} color={e.color} />;
+                            })}
+                      </div>
+                    </TableCell>
+                    <TableCell>{g.telefono ?? "—"}</TableCell>
+                    <TableCell className="max-w-80">
+                      <div className="flex flex-wrap gap-1">
+                        {g.campanas.length === 0
+                          ? "—"
+                          : g.campanas.map((c) => (
+                              <Badge key={c} variant="outline">
+                                {c}
+                              </Badge>
+                            ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>{g.activo ? <Badge>Activo</Badge> : <Badge variant="secondary">Inactivo</Badge>}</TableCell>
+                    <TableCell className="space-x-2 text-right" onClick={(e) => e.stopPropagation()}>
+                      <Button size="sm" variant="outline" onClick={() => setDialog({ open: true, gerente: g })}>
+                        Editar
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => toggleActivo(g)}>
+                        {g.activo ? "Desactivar" : "Activar"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TabsContent>
+      </Tabs>
       <EtiquetasDialog open={verEtiquetas} onOpenChange={setVerEtiquetas} />
       <GerenteFormDialog gerente={dialog.gerente} open={dialog.open} onOpenChange={(open) => setDialog((d) => ({ ...d, open }))} />
     </div>
