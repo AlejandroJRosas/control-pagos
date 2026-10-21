@@ -8,6 +8,7 @@ import { calendarioTasas, mesSiguiente, type DiaCalendario } from "@/domain/cale
 import { formatFecha, nombreDia, todayIso } from "@/domain/dates";
 import { formatTasa } from "@/domain/money";
 import { cn } from "@/lib/utils";
+import { useAtajo } from "@/hooks/useAtajo";
 
 type Props = {
   tasas: TasaConUsos[];
@@ -30,6 +31,9 @@ export function CalendarioTasas({ tasas, feriados, onRegistrar, onEditar }: Prop
     mesRecordado = m;
     setMesState(m);
   };
+  // ← y → cambian de mes (fuera de los campos de texto).
+  useAtajo("ArrowLeft", () => setMes(mesSiguiente(mes, -1)));
+  useAtajo("ArrowRight", () => setMes(mesSiguiente(mes, 1)));
   const [captura, setCaptura] = useState<string | null>(null);
   const nombres = useMemo(() => new Map(feriados.map((f) => [f.fecha, f.nombre])), [feriados]);
   const { semanas, faltan } = useMemo(() => calendarioTasas(mes, tasas, hoy, new Set(nombres.keys())), [mes, tasas, hoy, nombres]);
@@ -37,11 +41,11 @@ export function CalendarioTasas({ tasas, feriados, onRegistrar, onEditar }: Prop
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="icon-sm" variant="outline" aria-label="Mes anterior" onClick={() => setMes(mesSiguiente(mes, -1))}>
+        <Button size="icon-sm" variant="outline" aria-label="Mes anterior" title="←" onClick={() => setMes(mesSiguiente(mes, -1))}>
           <ChevronLeft />
         </Button>
         <h2 className="w-44 text-center font-medium">{nombreMes(mes)}</h2>
-        <Button size="icon-sm" variant="outline" aria-label="Mes siguiente" onClick={() => setMes(mesSiguiente(mes, 1))}>
+        <Button size="icon-sm" variant="outline" aria-label="Mes siguiente" title="→" onClick={() => setMes(mesSiguiente(mes, 1))}>
           <ChevronRight />
         </Button>
         <Button size="sm" variant="ghost" disabled={mes === hoy.slice(0, 7)} onClick={() => setMes(hoy.slice(0, 7))}>

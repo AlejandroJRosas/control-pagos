@@ -48,6 +48,7 @@ export const ATAJOS: { teclas: string[]; que: string }[] = [
   { teclas: ["1", "2"], que: "En Depósitos duplicados: quedarse con el de la izquierda o el de la derecha (también ← y →)" },
   { teclas: ["Enter"], que: "Al subir en lote: ir a revisar (si todavía se está leyendo, espera a que termine)" },
   { teclas: ["Ctrl", "A"], que: "En la revisión en lote: marcar todos los pendientes (Ctrl o Shift + clic para marcar varios)" },
+  { teclas: ["←", "→"], que: "En los calendarios (Tasas y Cumpleaños): mes anterior o siguiente" },
   { teclas: ["Esc"], que: "Volver a la pantalla anterior" },
   { teclas: ["Inicio"], que: "Volver arriba de la página (también el botón que aparece abajo a la derecha al bajar)" },
   { teclas: ["Ctrl", "B"], que: "Colapsar o expandir la barra lateral" },

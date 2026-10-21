@@ -7,6 +7,7 @@ import { cumpleanosDelMes, cumpleanosProximos, textoFaltan, type ConNacimiento }
 import { formatFecha, nombreDia, todayIso } from "@/domain/dates";
 import { cn } from "@/lib/utils";
 import { DIAS, nombreMes } from "@/features/tasas/CalendarioTasas";
+import { useAtajo } from "@/hooks/useAtajo";
 
 /** Días hacia adelante de la lista de próximos cumpleaños. */
 const DIAS_PROXIMOS = 30;
@@ -22,6 +23,9 @@ export function CalendarioCumpleanos({ gerentes }: { gerentes: ConNacimiento[] }
     mesRecordado = m;
     setMesState(m);
   };
+  // ← y → cambian de mes (fuera de los campos de texto).
+  useAtajo("ArrowLeft", () => setMes(mesSiguiente(mes, -1)));
+  useAtajo("ArrowRight", () => setMes(mesSiguiente(mes, 1)));
   const porDia = useMemo(() => cumpleanosDelMes(mes, gerentes), [mes, gerentes]);
   const proximos = useMemo(() => cumpleanosProximos(gerentes, hoy, DIAS_PROXIMOS), [gerentes, hoy]);
   const total = [...porDia.values()].reduce((n, l) => n + l.length, 0);
@@ -31,11 +35,11 @@ export function CalendarioCumpleanos({ gerentes }: { gerentes: ConNacimiento[] }
     <div className="space-y-6">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="icon-sm" variant="outline" aria-label="Mes anterior" onClick={() => setMes(mesSiguiente(mes, -1))}>
+          <Button size="icon-sm" variant="outline" aria-label="Mes anterior" title="←" onClick={() => setMes(mesSiguiente(mes, -1))}>
             <ChevronLeft />
           </Button>
           <h2 className="w-44 text-center font-medium">{nombreMes(mes)}</h2>
-          <Button size="icon-sm" variant="outline" aria-label="Mes siguiente" onClick={() => setMes(mesSiguiente(mes, 1))}>
+          <Button size="icon-sm" variant="outline" aria-label="Mes siguiente" title="→" onClick={() => setMes(mesSiguiente(mes, 1))}>
             <ChevronRight />
           </Button>
           <Button size="sm" variant="ghost" disabled={mes === hoy.slice(0, 7)} onClick={() => setMes(hoy.slice(0, 7))}>

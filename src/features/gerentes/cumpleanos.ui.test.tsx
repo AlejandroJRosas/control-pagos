@@ -42,12 +42,19 @@ it("muestra el calendario de cumpleaños en Gerentes", async () => {
   await createGerente(db, { nombre: "Ana", telefono: null, nacimiento: "1990-10-23" });
   await createGerente(db, { nombre: "Luis", telefono: null, nacimiento: "1980-11-02" });
   const { user } = await renderApp("/gerentes", { db, hoy: "2026-10-20" });
+  // La lista muestra la fecha de nacimiento.
+  expect(await screen.findByRole("cell", { name: "23/10/1990" })).toBeInTheDocument();
   await user.click(await screen.findByRole("tab", { name: "Cumpleaños" }));
   const calendario = await screen.findByRole("group", { name: "Cumpleaños de octubre de 2026" });
   expect(within(calendario).getByRole("link", { name: "Ana (36)" })).toBeInTheDocument();
   expect(screen.getByText("1 cumpleaños este mes")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Mes siguiente" }));
   expect(await screen.findByRole("link", { name: "Luis (46)" })).toBeInTheDocument();
+  // ← y → también cambian de mes.
+  await user.keyboard("{ArrowLeft}");
+  expect(await screen.findByRole("group", { name: "Cumpleaños de octubre de 2026" })).toBeInTheDocument();
+  await user.keyboard("{ArrowRight}");
+  expect(await screen.findByRole("group", { name: "Cumpleaños de noviembre de 2026" })).toBeInTheDocument();
 });
 
 it("cambia los días de antelación en Configuración", async () => {

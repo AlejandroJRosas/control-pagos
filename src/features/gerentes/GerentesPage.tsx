@@ -19,15 +19,17 @@ import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { useFiltrosUrl } from "@/lib/filtrosUrl";
 import { claveComparacion } from "@/domain/texto";
+import { formatFecha } from "@/domain/dates";
 import { conEtiquetas, filtroDeIds, idsDeFiltro } from "@/domain/etiquetas";
 import { GerenteFormDialog } from "./GerenteFormDialog";
 import { EtiquetasDialog } from "./EtiquetasDialog";
 import { CalendarioCumpleanos } from "./CalendarioCumpleanos";
 
-type Col = "nombre" | "telefono" | "campanas" | "estado";
+type Col = "nombre" | "telefono" | "nacimiento" | "campanas" | "estado";
 const COLUMNAS: Columnas<GerenteConCampanas, Col> = {
   nombre: { tipo: "texto", valor: (g) => g.nombre },
   telefono: { tipo: "texto", valor: (g) => g.telefono },
+  nacimiento: { tipo: "texto", valor: (g) => g.nacimiento },
   campanas: { tipo: "numero", valor: (g) => g.campanas.length },
   estado: { tipo: "numero", valor: (g) => (g.activo ? 0 : 1) },
 };
@@ -169,6 +171,9 @@ export function GerentesPage() {
                   <SortableHead col="telefono" orden={orden} onOrden={alternar}>
                     Teléfono
                   </SortableHead>
+                  <SortableHead col="nacimiento" orden={orden} onOrden={alternar}>
+                    Nacimiento
+                  </SortableHead>
                   <SortableHead col="campanas" orden={orden} onOrden={alternar}>
                     Campañas
                   </SortableHead>
@@ -193,6 +198,7 @@ export function GerentesPage() {
                       </div>
                     </TableCell>
                     <TableCell>{g.telefono ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums">{g.nacimiento ? formatFecha(g.nacimiento) : "—"}</TableCell>
                     <TableCell className="max-w-80">
                       <div className="flex flex-wrap gap-1">
                         {g.campanas.length === 0
