@@ -79,3 +79,14 @@ it("busca periódicamente con la app abierta", async () => {
     vi.useRealTimers();
   }
 });
+
+it("recuerda cuándo se revisó por última vez (solo si la búsqueda respondió)", async () => {
+  const a = await import("./actualizacion");
+  expect(a.revisadoEn()).toBeNull();
+  check.mockRejectedValue(new Error("sin internet"));
+  await expect(a.buscarActualizacion()).rejects.toThrow();
+  expect(a.revisadoEn()).toBeNull();
+  check.mockResolvedValue(null);
+  await a.buscarEnSegundoPlano();
+  expect(a.revisadoEn()).toBeInstanceOf(Date);
+});

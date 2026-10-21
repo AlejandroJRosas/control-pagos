@@ -12,6 +12,8 @@ import { respaldoAntesDe } from "./backup";
 export type EstadoActualizacion = { update: Update | null; abierto: boolean };
 
 let estado: EstadoActualizacion = { update: null, abierto: false };
+/** Última búsqueda que respondió (con o sin versión nueva); `null` si aún no hubo ninguna. */
+let revisado: Date | null = null;
 const oyentes = new Set<() => void>();
 
 function fijar(nuevo: EstadoActualizacion): void {
@@ -20,21 +22,31 @@ function fijar(nuevo: EstadoActualizacion): void {
   oyentes.forEach((l) => l());
 }
 
+function marcarRevisado(): void {
+  revisado = new Date();
+  oyentes.forEach((l) => l());
+}
+
 export const estadoActualizacion = (): EstadoActualizacion => estado;
+export const revisadoEn = (): Date | null => revisado;
+
+const suscribir = (l: () => void) => {
+  oyentes.add(l);
+  return () => oyentes.delete(l);
+};
 
 export function useActualizacion(): EstadoActualizacion {
-  return useSyncExternalStore(
-    (l) => {
-      oyentes.add(l);
-      return () => oyentes.delete(l);
-    },
-    estadoActualizacion,
-  );
+  return useSyncExternalStore(suscribir, estadoActualizacion);
+}
+
+export function useRevisadoEn(): Date | null {
+  return useSyncExternalStore(suscribir, revisadoEn);
 }
 
 /** Devuelve la versión nueva (y abre el aviso) o `null` si ya está al día. Falla sin internet. */
 export async function buscarActualizacion(): Promise<Update | null> {
   const u = await check();
+  marcarRevisado();
   fijar({ update: u, abierto: u !== null });
   return u;
 }
@@ -47,6 +59,7 @@ export async function buscarActualizacion(): Promise<Update | null> {
 export async function buscarEnSegundoPlano(): Promise<Update | null> {
   if (estado.abierto) return null;
   const u = await check();
+  marcarRevisado();
   if (!u) return null;
   if (estado.abierto || estado.update?.version === u.version) {
     void u.close().catch(() => {});

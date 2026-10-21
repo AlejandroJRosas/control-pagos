@@ -10,6 +10,7 @@ import { AvisoEspejo } from "@/components/AvisoEspejo";
 import { AvisoCumpleanos } from "@/components/AvisoCumpleanos";
 import { SoltarImagenes } from "@/components/SoltarImagenes";
 import { VolverArriba } from "@/components/VolverArriba";
+import { VersionApp } from "@/components/VersionApp";
 import { Tutorial } from "@/features/tutorial/Tutorial";
 import { useAtajo } from "@/hooks/useAtajo";
 import { getCampana } from "@/db/repos/campanas";
@@ -160,6 +161,7 @@ export function AppLayout() {
           <Settings className="size-4 shrink-0" />
           <span className={textoClass(c)}>Configuración</span>
         </NavLink>
+        {!c && <VersionApp className="self-center" />}
       </aside>
       <main ref={main} className="flex-1 overflow-auto p-6">
         <AvisoEspejo />

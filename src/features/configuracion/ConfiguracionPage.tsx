@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
-import { Archive, Check, GraduationCap, Moon, RefreshCw, RotateCcw, Sun } from "lucide-react";
+import { Archive, Check, Download, GraduationCap, Moon, RefreshCw, RotateCcw, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +12,8 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { getDb } from "@/db";
 import { createBackup, getDataPaths, listBackups, restoreBackup, type BackupInfo } from "@/platform/backup";
-import { buscarActualizacion } from "@/platform/actualizacion";
-import { todayIso } from "@/domain/dates";
+import { abrirAvisoActualizacion, buscarActualizacion, useActualizacion, useRevisadoEn } from "@/platform/actualizacion";
+import { formatFecha, sumarDias, todayIso } from "@/domain/dates";
 import { formatNumberVE } from "@/domain/money";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
@@ -184,11 +184,13 @@ export function ConfiguracionPage() {
 
 function Actualizaciones({ version }: { version: string }) {
   const [buscando, setBuscando] = useState(false);
+  const { update } = useActualizacion();
+  const revisado = useRevisadoEn();
 
   async function buscar() {
     setBuscando(true);
     try {
-      if (!(await buscarActualizacion())) toast.success("Ya tienes la versión más reciente");
+      await buscarActualizacion();
     } catch (e) {
       reportError(e, "No se pudo buscar actualizaciones (¿hay internet?)");
     } finally {
@@ -196,20 +198,72 @@ function Actualizaciones({ version }: { version: string }) {
     }
   }
 
+  const estado = buscando
+    ? { icono: <IconoEstado tono="neutro" girando />, titulo: "Buscando actualizaciones…", detalle: "Un momento." }
+    : update
+      ? { icono: <IconoEstado tono="nueva" />, titulo: `Hay una versión nueva: ${update.version}`, detalle: "Antes de instalar se guarda un respaldo de los datos." }
+      : revisado
+        ? { icono: <IconoEstado tono="al-dia" />, titulo: "Estás al día", detalle: `Última comprobación: ${cuando(revisado)}` }
+        : { icono: <IconoEstado tono="neutro" />, titulo: "Buscar actualizaciones", detalle: "Al abrir la app se revisa si hay una versión nueva (hace falta internet)." };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Actualizaciones</CardTitle>
-        <CardDescription>Versión {version}. Al abrir la app se revisa si hay una versión nueva (hace falta internet).</CardDescription>
+        <CardDescription>Versión instalada: {version}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <Button variant="outline" onClick={() => void buscar()} disabled={buscando}>
-          <RefreshCw className={cn(buscando && "animate-spin")} />
-          Buscar actualizaciones
-        </Button>
+      <CardContent className="flex flex-wrap items-center gap-4">
+        {estado.icono}
+        <div className="min-w-0 flex-1" aria-live="polite">
+          <div className="text-lg font-semibold">{estado.titulo}</div>
+          <div className="text-sm text-muted-foreground">{estado.detalle}</div>
+        </div>
+        <div className="flex gap-2">
+          {update && !buscando && (
+            <Button onClick={abrirAvisoActualizacion}>
+              <Download />
+              Ver la actualización
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => void buscar()} disabled={buscando}>
+            <RefreshCw className={cn(buscando && "animate-spin")} />
+            Buscar actualizaciones
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
+}
+
+/** Ícono al estilo de Windows Update: flechas en círculo, con una marca verde si está al día. */
+function IconoEstado({ tono, girando = false }: { tono: "al-dia" | "nueva" | "neutro"; girando?: boolean }) {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "relative grid size-14 shrink-0 place-items-center rounded-full",
+        tono === "al-dia" && "bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400",
+        tono === "nueva" && "bg-primary/10 text-primary",
+        tono === "neutro" && "bg-muted text-muted-foreground",
+      )}
+    >
+      {tono === "nueva" ? <Download className="size-7" /> : <RefreshCw className={cn("size-7", girando && "animate-spin")} />}
+      {tono === "al-dia" && (
+        <span className="absolute -right-0.5 -bottom-0.5 grid size-6 place-items-center rounded-full bg-emerald-500 text-white ring-2 ring-card">
+          <Check className="size-3.5" strokeWidth={3} />
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** "hoy, 10:32 a. m.", "ayer, …" o la fecha. */
+function cuando(d: Date): string {
+  const hora = d.toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" });
+  const dia = todayIso(d);
+  const hoy = todayIso();
+  const etiqueta = dia === hoy ? "hoy" : dia === sumarDias(hoy, -1) ? "ayer" : formatFecha(dia);
+  return `${etiqueta}, ${hora}`;
 }
 
 function Apariencia() {
