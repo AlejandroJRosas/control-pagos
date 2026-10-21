@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import Decimal from "decimal.js";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { Pencil } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { EstadoBadge, GerenteActivoBadge } from "@/components/EstadoBadge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/PageHeader";
@@ -91,7 +91,7 @@ export function GerentePage() {
         title={
           <span className="flex flex-wrap items-center gap-3">
             {g.nombre}
-            {g.activo ? <Badge>Activo</Badge> : <Badge variant="secondary">Inactivo</Badge>}
+            <GerenteActivoBadge activo={g.activo} />
             {data.etiquetas.map((e) => (
               <EtiquetaChip key={e.id} nombre={e.nombre} color={e.color} />
             ))}
@@ -139,7 +139,7 @@ export function GerentePage() {
                   <TableCell className="font-medium">
                     <span className="flex items-center gap-2">
                       {c.campanaNombre}
-                      {c.campanaEstado === "cerrada" && <Badge variant="secondary">Cerrada</Badge>}
+                      {c.campanaEstado === "cerrada" && <EstadoBadge estado="cerrada" />}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -147,7 +147,7 @@ export function GerentePage() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{formatUsd(c.asignado)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatUsd(c.pagado)}</TableCell>
-                  <TableCell className={cn("text-right tabular-nums", new Decimal(c.restante).isNegative() && "text-destructive")}>
+                  <TableCell className={cn("text-right tabular-nums", new Decimal(c.restante).isNegative() && "font-medium text-destructive")}>
                     {formatUsd(c.restante)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{formatPct(c.pct)}</TableCell>

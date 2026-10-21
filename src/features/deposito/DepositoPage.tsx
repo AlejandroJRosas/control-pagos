@@ -296,11 +296,11 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
             </Button>
             {!deposito && (
               <Button type="button" variant="secondary" disabled={cerrada || saving || buscandoTasa || duplicado} onClick={() => void guardar(true)}>
-                Guardar y nuevo
+                {saving ? "Guardando…" : "Guardar y nuevo"}
               </Button>
             )}
             <Button type="submit" disabled={cerrada || saving || buscandoTasa || duplicado} title="Ctrl+Enter">
-              Guardar
+              {saving ? "Guardando…" : "Guardar"}
             </Button>
           </div>
         </form>

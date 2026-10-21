@@ -3,9 +3,10 @@ import { PreviewCard } from "@base-ui/react";
 import { ImageIcon } from "lucide-react";
 import { StoredImage } from "./StoredImage";
 import { ImageViewer } from "./ImageViewer";
+import { cn } from "@/lib/utils";
 
 /** Comprobante en una fila: un ícono que muestra la imagen al pasar el mouse (se lee recién ahí) y la abre en grande al hacer clic. */
-export function ComprobanteIcono({ path }: { path: string }) {
+export function ComprobanteIcono({ path, label = "Ver comprobante", className }: { path: string; label?: string; className?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <span onClick={(e) => e.stopPropagation()}>
@@ -16,9 +17,9 @@ export function ComprobanteIcono({ path }: { path: string }) {
           render={
             <button
               type="button"
-              title="Ver comprobante"
-              aria-label="Ver comprobante"
-              className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title={label}
+              aria-label={label}
+              className={cn("grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground", className)}
             />
           }
           onClick={() => setOpen(true)}

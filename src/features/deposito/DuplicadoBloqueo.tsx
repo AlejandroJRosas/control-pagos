@@ -2,6 +2,7 @@ import { CopyX, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Tecla } from "@/components/AyudaAtajos";
+import { BotonConMotivo } from "@/components/BotonConMotivo";
 import { ComprobanteThumb } from "@/components/ComprobanteThumb";
 import type { Duplicado } from "@/db/repos/depositos";
 import { formatFecha } from "@/domain/dates";
@@ -42,17 +43,19 @@ export function DuplicadoBloqueo({ duplicados, acciones }: { duplicados: Duplica
                 {d.campanaEstado === "cerrada" && " (cerrada)"}
               </div>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={acciones.ocupado || d.campanaEstado === "cerrada"}
-              title={d.campanaEstado === "cerrada" ? "Su campaña está cerrada" : "Reemplaza sus datos con los de este formulario (sigue con su gerente)"}
-              onClick={() => acciones.onActualizar(d)}
-            >
-              <RefreshCw />
-              Actualizar este
-            </Button>
+            <BotonConMotivo motivo={d.campanaEstado === "cerrada" ? "Su campaña está cerrada" : undefined}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={acciones.ocupado || d.campanaEstado === "cerrada"}
+                title={d.campanaEstado === "cerrada" ? undefined : "Reemplaza sus datos con los de este formulario (sigue con su gerente)"}
+                onClick={() => acciones.onActualizar(d)}
+              >
+                <RefreshCw />
+                Actualizar este
+              </Button>
+            </BotonConMotivo>
           </li>
         ))}
       </ul>

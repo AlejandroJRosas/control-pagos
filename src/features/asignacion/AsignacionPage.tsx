@@ -9,6 +9,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando, Vacio } from "@/components/Feedback";
 import { ResumenCards } from "@/components/ResumenCards";
 import { DepositosTable } from "@/components/DepositosTable";
+import { FiltrosDepositos, useFiltrosDepositos } from "@/components/FiltrosDepositos";
+import { BotonConMotivo, MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { getDb } from "@/db";
 import { getAsignacion } from "@/db/repos/asignaciones";
 import { getGerente, type Gerente } from "@/db/repos/gerentes";
@@ -19,7 +21,7 @@ import { buildGerentePdf } from "@/export/campanaPdf";
 import { archivoExcel, archivoPdf } from "@/export/fileName";
 import { precargarPdfMake, savePdf } from "@/export/savePdf";
 import { saveWorkbook } from "@/export/saveWorkbook";
-import { buildCampanaView, estadoGerente, filtrarDepositos } from "@/domain/campanaView";
+import { buildCampanaView, estadoGerente, filtrarDepositos, type DepositoCalculado } from "@/domain/campanaView";
 import { todayIso } from "@/domain/dates";
 import { mensajeEstadoCuenta, numeroWhatsApp, urlWhatsApp } from "@/domain/whatsapp";
 import { EstadoGerenteBadge } from "@/components/EstadoGerenteBadge";
@@ -33,6 +35,8 @@ import { useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
 import { useReceptorArchivos } from "@/lib/soltarArchivos";
 import { receptorCampana, receptorCerrada, type EstadoLote } from "@/components/SoltarImagenes";
+
+const SIN_DEPOSITOS: DepositoCalculado[] = [];
 
 export function AsignacionPage() {
   const asignacionId = Number(useParams().asignacionId);
@@ -69,6 +73,8 @@ export function AsignacionPage() {
         ? receptorCampana(navigate, { id: data.a.campanaId, nombre: `${data.a.gerenteNombre} (${data.a.campanaNombre})`, asignacionId })
         : receptorCerrada(data.a.campanaNombre),
   );
+
+  const filtros = useFiltrosDepositos(`asignacion-${asignacionId}`, data?.view.depositos ?? SIN_DEPOSITOS, data?.a.gerenteId);
 
   if (!data) return <Cargando error={error} />;
   const { a, campana, view, duplicado, resumen, r } = data;
@@ -145,44 +151,46 @@ export function AsignacionPage() {
               {numero ? "Recordatorio por WhatsApp" : "Agregar teléfono…"}
             </Button>
             {/* Al abrir el menú se va cargando pdfmake, para que el PDF salga más rápido. */}
-            <DropdownMenu onOpenChange={(abierto) => abierto && void precargarPdfMake().catch(() => {})}>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    disabled={exportando || duplicado}
-                    title={duplicado ? "Resuelve los depósitos duplicados de la campaña para exportar" : "Los depósitos y el saldo de este gerente"}
-                  />
-                }
-              >
-                {exportando ? <Loader2 className="animate-spin" /> : <Download />}
-                {exportando ? "Exportando…" : "Exportar"}
-                <ChevronDown data-icon="inline-end" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-auto min-w-48">
-                <DropdownMenuItem onClick={() => void exportarExcel()}>
-                  <FileSpreadsheet />
-                  Excel (.xlsx)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void exportarPdf()}>
-                  <FileText />
-                  PDF (.pdf)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <BotonConMotivo motivo={duplicado ? "Resuelve los depósitos duplicados de la campaña para exportar" : undefined}>
+              <DropdownMenu onOpenChange={(abierto) => abierto && void precargarPdfMake().catch(() => {})}>
+                <DropdownMenuTrigger
+                  render={
+                    <Button variant="outline" disabled={exportando || duplicado} title={duplicado ? undefined : "Los depósitos y el saldo de este gerente"} />
+                  }
+                >
+                  {exportando ? <Loader2 className="animate-spin" /> : <Download />}
+                  {exportando ? "Exportando…" : "Exportar"}
+                  <ChevronDown data-icon="inline-end" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-auto min-w-48">
+                  <DropdownMenuItem onClick={() => void exportarExcel()}>
+                    <FileSpreadsheet />
+                    Excel (.xlsx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void exportarPdf()}>
+                    <FileText />
+                    PDF (.pdf)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </BotonConMotivo>
             <Button variant="outline" onClick={() => setEstadoCuenta(true)}>
               <FileImage />
               Estado de cuenta
             </Button>
-            <Button variant="outline" disabled={cerrada} title="L · también puedes soltar las imágenes en cualquier parte" onClick={subirLote}>
-              <Images />
-              Subir lote
-            </Button>
-            {cerrada ? (
-              <Button disabled>
-                <Plus />
-                Registrar depósito
+            <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
+              <Button variant="outline" disabled={cerrada} title="L · también puedes soltar las imágenes en cualquier parte" onClick={subirLote}>
+                <Images />
+                Subir lote
               </Button>
+            </BotonConMotivo>
+            {cerrada ? (
+              <BotonConMotivo motivo={MOTIVO_CERRADA}>
+                <Button disabled>
+                  <Plus />
+                  Registrar depósito
+                </Button>
+              </BotonConMotivo>
             ) : (
               <Link to={`/asignaciones/${a.id}/depositos/nuevo`} title="N" className={buttonVariants()}>
                 <Plus />
@@ -194,22 +202,37 @@ export function AsignacionPage() {
       />
       {cerrada && <Aviso>La campaña está cerrada: solo lectura.</Aviso>}
       <ResumenCards resumen={resumen} />
+      {filtros.hayDepositos && <FiltrosDepositos filtros={filtros} />}
       <DepositosTable
-        filas={r.filas}
+        filas={filtros.r.filas}
         mostrarGerente={false}
         saldoLabel="Saldo restante"
-        totales={r}
+        totales={filtros.r}
         soloLectura={cerrada}
         volverLabel={a.gerenteNombre}
         vacio={
-          <Vacio texto={`${a.gerenteNombre} todavía no tiene depósitos en esta campaña.`}>
-            {!cerrada && (
-              <Link to={`/asignaciones/${a.id}/depositos/nuevo`} className={buttonVariants()}>
-                <Plus />
-                Registrar depósito
-              </Link>
-            )}
-          </Vacio>
+          filtros.hayDepositos ? (
+            <Vacio texto="Ningún depósito coincide con la búsqueda o los filtros.">
+              <Button variant="outline" onClick={filtros.limpiar}>
+                Limpiar filtros
+              </Button>
+            </Vacio>
+          ) : (
+            <Vacio texto={`${a.gerenteNombre} todavía no tiene depósitos en esta campaña.`}>
+              {!cerrada && (
+                <>
+                  <Link to={`/asignaciones/${a.id}/depositos/nuevo`} className={buttonVariants()}>
+                    <Plus />
+                    Registrar depósito
+                  </Link>
+                  <Button variant="outline" onClick={subirLote}>
+                    <Images />
+                    Subir lote de comprobantes
+                  </Button>
+                </>
+              )}
+            </Vacio>
+          )
         }
       />
       <EstadoCuentaDialog

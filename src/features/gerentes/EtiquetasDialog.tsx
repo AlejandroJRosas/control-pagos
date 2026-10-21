@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
+import { BotonEliminarFila } from "@/components/BotonEliminarFila";
 import { cn } from "cn";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -147,12 +148,10 @@ export function EtiquetasDialog({ open, onOpenChange }: Props) {
               <li key={e.id} className={cn("flex items-center gap-2 py-1.5", editando === e.id && "opacity-50")}>
                 <EtiquetaChip nombre={e.nombre} color={e.color} />
                 <span className="text-xs text-muted-foreground">{e.gerentes === 1 ? "1 gerente" : `${e.gerentes} gerentes`}</span>
-                <Button className="ml-auto" size="icon-sm" variant="ghost" aria-label={`Editar ${e.nombre}`} onClick={() => editar(e)}>
+                <Button className="ml-auto" size="icon-sm" variant="ghost" title={`Editar ${e.nombre}`} aria-label={`Editar ${e.nombre}`} onClick={() => editar(e)}>
                   <Pencil />
                 </Button>
-                <Button size="icon-sm" variant="ghost" aria-label={`Eliminar ${e.nombre}`} onClick={() => setBorrar(e)}>
-                  <Trash2 />
-                </Button>
+                <BotonEliminarFila label={`Eliminar ${e.nombre}`} onClick={() => setBorrar(e)} />
               </li>
             ))}
           </ul>

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import Decimal from "decimal.js";
 import { Link, useLocation, useNavigate } from "react-router";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -61,7 +62,7 @@ export function ResumenPage() {
       <PageHeader title="Resumen" subtitle={`${data.campanas.length} campaña(s) activa(s)`} />
       {data.campanas.length === 0 ? (
         <Vacio texto="No hay campañas activas.">
-          <Link to="/campanas" className="text-sm underline">
+          <Link to="/campanas" className={buttonVariants({ variant: "outline" })}>
             Ver todas las campañas
           </Link>
         </Vacio>
@@ -108,7 +109,7 @@ export function ResumenPage() {
                     <TableCell className="text-right tabular-nums">{c.gerentes}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatUsd(c.asignado)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatUsd(c.pagado)}</TableCell>
-                    <TableCell className={cn("text-right tabular-nums", new Decimal(c.restante).isNegative() && "text-destructive")}>
+                    <TableCell className={cn("text-right tabular-nums", new Decimal(c.restante).isNegative() && "font-medium text-destructive")}>
                       {formatUsd(c.restante)}
                     </TableCell>
                     <TableCell className="w-36">

@@ -72,3 +72,66 @@ export function useAvisoSinGuardar(sucio: boolean) {
     },
   };
 }
+
+/**
+ * Lo mismo para un formulario en un diálogo: cerrarlo (Esc, clic afuera, Cancelar) o cerrar la ventana con cambios
+ * pide confirmación. El diálogo usa el `onOpenChange` que devuelve y pone `dialogo` dentro de su contenido; al guardar
+ * se cierra con el `onOpenChange` original, que no pregunta.
+ */
+export function useDialogoSinGuardar(sucio: boolean, onOpenChange: (open: boolean) => void) {
+  const sucioRef = useRef(sucio);
+  sucioRef.current = sucio;
+  const [preguntar, setPreguntar] = useState(false);
+  const [cierre, setCierre] = useState<((cerrar: boolean) => void) | null>(null);
+  const pendiente = useRef<((cerrar: boolean) => void) | null>(null);
+
+  useEffect(() => {
+    const quitar = registrarBloqueador(() => {
+      if (!sucioRef.current) return Promise.resolve(true);
+      return new Promise<boolean>((resolve) => {
+        pendiente.current = resolve;
+        setCierre(() => resolve);
+      });
+    });
+    return () => {
+      quitar();
+      pendiente.current?.(true);
+      pendiente.current = null;
+    };
+  }, []);
+
+  const cerrando = cierre !== null;
+  const responderCierre = (cerrar: boolean) => {
+    cierre?.(cerrar);
+    pendiente.current = null;
+    setCierre(null);
+  };
+
+  const dialogo = (
+    <ConfirmDialog
+      open={preguntar || cerrando}
+      onOpenChange={(open) => {
+        if (open) return;
+        setPreguntar(false);
+        if (cerrando) responderCierre(false);
+      }}
+      title="Cambios sin guardar"
+      description={cerrando ? "Si cierras la aplicación ahora se perderán los cambios de este formulario." : "Si lo cierras ahora se perderán los cambios de este formulario."}
+      confirmLabel={cerrando ? "Cerrar sin guardar" : "Descartar cambios"}
+      destructive
+      onConfirm={() => {
+        if (cerrando) return responderCierre(true);
+        setPreguntar(false);
+        onOpenChange(false);
+      }}
+    />
+  );
+
+  return {
+    dialogo,
+    onOpenChange: (open: boolean) => {
+      if (!open && sucioRef.current) setPreguntar(true);
+      else onOpenChange(open);
+    },
+  };
+}

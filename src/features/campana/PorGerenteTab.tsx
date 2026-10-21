@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Vacio } from "@/components/Feedback";
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { ColumnasMenu } from "@/components/ColumnasMenu";
+import { BotonConMotivo, MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { ESTADOS_GERENTE, EstadoGerenteBadge, ORDEN_ESTADOS } from "@/components/EstadoGerenteBadge";
 import { estadoGerente, type EstadoGerente, type GerenteResumen } from "@/domain/campanaView";
 import { formatFecha } from "@/domain/dates";
@@ -60,7 +61,7 @@ function Celda({ col, g }: { col: Key; g: Fila }) {
       return <TableCell className="text-right tabular-nums">{formatUsd(g.pagado)}</TableCell>;
     case "restante":
       return (
-        <TableCell className={cn("text-right tabular-nums", new Decimal(g.restante).isNegative() && "text-destructive")}>{formatUsd(g.restante)}</TableCell>
+        <TableCell className={cn("text-right tabular-nums", new Decimal(g.restante).isNegative() && "font-medium text-destructive")}>{formatUsd(g.restante)}</TableCell>
       );
     case "pct":
       return <TableCell className="text-right tabular-nums">{formatPct(g.pct)}</TableCell>;
@@ -181,13 +182,17 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
                   <Celda key={col} col={col} g={g} />
                 ))}
                 <TableCell className="space-x-2 text-right" onClick={(e) => e.stopPropagation()}>
-                  <Button size="sm" variant="outline" disabled={cerrada} onClick={() => onEditarSaldo(g)}>
-                    Editar saldo
-                  </Button>
-                  {g.cantidad === 0 && (
-                    <Button size="sm" variant="ghost" disabled={cerrada} onClick={() => onQuitar(g)}>
-                      Quitar
+                  <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
+                    <Button size="sm" variant="outline" disabled={cerrada} onClick={() => onEditarSaldo(g)}>
+                      Editar saldo
                     </Button>
+                  </BotonConMotivo>
+                  {g.cantidad === 0 && (
+                    <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
+                      <Button size="sm" variant="ghost" disabled={cerrada} onClick={() => onQuitar(g)}>
+                        Quitar
+                      </Button>
+                    </BotonConMotivo>
                   )}
                 </TableCell>
               </TableRow>

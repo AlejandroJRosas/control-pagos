@@ -205,6 +205,10 @@
   html {
     @apply font-sans;
     }
+  /* Todas las casillas iguales: tamaño y color de la app (antes solo las de la revisión del lote). */
+  input[type="checkbox"] {
+    @apply size-4 shrink-0 cursor-pointer accent-primary-intenso disabled:cursor-not-allowed;
+    }
 }
 
 /* Campo con error (o bloque de duplicado) al que se lleva la vista al intentar guardar (lib/irAError.ts). */

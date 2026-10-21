@@ -7,8 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
 import { Cargando, Vacio } from "@/components/Feedback";
-import { ComprobanteThumb } from "@/components/ComprobanteThumb";
+import { ComprobanteIcono } from "@/components/ComprobanteIcono";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { BotonConMotivo, motivoTasaEnUso } from "@/components/BotonConMotivo";
+import { BotonEliminarFila } from "@/components/BotonEliminarFila";
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { getDb } from "@/db";
 import { deleteTasa, listTasas, type TasaConUsos } from "@/db/repos/tasas";
@@ -23,6 +25,7 @@ import { useAtajo } from "@/hooks/useAtajo";
 import { useReceptorArchivos } from "@/lib/soltarArchivos";
 import { receptorLoteTasas } from "@/components/SoltarImagenes";
 import { reportError } from "@/lib/reportError";
+import { usePestanaUrl } from "@/lib/pestanaUrl";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { TasaFormDialog } from "./TasaFormDialog";
 import { CalendarioTasas } from "./CalendarioTasas";
@@ -37,8 +40,7 @@ const COLUMNAS: Columnas<TasaConUsos, Col> = {
   usos: { tipo: "numero", valor: (t) => t.usos },
 };
 
-/** Pestaña vista durante la sesión. */
-let vistaRecordada = "calendario";
+const PESTANAS = ["calendario", "lista", "feriados"] as const;
 
 export function TasasPage() {
   const { data, error } = useData((db) => listTasas(db), []);
@@ -47,11 +49,7 @@ export function TasasPage() {
   // fecha: tasa nueva de un día elegido en el calendario; imagen: captura soltada sobre la pantalla.
   const [dialog, setDialog] = useState<{ open: boolean; tasa: TasaConUsos | null; fecha?: string; imagen?: File }>({ open: false, tasa: null });
   const [borrar, setBorrar] = useState<TasaConUsos | null>(null);
-  const [vista, setVistaState] = useState(vistaRecordada);
-  const setVista = (v: string) => {
-    vistaRecordada = v;
-    setVistaState(v);
-  };
+  const [vista, setVista] = usePestanaUrl(PESTANAS);
   const navigate = useNavigate();
   useAtajo("n", () => setDialog({ open: true, tasa: null }));
   useAtajo("l", () => navigate("/tasas/lote"));
@@ -96,9 +94,9 @@ export function TasasPage() {
               Exportar a Excel
             </Button>
             {!!pendientes && (
-              <Link to="/tasas/revision" className={buttonVariants({ variant: "outline" })}>
+              <Link to="/tasas/revision" className={buttonVariants({ variant: "secondary" })}>
                 <ListChecks />
-                Revisar ({pendientes})
+                Revisar pendientes ({pendientes})
               </Link>
             )}
             <Link to="/tasas/lote" title="L · también puedes soltar las capturas en cualquier parte" className={buttonVariants({ variant: "outline" })}>
@@ -166,24 +164,20 @@ export function TasasPage() {
                     <TableRow key={t.id}>
                       <TableCell>{formatFecha(t.fecha)}</TableCell>
                       <TableCell className="text-right font-medium tabular-nums">{formatTasa(t.valor)}</TableCell>
-                      <TableCell>{t.imagenPath ? <ComprobanteThumb path={t.imagenPath} /> : "—"}</TableCell>
+                      <TableCell>{t.imagenPath ? <ComprobanteIcono path={t.imagenPath} label={`Ver la captura de la tasa del ${formatFecha(t.fecha)}`} /> : <span className="pl-2.5 text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="max-w-64 truncate" title={t.notas ?? ""}>
                         {t.notas ?? "—"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{t.usos}</TableCell>
-                      <TableCell className="space-x-2 text-right">
-                        <Button size="sm" variant="outline" onClick={() => setDialog({ open: true, tasa: t })}>
-                          Editar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={t.usos > 0}
-                          title={t.usos > 0 ? "En uso: no se puede eliminar" : undefined}
-                          onClick={() => setBorrar(t)}
-                        >
-                          Eliminar
-                        </Button>
+                      <TableCell className="py-0 text-right">
+                        <div className="inline-flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => setDialog({ open: true, tasa: t })}>
+                            Editar
+                          </Button>
+                          <BotonConMotivo motivo={t.usos > 0 ? motivoTasaEnUso(t.usos) : undefined}>
+                            <BotonEliminarFila label={`Eliminar la tasa del ${formatFecha(t.fecha)}`} disabled={t.usos > 0} onClick={() => setBorrar(t)} />
+                          </BotonConMotivo>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

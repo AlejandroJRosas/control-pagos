@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
+import { BotonEliminarFila } from "@/components/BotonEliminarFila";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,9 +97,7 @@ export function FeriadosCard({ feriados }: { feriados: Feriado[] }) {
                   <TableCell className="capitalize">{nombreDia(f.fecha)}</TableCell>
                   <TableCell>{f.nombre ?? "—"}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" aria-label={`Eliminar el feriado del ${formatFecha(f.fecha)}`} onClick={() => setBorrar(f)}>
-                      <Trash2 />
-                    </Button>
+                    <BotonEliminarFila label={`Eliminar el feriado del ${formatFecha(f.fecha)}`} onClick={() => setBorrar(f)} />
                   </TableCell>
                 </TableRow>
               ))}

@@ -13,6 +13,7 @@ import { etiquetasDeGerente, listEtiquetas, setEtiquetasGerente } from "@/db/rep
 import { validateGerente, type GerenteDraft } from "@/domain/validation";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { useDialogoSinGuardar } from "@/hooks/useAvisoSinGuardar";
 
 type Props = { gerente: Gerente | null; open: boolean; onOpenChange: (open: boolean) => void };
 
@@ -22,17 +23,27 @@ export function GerenteFormDialog({ gerente, open, onOpenChange }: Props) {
   const [saving, setSaving] = useState(false);
   const [etiquetas, setEtiquetas] = useState<number[]>([]);
   const { data: todas } = useData((db) => listEtiquetas(db), []);
+  // Lo que había al abrir (las etiquetas del gerente llegan después): con otra cosa, cerrar pregunta.
+  const [inicial, setInicial] = useState("");
+  const huella = (d: GerenteDraft, ids: number[]) => JSON.stringify({ d, ids: [...ids].sort((a, b) => a - b) });
+  const aviso = useDialogoSinGuardar(open && huella(draft, etiquetas) !== inicial, onOpenChange);
 
   useEffect(() => {
     if (!open) return;
-    setDraft({ nombre: gerente?.nombre ?? "", telefono: gerente?.telefono ?? "", nacimiento: gerente?.nacimiento ?? "" });
+    const d = { nombre: gerente?.nombre ?? "", telefono: gerente?.telefono ?? "", nacimiento: gerente?.nacimiento ?? "" };
+    setDraft(d);
     setErrors({});
     setEtiquetas([]);
+    setInicial(huella(d, []));
     if (!gerente) return;
     let vigente = true;
     getDb()
       .then((db) => etiquetasDeGerente(db, gerente.id))
-      .then((ids) => vigente && setEtiquetas(ids))
+      .then((ids) => {
+        if (!vigente) return;
+        setEtiquetas(ids);
+        setInicial(huella(d, ids));
+      })
       .catch(reportError);
     return () => {
       vigente = false;
@@ -63,7 +74,7 @@ export function GerenteFormDialog({ gerente, open, onOpenChange }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={aviso.onOpenChange}>
       <DialogContent>
         <form onSubmit={onSubmit} className="grid gap-4">
           <DialogHeader>
@@ -89,14 +100,15 @@ export function GerenteFormDialog({ gerente, open, onOpenChange }: Props) {
             </div>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => aviso.onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={saving}>
-              Guardar
+              {saving ? "Guardando…" : "Guardar"}
             </Button>
           </DialogFooter>
         </form>
+        {aviso.dialogo}
       </DialogContent>
     </Dialog>
   );

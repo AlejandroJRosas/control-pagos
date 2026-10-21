@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Image as ImageIcon, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ImageViewer } from "@/components/ImageViewer";
+import { ComprobanteIcono } from "@/components/ComprobanteIcono";
 import type { TasaConUsos } from "@/db/repos/tasas";
 import type { Feriado } from "@/db/repos/feriados";
 import { calendarioTasas, mesSiguiente, type DiaCalendario } from "@/domain/calendarioTasas";
@@ -34,7 +34,6 @@ export function CalendarioTasas({ tasas, feriados, onRegistrar, onEditar }: Prop
   // ← y → cambian de mes (fuera de los campos de texto).
   useAtajo("ArrowLeft", () => setMes(mesSiguiente(mes, -1)));
   useAtajo("ArrowRight", () => setMes(mesSiguiente(mes, 1)));
-  const [captura, setCaptura] = useState<string | null>(null);
   const nombres = useMemo(() => new Map(feriados.map((f) => [f.fecha, f.nombre])), [feriados]);
   const { semanas, faltan } = useMemo(() => calendarioTasas(mes, tasas, hoy, new Set(nombres.keys())), [mes, tasas, hoy, nombres]);
 
@@ -67,10 +66,9 @@ export function CalendarioTasas({ tasas, feriados, onRegistrar, onEditar }: Prop
           </div>
         ))}
         {semanas.flat().map((d) => (
-          <Dia key={d.fecha} d={d} hoy={d.fecha === hoy} feriado={nombres.get(d.fecha)} onRegistrar={onRegistrar} onEditar={onEditar} onVerCaptura={setCaptura} />
+          <Dia key={d.fecha} d={d} hoy={d.fecha === hoy} feriado={nombres.get(d.fecha)} onRegistrar={onRegistrar} onEditar={onEditar} />
         ))}
       </div>
-      <ImageViewer path={captura} open={captura !== null} onOpenChange={(o) => !o && setCaptura(null)} />
     </div>
   );
 }
@@ -91,10 +89,9 @@ type DiaProps = {
   feriado: string | null | undefined;
   onRegistrar: (fecha: string) => void;
   onEditar: (t: TasaConUsos) => void;
-  onVerCaptura: (path: string) => void;
 };
 
-function Dia({ d, hoy, feriado, onRegistrar, onEditar, onVerCaptura }: DiaProps) {
+function Dia({ d, hoy, feriado, onRegistrar, onEditar }: DiaProps) {
   const base = cn(
     "flex h-20 flex-col rounded-md border p-1.5 text-left text-xs transition-colors",
     !d.delMes && "opacity-40",
@@ -118,15 +115,13 @@ function Dia({ d, hoy, feriado, onRegistrar, onEditar, onVerCaptura }: DiaProps)
           <span className="text-muted-foreground">{t.usos > 0 ? `${t.usos} depósito(s)` : "sin depósitos"}</span>
         </button>
         {imagen && (
-          <button
-            type="button"
-            className="absolute top-1 right-1 rounded p-1 text-emerald-800 transition-colors hover:bg-emerald-200 dark:text-emerald-200 dark:hover:bg-emerald-800"
-            title={`Ver la captura de la tasa del ${formatFecha(d.fecha)}`}
-            aria-label={`Ver la captura de la tasa del ${formatFecha(d.fecha)}`}
-            onClick={() => onVerCaptura(imagen)}
-          >
-            <ImageIcon className="size-3.5" />
-          </button>
+          <span className="absolute top-1 right-1">
+            <ComprobanteIcono
+              path={imagen}
+              label={`Ver la captura de la tasa del ${formatFecha(d.fecha)}`}
+              className="size-6 text-emerald-800 hover:bg-emerald-200 hover:text-emerald-900 dark:text-emerald-200 dark:hover:bg-emerald-800 dark:hover:text-emerald-100 [&_svg]:size-3.5"
+            />
+          </span>
         )}
       </div>
     );

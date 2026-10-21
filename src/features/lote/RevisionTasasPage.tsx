@@ -149,6 +149,7 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
 
   // useAtajo no actúa con un diálogo abierto (p. ej. la confirmación de Descartar).
   useAtajo("Enter", () => void marcarHecho(), { ctrl: true });
+  useAtajo("d", () => setConfirmDescartar(true), { ctrl: true, activo: !hecho && !saving });
 
   return (
     <form
@@ -165,7 +166,7 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
       </fieldset>
       {!hecho && (
         <BarraAcciones>
-          <Button type="button" variant="destructive" size="lg" className="mr-auto" disabled={saving} onClick={() => setConfirmDescartar(true)}>
+          <Button type="button" variant="destructive" size="lg" className="mr-auto" disabled={saving} title="Ctrl+D" onClick={() => setConfirmDescartar(true)}>
             <Trash2 />
             Descartar
           </Button>

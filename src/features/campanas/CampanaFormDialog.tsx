@@ -12,6 +12,7 @@ import { validateCampana, type CampanaDraft } from "@/domain/validation";
 import { todayIso } from "@/domain/dates";
 import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { useDialogoSinGuardar } from "@/hooks/useAvisoSinGuardar";
 
 type Props = { campana: Campana | null; open: boolean; onOpenChange: (open: boolean) => void; onCreated?: (id: number) => void };
 
@@ -19,15 +20,19 @@ export function CampanaFormDialog({ campana, open, onOpenChange, onCreated }: Pr
   const [draft, setDraft] = useState<CampanaDraft>({ nombre: "", fechaInicio: "", fechaFin: "", notas: "" });
   const [errors, setErrors] = useState<Partial<Record<keyof CampanaDraft, string>>>({});
   const [saving, setSaving] = useState(false);
+  const [inicial, setInicial] = useState("");
+  const aviso = useDialogoSinGuardar(open && JSON.stringify(draft) !== inicial, onOpenChange);
 
   useEffect(() => {
     if (!open) return;
-    setDraft({
+    const d = {
       nombre: campana?.nombre ?? "",
       fechaInicio: campana?.fechaInicio ?? todayIso(),
       fechaFin: campana?.fechaFin ?? "",
       notas: campana?.notas ?? "",
-    });
+    };
+    setDraft(d);
+    setInicial(JSON.stringify(d));
     setErrors({});
   }, [open, campana]);
 
@@ -58,7 +63,7 @@ export function CampanaFormDialog({ campana, open, onOpenChange, onCreated }: Pr
   const set = (k: keyof CampanaDraft) => (e: { target: { value: string } }) => setDraft({ ...draft, [k]: e.target.value });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={aviso.onOpenChange}>
       <DialogContent>
         <form onSubmit={onSubmit} className="grid gap-4">
           <DialogHeader>
@@ -79,14 +84,15 @@ export function CampanaFormDialog({ campana, open, onOpenChange, onCreated }: Pr
             <Textarea id="c-notas" rows={2} value={draft.notas} onChange={set("notas")} />
           </Field>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => aviso.onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={saving}>
-              Guardar
+              {saving ? "Guardando…" : "Guardar"}
             </Button>
           </DialogFooter>
         </form>
+        {aviso.dialogo}
       </DialogContent>
     </Dialog>
   );

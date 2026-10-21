@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { Plus, Search, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { GerenteActivoBadge } from "@/components/EstadoBadge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -18,6 +19,7 @@ import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { useFiltrosUrl } from "@/lib/filtrosUrl";
+import { usePestanaUrl } from "@/lib/pestanaUrl";
 import { claveComparacion } from "@/domain/texto";
 import { formatFecha } from "@/domain/dates";
 import { conEtiquetas, filtroDeIds, idsDeFiltro } from "@/domain/etiquetas";
@@ -34,20 +36,14 @@ const COLUMNAS: Columnas<GerenteConCampanas, Col> = {
   estado: { tipo: "numero", valor: (g) => (g.activo ? 0 : 1) },
 };
 
-/** Pestaña vista durante la sesión. */
-let vistaRecordada = "lista";
+const PESTANAS = ["lista", "cumpleanos"] as const;
 
 export function GerentesPage() {
   const { data, error } = useData((db) => listGerentesConCampanas(db), []);
   const { data: etiquetas } = useData((db) => listEtiquetas(db), []);
   const [verEtiquetas, setVerEtiquetas] = useState(false);
   const [dialog, setDialog] = useState<{ open: boolean; gerente: Gerente | null }>({ open: false, gerente: null });
-  const [verInactivos, setVerInactivos] = useState(false);
-  const [vista, setVistaState] = useState(vistaRecordada);
-  const setVista = (v: string) => {
-    vistaRecordada = v;
-    setVistaState(v);
-  };
+  const [vista, setVista] = usePestanaUrl(PESTANAS);
   const activos = useMemo(() => (data ?? []).filter((g) => g.activo), [data]);
 
   async function toggleActivo(g: Gerente) {
@@ -60,7 +56,9 @@ export function GerentesPage() {
   }
 
   const { orden, alternar } = useOrden<Col>();
-  const { valores: f, set } = useFiltrosUrl("gerentes", ["q", "etiquetas"] as const);
+  const { valores: f, set } = useFiltrosUrl("gerentes", ["q", "etiquetas", "inactivos"] as const);
+  const verInactivos = f.inactivos === "1";
+  const setVerInactivos = (si: boolean) => set({ inactivos: si ? "1" : "" });
   const porId = useMemo(() => new Map<number, Etiqueta>((etiquetas ?? []).map((e) => [e.id, e])), [etiquetas]);
   // Ids de etiquetas ya eliminadas no filtran (si no, la lista quedaría vacía sin chip que desmarcar).
   const elegidas = useMemo(() => idsDeFiltro(f.etiquetas).filter((id) => !etiquetas || porId.has(id)), [f.etiquetas, etiquetas, porId]);
@@ -210,7 +208,7 @@ export function GerentesPage() {
                             ))}
                       </div>
                     </TableCell>
-                    <TableCell>{g.activo ? <Badge>Activo</Badge> : <Badge variant="secondary">Inactivo</Badge>}</TableCell>
+                    <TableCell><GerenteActivoBadge activo={g.activo} /></TableCell>
                     <TableCell className="space-x-2 text-right" onClick={(e) => e.stopPropagation()}>
                       <Button size="sm" variant="outline" onClick={() => setDialog({ open: true, gerente: g })}>
                         Editar

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MontoInput } from "@/components/MontoInput";
+import { Casilla } from "@/components/Casilla";
 import { getDb } from "@/db";
 import { EtiquetaChip } from "@/components/EtiquetaChip";
 import { listGerentesConCampanas } from "@/db/repos/gerentes";
@@ -15,6 +16,7 @@ import { conEtiquetas } from "@/domain/etiquetas";
 import { validateSaldo } from "@/domain/validation";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { useDialogoSinGuardar } from "@/hooks/useAvisoSinGuardar";
 
 type Props = {
   campanaId: number;
@@ -56,6 +58,7 @@ export function AgregarGerentesDialog({ campanaId, gerentesEnCampana, open, onOp
   const filtrando = !!clave || elegidas.length > 0;
   const fila = (id: number): Fila => filas[id] ?? { marcado: false, saldo: "" };
   const elegidos = disponibles.filter((g) => fila(g.id).marcado);
+  const aviso = useDialogoSinGuardar(open && elegidos.length > 0, onOpenChange);
   const todosVisiblesMarcados = visibles.length > 0 && visibles.every((g) => fila(g.id).marcado);
 
   function cambiar(id: number, cambio: Partial<Fila>) {
@@ -103,7 +106,7 @@ export function AgregarGerentesDialog({ campanaId, gerentesEnCampana, open, onOp
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={aviso.onOpenChange}>
       <DialogContent className="sm:max-w-xl">
         <form onSubmit={onSubmit} className="grid gap-4">
           <DialogHeader>
@@ -143,8 +146,8 @@ export function AgregarGerentesDialog({ campanaId, gerentesEnCampana, open, onOp
 
               <div className="max-h-80 overflow-y-auto rounded-lg border">
                 <label className="sticky top-0 z-10 flex items-center gap-3 border-b bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
-                  <input
-                    type="checkbox"
+                  <Casilla
+                    indeterminado={!todosVisiblesMarcados && visibles.some((g) => fila(g.id).marcado)}
                     checked={todosVisiblesMarcados}
                     disabled={visibles.length === 0}
                     onChange={(e) => marcarVisibles(e.target.checked)}
@@ -198,14 +201,15 @@ export function AgregarGerentesDialog({ campanaId, gerentesEnCampana, open, onOp
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => aviso.onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={saving || elegidos.length === 0}>
-              {elegidos.length > 1 ? `Agregar ${elegidos.length} gerentes` : "Agregar"}
+              {saving ? "Agregando…" : elegidos.length > 1 ? `Agregar ${elegidos.length} gerentes` : "Agregar"}
             </Button>
           </DialogFooter>
         </form>
+        {aviso.dialogo}
       </DialogContent>
     </Dialog>
   );

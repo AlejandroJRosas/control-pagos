@@ -41,7 +41,7 @@ it("varias imágenes soltadas en el gerente van al lote con el gerente elegido",
   const db = await createTestDb();
   const s = await seedBasico(db);
   const { router } = await renderApp(`/asignaciones/${s.asignacionId}`, { db });
-  await screen.findByRole("button", { name: /Subir lote/ });
+  await screen.findByRole("button", { name: "Subir lote" });
   await soltar(imagenes(3), "Suelta para subir 3 comprobantes en lote a Ana (Marzo)");
   await waitFor(() => expect(router.state.location.pathname).toBe(`/campanas/${s.campanaId}/lote`));
   expect(await screen.findByText(/3 subido\(s\)/)).toBeInTheDocument();
@@ -76,7 +76,9 @@ it("una captura soltada en Tasas abre la tasa nueva con ella; varias van al lote
   await soltar(imagenes(1), "Suelta para registrar una tasa con esta captura");
   expect(await screen.findByRole("dialog", { name: "Registrar tasa del día" })).toBeInTheDocument();
   expect(await screen.findByRole("img", { name: "Captura de la tasa (opcional)" })).toHaveAttribute("src", "blob:prueba");
+  // La captura soltada cuenta como cambio: cerrar pregunta antes de descartarla.
   await user.keyboard("{Escape}");
+  await user.click(await screen.findByRole("button", { name: "Descartar cambios" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
   await soltar(imagenes(2), "Suelta para subir 2 capturas de tasa en lote");

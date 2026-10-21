@@ -10,6 +10,7 @@ import { validateSaldo } from "@/domain/validation";
 import { toInputVE } from "@/domain/money";
 import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { useDialogoSinGuardar } from "@/hooks/useAvisoSinGuardar";
 
 export type AsignacionEditable = { id: number; gerenteNombre: string; saldoUsd: string };
 
@@ -23,6 +24,7 @@ export function AsignacionFormDialog({ asignacion, onOpenChange }: Props) {
   const [saldo, setSaldo] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
+  const aviso = useDialogoSinGuardar(asignacion !== null && saldo !== toInputVE(asignacion.saldoUsd), onOpenChange);
 
   useEffect(() => {
     if (!asignacion) return;
@@ -49,7 +51,7 @@ export function AsignacionFormDialog({ asignacion, onOpenChange }: Props) {
   }
 
   return (
-    <Dialog open={asignacion !== null} onOpenChange={onOpenChange}>
+    <Dialog open={asignacion !== null} onOpenChange={aviso.onOpenChange}>
       <DialogContent>
         <form onSubmit={onSubmit} className="grid gap-4">
           <DialogHeader>
@@ -65,14 +67,15 @@ export function AsignacionFormDialog({ asignacion, onOpenChange }: Props) {
             />
           </Field>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => aviso.onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={saving}>
-              Guardar
+              {saving ? "Guardando…" : "Guardar"}
             </Button>
           </DialogFooter>
         </form>
+        {aviso.dialogo}
       </DialogContent>
     </Dialog>
   );

@@ -15,6 +15,8 @@ import { avisarDepositosEliminados } from "@/lib/deshacer";
 import { conVolver } from "@/lib/volver";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { agruparPie, useColumnas } from "@/lib/columnas";
+import { Casilla } from "./Casilla";
+import { BotonEliminarFila } from "./BotonEliminarFila";
 import { ColumnasMenu } from "./ColumnasMenu";
 import { ComprobanteIcono } from "./ComprobanteIcono";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -183,9 +185,9 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
       <TableRow className="even:bg-transparent hover:bg-transparent">
         {!soloLectura && (
           <TableCell className={STICKY_DIA}>
-            <input
-              type="checkbox"
+            <Casilla
               aria-label={`Seleccionar los depósitos del ${formatFecha(g.fecha)}`}
+              indeterminado={ids.some((id) => marcados.has(id)) && !ids.every((id) => marcados.has(id))}
               checked={ids.every((id) => marcados.has(id))}
               onChange={(e) => marcar(ids, e.target.checked)}
             />
@@ -254,9 +256,9 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
           <TableRow className="hover:bg-transparent">
             {!soloLectura && (
               <TableHead className="w-8">
-                <input
-                  type="checkbox"
+                <Casilla
                   aria-label="Seleccionar todos"
+                  indeterminado={!todos && elegidos.length > 0}
                   checked={todos}
                   onChange={(e) => setMarcados(e.target.checked ? new Set(filas.map((d) => d.id)) : new Set())}
                 />
@@ -296,9 +298,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
                   ))}
                   {!soloLectura && (
                     <TableCell className="py-0" onClick={(e) => e.stopPropagation()}>
-                      <Button size="icon-sm" variant="ghost" title="Eliminar depósito" aria-label="Eliminar depósito" onClick={() => void eliminar([d.id])}>
-                        <Trash2 className="text-destructive" />
-                      </Button>
+                      <BotonEliminarFila label="Eliminar depósito" onClick={() => void eliminar([d.id])} />
                     </TableCell>
                   )}
                 </TableRow>

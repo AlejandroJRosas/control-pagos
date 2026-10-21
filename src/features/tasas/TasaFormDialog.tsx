@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Aviso } from "@/components/Feedback";
 import { ImageDrop } from "@/components/ImageDrop";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { BotonConMotivo, motivoTasaEnUso } from "@/components/BotonConMotivo";
 import { TasaCampos } from "./TasaCampos";
 import { getDb } from "@/db";
 import { createTasa, deleteTasa, getTasa, updateTasa, type Tasa, type TasaConUsos } from "@/db/repos/tasas";
@@ -14,6 +16,7 @@ import { formatFecha, todayIso } from "@/domain/dates";
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { useDialogoSinGuardar } from "@/hooks/useAvisoSinGuardar";
 import { extractor, type CampoPropuesto, type CamposTasa } from "@/extraction/extractor";
 import { aplicarExtraccion, autollenadoExistente, autollenadoNuevo, marcarTocado, tasaParaFecha, type Autollenado } from "@/extraction/autollenado";
 
@@ -41,6 +44,9 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
   const [errors, setErrors] = useState<Partial<Record<keyof TasaDraft, string>>>({});
   const [saving, setSaving] = useState(false);
   const [borrar, setBorrar] = useState(false);
+  const [huellaInicial, setHuellaInicial] = useState("");
+  const huella = (d: TasaDraft, img: ImagenValue) => JSON.stringify({ d, img: img?.kind === "stored" ? img.path : img ? img.previewUrl : null });
+  const aviso = useDialogoSinGuardar(open && huella(draft, imagen) !== huellaInicial, onOpenChange);
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +58,9 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
     imagenVigente.current = null;
     setLeyendo(false);
     setFechaImagen(null);
-    setImagen(tasa?.imagenPath ? { kind: "stored", path: tasa.imagenPath } : null);
+    const img: ImagenValue = tasa?.imagenPath ? { kind: "stored", path: tasa.imagenPath } : null;
+    setImagen(img);
+    setHuellaInicial(huella(inicial, img));
     setErrors({});
     if (!tasa && imagenInicial) void onImagen({ kind: "new", file: imagenInicial, previewUrl: URL.createObjectURL(imagenInicial) });
   }, [open, tasa, fechaFija, imagenInicial]);
@@ -142,7 +150,7 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={aviso.onOpenChange}>
         <DialogContent className="sm:max-w-xl">
           <form onSubmit={onSubmit} className="grid gap-4">
             <DialogHeader>
@@ -164,25 +172,24 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
             )}
             <DialogFooter>
               {tasa && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="text-destructive sm:mr-auto"
-                  disabled={tasa.usos > 0}
-                  title={tasa.usos > 0 ? `La usan ${tasa.usos} depósito(s): elimínalos o muévelos de fecha antes` : undefined}
-                  onClick={() => setBorrar(true)}
-                >
-                  Eliminar
-                </Button>
+                <div className="sm:mr-auto">
+                  <BotonConMotivo motivo={tasa.usos > 0 ? motivoTasaEnUso(tasa.usos) : undefined}>
+                    <Button type="button" variant="outline" className="text-destructive" disabled={tasa.usos > 0} onClick={() => setBorrar(true)}>
+                      <Trash2 />
+                      Eliminar
+                    </Button>
+                  </BotonConMotivo>
+                </div>
               )}
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="outline" onClick={() => aviso.onOpenChange(false)}>
                 Cancelar
               </Button>
               <Button type="submit" disabled={saving}>
-                {afectados > 0 ? `Guardar (afecta ${afectados})` : "Guardar"}
+                {saving ? "Guardando…" : afectados > 0 ? `Guardar (afecta ${afectados})` : "Guardar"}
               </Button>
             </DialogFooter>
           </form>
+          {aviso.dialogo}
         </DialogContent>
       </Dialog>
       <ConfirmDialog

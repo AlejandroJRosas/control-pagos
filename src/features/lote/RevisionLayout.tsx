@@ -1,7 +1,8 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 import { PageHeader, type Miga } from "@/components/PageHeader";
 import { Vacio } from "@/components/Feedback";
+import { Casilla } from "@/components/Casilla";
 import { ZoomableImage } from "@/components/ZoomableImage";
 import type { EstadoCola } from "@/db/repos/cola";
 import { clicSeleccion, seleccionarTodos, type Seleccion } from "@/domain/seleccion";
@@ -141,7 +142,7 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
               {conSeleccion && (
                 <input
                   type="checkbox"
-                  className="mt-0.5 size-4 accent-primary-intenso"
+                  className="mt-0.5"
                   aria-label={`Marcar ${i.titulo}`}
                   checked={marcado}
                   disabled={i.estado === "hecho"}
@@ -168,9 +169,5 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
 
 /** Casilla de "marcar todos" con el estado intermedio cuando hay algunos marcados. */
 function CasillaTodos({ marcados, total, onChange }: { marcados: number; total: number; onChange: () => void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = marcados > 0 && marcados < total;
-  }, [marcados, total]);
-  return <input ref={ref} type="checkbox" className="size-4 accent-primary-intenso" aria-label="Marcar todos" checked={total > 0 && marcados === total} onChange={onChange} />;
+  return <Casilla aria-label="Marcar todos" indeterminado={marcados > 0 && marcados < total} checked={total > 0 && marcados === total} onChange={onChange} />;
 }

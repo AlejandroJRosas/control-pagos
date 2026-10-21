@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { DestinoGerente } from "@/components/DestinoGerente";
+import { Casilla } from "@/components/Casilla";
+import { FechaInput } from "@/components/FechaInput";
+import { MontoInput } from "@/components/MontoInput";
 import type { CampanaData } from "@/db/queries/campanaData";
 import type { Gerente } from "@/db/repos/gerentes";
 import type { FilaPlan, PlanImportacion } from "@/db/operaciones/importarPagos";
@@ -119,9 +122,9 @@ export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, 
           <TableHeader>
             <TableRow>
               <TableHead className="w-8">
-                <input
-                  type="checkbox"
+                <Casilla
                   aria-label="Marcar todas"
+                  indeterminado={!todas && elegidas.length > 0}
                   checked={todas}
                   disabled={importables.length === 0}
                   onChange={(e) => onChange({ marcadas: e.target.checked ? new Set(importables.map((f) => f.fila)) : new Set() })}
@@ -213,28 +216,47 @@ const ETIQUETAS: Record<CampoEditable, string> = {
   tasa: "Tasa",
 };
 
-/** Campo para completar un dato que el Excel no trae o trae mal; se aplica al salir del campo o con Enter. */
+/** Campo para completar un dato que el Excel no trae o trae mal; se aplica al salir del campo o con Enter (la fecha, al quedar completa). */
 function CampoFila(props: { f: FilaPlan; campo: CampoEditable; valor: string; disabled: boolean; onEditar: (valor: string) => void }) {
   const { f, campo, valor, disabled, onEditar } = props;
+  const [monto, setMonto] = useState(valor);
   const falta = campo === "tasa" ? !f.tasaAplicada : !f[campo];
   // Una tasa que viene de otra fila del mismo día se muestra como sugerencia.
   const placeholder = campo === "tasa" && f.tasaAplicada ? formatTasa(f.tasaAplicada) : ETIQUETAS[campo];
+  const ariaLabel = `${ETIQUETAS[campo]} de la fila ${f.fila}`;
+  const alSalir = {
+    onBlur: (e: React.FocusEvent<HTMLInputElement>) => {
+      if (e.target.value !== valor) onEditar(e.target.value);
+    },
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") e.currentTarget.blur();
+    },
+  };
+  if (campo === "fecha")
+    return <FechaInput aria-label={ariaLabel} value={valor} disabled={disabled} className="h-7" contenedorClassName="min-w-32" onChange={onEditar} />;
+  if (campo === "montoBs")
+    return (
+      <MontoInput
+        aria-label={ariaLabel}
+        aria-invalid={falta}
+        value={monto}
+        onChange={setMonto}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="h-7 min-w-28 text-right tabular-nums"
+        {...alSalir}
+      />
+    );
   return (
     <Input
-      type={campo === "fecha" ? "date" : "text"}
-      inputMode={campo === "montoBs" || campo === "tasa" ? "decimal" : undefined}
-      aria-label={`${ETIQUETAS[campo]} de la fila ${f.fila}`}
+      inputMode={campo === "tasa" ? "decimal" : undefined}
+      aria-label={ariaLabel}
       aria-invalid={falta}
       defaultValue={valor}
       placeholder={placeholder}
       disabled={disabled}
-      className={cn("h-7 min-w-28", (campo === "montoBs" || campo === "tasa") && "text-right")}
-      onBlur={(e) => {
-        if (e.target.value !== valor) onEditar(e.target.value);
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-      }}
+      className={cn("h-7 min-w-28", campo === "tasa" && "text-right")}
+      {...alSalir}
     />
   );
 }

@@ -36,22 +36,32 @@ export function useAtajo(tecla: string, accion: () => void, { ctrl = false, enCa
   }, [tecla, ctrl, enCampos, conDialogo, activo]);
 }
 
-/** Lista que muestra la ayuda de atajos ("?"). */
-export const ATAJOS: { teclas: string[]; que: string }[] = [
-  { teclas: ["Ctrl", "K"], que: "Buscar en todas las campañas (depósitos, gerentes, campañas)" },
-  { teclas: ["/"], que: "Ir al buscador de la tabla" },
-  { teclas: ["N"], que: "Nuevo: depósito en la campaña o gerente, tasa, gerente o campaña según la pantalla" },
-  { teclas: ["L"], que: "Subir comprobantes en lote (en la campaña o el gerente) o capturas de tasa (en Tasas)" },
-  { teclas: ["Arrastrar"], que: "Soltar imágenes en cualquier pantalla: una abre el registro del depósito; varias, la subida en lote" },
-  { teclas: ["Ctrl", "Enter"], que: "Guardar el depósito (o Hecho en la revisión en lote)" },
-  { teclas: ["Ctrl", "D"], que: "Descartar el depósito que se está registrando si está duplicado (en la revisión en lote, descartar el comprobante)" },
-  { teclas: ["1", "2"], que: "En Depósitos duplicados: quedarse con el de la izquierda o el de la derecha (también ← y →)" },
-  { teclas: ["Enter"], que: "Al subir en lote: ir a revisar (si todavía se está leyendo, espera a que termine)" },
-  { teclas: ["Ctrl", "A"], que: "En la revisión en lote: marcar todos los pendientes (Ctrl o Shift + clic para marcar varios)" },
-  { teclas: ["←", "→"], que: "En los calendarios (Tasas y Cumpleaños): mes anterior o siguiente" },
-  { teclas: ["Esc"], que: "Volver a la pantalla anterior" },
-  { teclas: ["Inicio"], que: "Volver arriba de la página (también el botón que aparece abajo a la derecha al bajar)" },
-  { teclas: ["Ctrl", "B"], que: "Colapsar o expandir la barra lateral" },
-  { teclas: ["Ctrl", "Rueda"], que: "Agrandar o achicar la app (también Ctrl + / Ctrl − ; Ctrl 0 vuelve al 100 %)" },
-  { teclas: ["?"], que: "Mostrar esta ayuda" },
+/** Lista que muestra la ayuda de atajos ("?"), en dos columnas. */
+export const ATAJOS: { titulo: string; atajos: { teclas: string[]; que: string }[] }[] = [
+  {
+    titulo: "Navegación",
+    atajos: [
+      { teclas: ["Ctrl", "K"], que: "Buscar en todas las campañas (depósitos, gerentes, campañas)" },
+      { teclas: ["/"], que: "Ir al buscador de la tabla" },
+      { teclas: ["Esc"], que: "Volver a la pantalla anterior" },
+      { teclas: ["Inicio"], que: "Volver arriba de la página (también el botón que aparece abajo a la derecha al bajar)" },
+      { teclas: ["←", "→"], que: "En los calendarios (Tasas y Cumpleaños): mes anterior o siguiente" },
+      { teclas: ["Ctrl", "B"], que: "Colapsar o expandir la barra lateral" },
+      { teclas: ["Ctrl", "Rueda"], que: "Agrandar o achicar la app (también Ctrl + / Ctrl − ; Ctrl 0 vuelve al 100 %)" },
+      { teclas: ["?"], que: "Mostrar esta ayuda" },
+    ],
+  },
+  {
+    titulo: "Registro y lote",
+    atajos: [
+      { teclas: ["N"], que: "Nuevo: depósito en la campaña o gerente, tasa, gerente o campaña según la pantalla" },
+      { teclas: ["L"], que: "Subir comprobantes en lote (en la campaña o el gerente) o capturas de tasa (en Tasas)" },
+      { teclas: ["Arrastrar"], que: "Soltar imágenes en cualquier pantalla: una abre el registro del depósito; varias, la subida en lote" },
+      { teclas: ["Ctrl", "Enter"], que: "Guardar el depósito (o Hecho en la revisión en lote)" },
+      { teclas: ["Ctrl", "D"], que: "Descartar el depósito que se está registrando si está duplicado (en la revisión en lote, descartar el comprobante o la captura de tasa)" },
+      { teclas: ["Enter"], que: "Al subir en lote: ir a revisar (si todavía se está leyendo, espera a que termine)" },
+      { teclas: ["Ctrl", "A"], que: "En la revisión en lote: marcar todos los pendientes (Ctrl o Shift + clic para marcar varios)" },
+      { teclas: ["1", "2"], que: "En Depósitos duplicados: quedarse con el de la izquierda o el de la derecha (también ← y →)" },
+    ],
+  },
 ];
