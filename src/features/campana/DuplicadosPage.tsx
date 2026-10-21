@@ -51,7 +51,7 @@ export function DuplicadosPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        back={{ to: `/campanas/${campanaId}`, label: campana.nombre }}
+        migas={[{ to: "/campanas", label: "Campañas" }, { to: `/campanas/${campanaId}`, label: campana.nombre }]}
         title="Depósitos duplicados"
         subtitle="Mismo banco y referencia: quédate con uno por grupo. Mientras haya duplicados no se puede exportar la campaña."
       />

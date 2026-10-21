@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { CheckCircle2, Circle, CircleDot } from "lucide-react";
-import { PageHeader } from "@/components/PageHeader";
+import { PageHeader, type Miga } from "@/components/PageHeader";
 import { Vacio } from "@/components/Feedback";
 import { ZoomableImage } from "@/components/ZoomableImage";
 import type { EstadoCola } from "@/db/repos/cola";
@@ -9,7 +9,7 @@ import { useAtajo } from "@/hooks/useAtajo";
 import { cn } from "@/lib/utils";
 
 type Props = {
-  back: { to: string; label: string };
+  migas: Miga[];
   titulo: string;
   hechos: number;
   total: number;
@@ -20,10 +20,10 @@ type Props = {
 };
 
 /** Revisión uno a uno: cola a la izquierda, imagen con zoom al centro y formulario a la derecha. */
-export function RevisionLayout({ back, titulo, hechos, total, acciones, lista, imagenPath, children }: Props) {
+export function RevisionLayout({ migas, titulo, hechos, total, acciones, lista, imagenPath, children }: Props) {
   return (
     <div>
-      <PageHeader back={back} title={titulo} subtitle={`${hechos} de ${total} hechos`} actions={acciones} />
+      <PageHeader migas={migas} title={titulo} subtitle={`${hechos} de ${total} hechos`} actions={acciones} />
       <div className="grid h-[calc(100vh-12rem)] min-h-[32rem] grid-cols-[17rem_minmax(0,1fr)_28rem] gap-4">
         <div className="flex min-h-0 flex-col gap-2">{lista}</div>
         <div className="min-h-0 rounded-lg border bg-muted/30 p-2">

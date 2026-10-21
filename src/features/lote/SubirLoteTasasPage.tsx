@@ -38,7 +38,7 @@ export function SubirLoteTasasPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        back={{ to: "/tasas", label: "Tasas" }}
+        migas={[{ to: "/tasas", label: "Tasas" }]}
         title="Subir tasas en lote"
         subtitle="Cada imagen se lee y queda en la cola de revisión; la tasa se registra al darle Hecho."
         actions={

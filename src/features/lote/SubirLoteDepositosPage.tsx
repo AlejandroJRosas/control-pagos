@@ -76,7 +76,7 @@ function SubirLote({ data }: { data: CampanaData }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        back={{ to: `/campanas/${campana.id}`, label: campana.nombre }}
+        migas={[{ to: "/campanas", label: "Campañas" }, { to: `/campanas/${campana.id}`, label: campana.nombre }]}
         title="Subir comprobantes en lote"
         subtitle="Cada imagen se lee y queda en la cola de revisión; los saldos cambian solo al darle Hecho."
         actions={

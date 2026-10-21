@@ -86,7 +86,8 @@ export function GerentePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        back={leerVolver(location.state) ?? { to: "/gerentes", label: "Gerentes" }}
+        migas={[{ to: "/gerentes", label: "Gerentes" }]}
+        back={leerVolver(location.state) ?? undefined}
         title={
           <span className="flex flex-wrap items-center gap-3">
             {g.nombre}

@@ -41,6 +41,16 @@ export function moverColumna<K extends string>(e: EstadoColumnas<K>, key: K, del
   return { ...e, orden };
 }
 
+/** Al arrastrar: deja `key` justo antes de `antesDe` (o al final con `null`). */
+export function soltarColumna<K extends string>(e: EstadoColumnas<K>, key: K, antesDe: K | null): EstadoColumnas<K> {
+  if (!e.orden.includes(key) || key === antesDe) return e;
+  const orden = e.orden.filter((k) => k !== key);
+  const j = antesDe === null ? orden.length : orden.indexOf(antesDe);
+  if (j < 0) return e;
+  orden.splice(j, 0, key);
+  return orden.every((k, i) => k === e.orden[i]) ? e : { ...e, orden };
+}
+
 export type CeldaPie<K extends string> = { tipo: "total"; col: K } | { tipo: "etiqueta" | "vacio"; span: number };
 
 /** Celdas del pie de una tabla: las columnas sin total se juntan; la etiqueta ("Total…") va en el primer grupo. */
@@ -93,6 +103,7 @@ export function useColumnas<K extends string>(clave: string, todas: readonly K[]
     visibles: columnasVisibles(estado),
     alternar: (k: K) => cambiar((e) => alternarColumna(e, k)),
     mover: (k: K, delta: -1 | 1) => cambiar((e) => moverColumna(e, k, delta)),
+    soltar: (k: K, antesDe: K | null) => cambiar((e) => soltarColumna(e, k, antesDe)),
     restablecer: () => {
       guardar(clave, null);
       setEstado(normalizarColumnas(null, todas, ocultasPorDefecto));

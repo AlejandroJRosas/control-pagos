@@ -11,7 +11,7 @@ import { Vacio } from "@/components/Feedback";
 import { filtrarDepositos, type CampanaView } from "@/domain/campanaView";
 import { useFiltrosUrl } from "@/lib/filtrosUrl";
 
-const FILTROS = ["q", "gerente", "banco", "desde", "hasta"] as const;
+const FILTROS = ["q", "banco", "desde", "hasta"] as const;
 
 type Props = { campanaId: number; campanaNombre: string; view: CampanaView; cerrada: boolean };
 
@@ -22,22 +22,16 @@ export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: P
     [view],
   );
   const opcionesBanco = useMemo(() => [{ value: "", label: "Todos" }, ...bancos.map((b) => ({ value: b, label: b }))], [bancos]);
-  const gerentes = useMemo(
-    () => [{ value: "", label: "Todos" }, ...view.gerentes.map((g) => ({ value: String(g.gerenteId), label: g.gerenteNombre }))],
-    [view],
-  );
   const r = useMemo(
     () =>
       filtrarDepositos(view.depositos, {
-        gerenteId: f.gerente ? Number(f.gerente) : null,
         banco: f.banco || null,
         desde: f.desde || null,
         hasta: f.hasta || null,
         texto: f.q || null,
       }),
-    [view, f.gerente, f.banco, f.desde, f.hasta, f.q],
+    [view, f.banco, f.desde, f.hasta, f.q],
   );
-  const porGerente = f.gerente !== "";
 
   const vacio =
     view.depositos.length > 0 ? (
@@ -81,10 +75,6 @@ export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: P
             />
           </div>
         </div>
-        <div className="grid w-52 gap-1.5">
-          <Label htmlFor="f-gerente">Gerente</Label>
-          <BuscadorSelect id="f-gerente" value={f.gerente} onChange={(gerente) => set({ gerente })} opciones={gerentes} placeholder="Todos" />
-        </div>
         <div className="grid w-44 gap-1.5">
           <Label htmlFor="f-banco">Banco</Label>
           <BuscadorSelect id="f-banco" value={f.banco} onChange={(banco) => set({ banco })} opciones={opcionesBanco} placeholder="Todos" />
@@ -104,7 +94,7 @@ export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: P
       <DepositosTable
         filas={r.filas}
         mostrarGerente
-        saldoLabel={porGerente ? "Saldo del gerente" : "Saldo general restante"}
+        saldoLabel="Saldo general restante"
         totales={r}
         soloLectura={cerrada}
         vacio={vacio}

@@ -151,6 +151,7 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
             etiquetas={ETIQUETAS}
             onAlternar={columnas.alternar}
             onMover={columnas.mover}
+            onSoltar={columnas.soltar}
             onRestablecer={columnas.restablecer}
           />
         </div>

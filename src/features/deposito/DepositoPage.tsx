@@ -241,6 +241,11 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   return (
     <div className="space-y-4">
       <PageHeader
+        migas={[
+          { to: "/campanas", label: "Campañas" },
+          { to: `/campanas/${campana.id}`, label: campana.nombre },
+          ...(asignacion ? [{ to: `/asignaciones/${asignacion.id}`, label: asignacion.gerenteNombre }] : []),
+        ]}
         back={volver}
         title={deposito ? "Editar depósito" : "Registrar depósito"}
         subtitle={asignacion ? `${asignacion.gerenteNombre} · ${asignacion.campanaNombre}` : `Campaña ${campana.nombre}`}

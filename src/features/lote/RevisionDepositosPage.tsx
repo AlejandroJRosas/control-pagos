@@ -118,7 +118,7 @@ function Revision({ data, items, gerentes, bancos }: Ctx) {
 
   return (
     <RevisionLayout
-      back={{ to: `/campanas/${campana.id}`, label: campana.nombre }}
+      migas={[{ to: "/campanas", label: "Campañas" }, { to: `/campanas/${campana.id}`, label: campana.nombre }]}
       titulo="Revisión de comprobantes"
       hechos={hechos}
       total={items.length}

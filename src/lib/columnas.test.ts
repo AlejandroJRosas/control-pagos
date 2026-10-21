@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agruparPie, alternarColumna, columnasVisibles, moverColumna, normalizarColumnas } from "./columnas";
+import { agruparPie, alternarColumna, columnasVisibles, moverColumna, normalizarColumnas, soltarColumna } from "./columnas";
 
 const TODAS = ["a", "b", "c", "d"] as const;
 type K = (typeof TODAS)[number];
@@ -58,6 +58,15 @@ describe("cambios", () => {
     expect(moverColumna(base, "b", 1).orden).toEqual(["a", "c", "b", "d"]);
     expect(moverColumna(base, "a", -1)).toBe(base);
     expect(moverColumna(base, "d", 1)).toBe(base);
+  });
+
+  it("arrastra una columna antes de otra o al final", () => {
+    expect(soltarColumna(base, "d", "b").orden).toEqual(["a", "d", "b", "c"]);
+    expect(soltarColumna(base, "a", "c").orden).toEqual(["b", "a", "c", "d"]);
+    expect(soltarColumna(base, "b", null).orden).toEqual(["a", "c", "d", "b"]);
+    expect(soltarColumna(base, "b", "b")).toBe(base);
+    expect(soltarColumna(base, "a", "b")).toBe(base);
+    expect(soltarColumna(base, "d", null)).toBe(base);
   });
 });
 

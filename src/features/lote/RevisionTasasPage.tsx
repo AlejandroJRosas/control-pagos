@@ -45,7 +45,7 @@ function Revision({ items }: { items: ItemColaTasa[] }) {
 
   return (
     <RevisionLayout
-      back={{ to: "/tasas", label: "Tasas" }}
+      migas={[{ to: "/tasas", label: "Tasas" }]}
       titulo="Revisión de tasas"
       hechos={hechos}
       total={items.length}

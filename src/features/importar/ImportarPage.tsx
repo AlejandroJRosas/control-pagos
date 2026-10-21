@@ -130,7 +130,7 @@ export function ImportarPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        back={{ to: `/campanas/${campanaId}`, label: campana.nombre }}
+        migas={[{ to: "/campanas", label: "Campañas" }, { to: `/campanas/${campanaId}`, label: campana.nombre }]}
         title="Importar depósitos desde Excel"
         subtitle="Se lee la hoja CUADRO DE PAGOS de cada factura (el gerente, su saldo inicial y los depósitos) o el Excel exportado por la app (cada gerente con su asignado y sus depósitos)."
       />

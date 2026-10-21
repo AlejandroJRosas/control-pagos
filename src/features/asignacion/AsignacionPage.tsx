@@ -123,7 +123,8 @@ export function AsignacionPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        back={volver ?? { to: `/campanas/${a.campanaId}`, label: a.campanaNombre }}
+        migas={[{ to: "/campanas", label: "Campañas" }, { to: `/campanas/${a.campanaId}`, label: a.campanaNombre }]}
+        back={volver ?? undefined}
         title={
           <span className="flex items-center gap-3">
             <Link to={`/gerentes/${a.gerenteId}`} className="hover:underline" title="Ver todas sus campañas">

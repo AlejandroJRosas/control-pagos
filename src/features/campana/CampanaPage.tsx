@@ -122,7 +122,7 @@ export function CampanaPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        back={{ to: "/campanas", label: "Campañas" }}
+        migas={[{ to: "/campanas", label: "Campañas" }]}
         title={
           <span className="flex items-center gap-3">
             {campana.nombre}
