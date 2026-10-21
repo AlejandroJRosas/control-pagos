@@ -86,6 +86,47 @@ it("el comprobante es la primera columna", async () => {
   expect(celdas[1]).toHaveAccessibleName("Comprobante");
 });
 
+it("un día se pliega y se despliega, y se recuerda al volver", async () => {
+  const { db, s } = await campanaConDosDias();
+  const { user, unmount } = await renderApp(`/campanas/${s.campanaId}`, { db });
+  await screen.findByText("Martes 03/03/2026");
+  await user.click(screen.getByRole("button", { name: /Martes 03\/03\/2026/ }));
+  expect(screen.queryByText("222")).not.toBeInTheDocument();
+  expect(screen.getByText("111")).toBeInTheDocument();
+  // Plegado sigue mostrando la cantidad y los subtotales del día, y el total no cambia.
+  expect(filas().find((t) => t.includes("Martes 03/03/2026"))).toContain("2.555,00");
+  expect(filas()[filas().length - 1]).toContain("Total (3 depósitos)");
+  unmount();
+
+  const otra = await renderApp(`/campanas/${s.campanaId}`, { db });
+  await screen.findByText("Martes 03/03/2026");
+  expect(screen.queryByText("222")).not.toBeInTheDocument();
+  await otra.user.click(screen.getByRole("button", { name: /Martes 03\/03\/2026/ }));
+  expect(screen.getByText("222")).toBeInTheDocument();
+});
+
+it("se pueden plegar y desplegar todos los días", async () => {
+  const { db, s } = await campanaConDosDias();
+  const { user } = await renderApp(`/campanas/${s.campanaId}`, { db });
+  await screen.findByText("Martes 03/03/2026");
+  await user.click(screen.getByRole("button", { name: "Plegar todos" }));
+  expect(screen.queryByText("111")).not.toBeInTheDocument();
+  expect(screen.queryByText("222")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Desplegar todos" }));
+  expect(screen.getByText("111")).toBeInTheDocument();
+  expect(screen.getByText("333")).toBeInTheDocument();
+});
+
+it("al buscar se ven todos los depósitos aunque el día esté plegado", async () => {
+  const { db, s } = await campanaConDosDias();
+  const { user } = await renderApp(`/campanas/${s.campanaId}`, { db });
+  await screen.findByText("Martes 03/03/2026");
+  await user.click(screen.getByRole("button", { name: "Plegar todos" }));
+  await user.type(screen.getByPlaceholderText("Referencia, monto, banco…"), "333");
+  expect(await screen.findByText("333")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Desplegar todos" })).not.toBeInTheDocument();
+});
+
 it("agrupada, el menú de columnas no deja mostrar la fecha ni la tasa", async () => {
   const { db, s } = await campanaConDosDias();
   const { user } = await renderApp(`/campanas/${s.campanaId}`, { db });

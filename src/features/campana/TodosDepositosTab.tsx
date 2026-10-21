@@ -47,6 +47,8 @@ export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: P
         soloLectura={cerrada}
         vacio={vacio}
         volverLabel={campanaNombre}
+        clave={`campana-${campanaId}`}
+        filtrando={filtros.activos}
       />
     </div>
   );

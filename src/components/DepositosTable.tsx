@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import Decimal from "decimal.js";
 import { useLocation, useNavigate } from "react-router";
-import { ArrowDown, ArrowUp, ImageIcon, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { agruparPorDia, compareRecientePrimero, type FilaDeposito, type GrupoDia } from "@/domain/campanaView";
@@ -15,6 +15,7 @@ import { avisarDepositosEliminados } from "@/lib/deshacer";
 import { conVolver } from "@/lib/volver";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { agruparPie, useColumnas } from "@/lib/columnas";
+import { useDiasPlegados } from "@/lib/diasPlegados";
 import { Casilla } from "./Casilla";
 import { BotonEliminarFila } from "./BotonEliminarFila";
 import { ColumnasMenu } from "./ColumnasMenu";
@@ -35,6 +36,10 @@ type Props = {
   vacio?: ReactNode;
   /** Nombre de esta pantalla en el botón de volver del depósito. */
   volverLabel: string;
+  /** Con qué se recuerdan los días plegados (p. ej. `asignacion-3`). */
+  clave: string;
+  /** Con búsqueda o filtros se ve todo, aunque haya días plegados. */
+  filtrando?: boolean;
 };
 
 type Ordenable = "fecha" | "gerente" | "banco" | "referencia" | "cuenta" | "montoBs" | "tasa" | "usd" | "saldo" | "observaciones";
@@ -64,6 +69,8 @@ const num = "text-right tabular-nums";
 // El encabezado mide h-10: la fila del día se pega justo debajo. El borde va como sombra porque con
 // border-collapse los bordes de una celda sticky no la acompañan.
 const STICKY_DIA = "sticky top-10 z-10 bg-muted py-1.5 shadow-[inset_0_-1px_0_var(--border)]";
+// El pie queda pegado abajo con el total a la vista; data-barra-inferior sube el botón de volver arriba para no taparlo.
+const STICKY_PIE = "sticky bottom-0 z-20 border-t-0 bg-[var(--fondo-tabla,var(--background))] shadow-[inset_0_1px_0_var(--border)]";
 
 function Celda({ col, d }: { col: Col; d: FilaDeposito }) {
   switch (col) {
@@ -102,7 +109,7 @@ function Celda({ col, d }: { col: Col; d: FilaDeposito }) {
   }
 }
 
-export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, soloLectura = false, vacio, volverLabel }: Props) {
+export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, soloLectura = false, vacio, volverLabel, clave, filtrando = false }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const { orden, setOrden, alternar } = useOrden<Ordenable>();
@@ -119,6 +126,10 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
     () => (porDia ? agruparPorDia(ordenadas) : [{ fecha: "", filas: ordenadas, totalBs: "", totalUsd: "" }]),
     [porDia, ordenadas],
   );
+  const dias = useDiasPlegados(clave);
+  const plegable = porDia && !filtrando;
+  const plegado = (fecha: string) => plegable && dias.plegados.has(fecha);
+  const todosPlegados = grupos.every((g) => dias.plegados.has(g.fecha));
   // Solo cuentan los marcados que siguen visibles (al filtrar se pueden ocultar).
   const elegidos = filas.filter((d) => marcados.has(d.id)).map((d) => d.id);
   const todos = filas.length > 0 && elegidos.length === filas.length;
@@ -177,14 +188,29 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
     }
   }
 
-  /** Fila del día: queda pegada bajo el encabezado mientras se recorren sus depósitos, con la cantidad y los subtotales. */
+  /**
+   * Fila del día: queda pegada bajo el encabezado mientras se recorren sus depósitos, con la cantidad y los subtotales.
+   * Un clic la pliega o despliega (salvo con búsqueda o filtros).
+   */
   function filaDia(g: GrupoDia<FilaDeposito>) {
     const ids = g.filas.map((d) => d.id);
     const dia = nombreDia(g.fecha);
+    const Chevron = plegado(g.fecha) ? ChevronRight : ChevronDown;
+    const texto = (
+      <span className="text-xs">
+        <span className="font-semibold">
+          {dia[0].toUpperCase() + dia.slice(1)} {formatFecha(g.fecha)}
+        </span>
+        <span className="text-muted-foreground">
+          {" "}
+          · {g.filas.length === 1 ? "1 depósito" : `${g.filas.length} depósitos`} · Tasa {formatTasa(g.filas[0].tasaValor)}
+        </span>
+      </span>
+    );
     return (
-      <TableRow className="even:bg-transparent hover:bg-transparent">
+      <TableRow className={cn("even:bg-transparent hover:bg-transparent", plegable && "cursor-pointer")} onClick={plegable ? () => dias.alternar(g.fecha) : undefined}>
         {!soloLectura && (
-          <TableCell className={STICKY_DIA}>
+          <TableCell className={STICKY_DIA} onClick={(e) => e.stopPropagation()}>
             <Casilla
               aria-label={`Seleccionar los depósitos del ${formatFecha(g.fecha)}`}
               indeterminado={ids.some((id) => marcados.has(id)) && !ids.every((id) => marcados.has(id))}
@@ -200,17 +226,24 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
             </TableCell>
           ) : (
             <TableCell key={i} colSpan={c.span} className={cn(STICKY_DIA, "whitespace-nowrap")}>
-              {c.tipo === "etiqueta" && (
-                <span className="text-xs">
-                  <span className="font-semibold">
-                    {dia[0].toUpperCase() + dia.slice(1)} {formatFecha(g.fecha)}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {" "}
-                    · {g.filas.length === 1 ? "1 depósito" : `${g.filas.length} depósitos`} · Tasa {formatTasa(g.filas[0].tasaValor)}
-                  </span>
-                </span>
-              )}
+              {c.tipo === "etiqueta" &&
+                (plegable ? (
+                  // El clic lo atiende la fila; el botón da el foco con el teclado y el estado al lector de pantalla.
+                  <button
+                    type="button"
+                    aria-expanded={!plegado(g.fecha)}
+                    className="-ml-1 flex items-center gap-1 rounded-sm px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dias.alternar(g.fecha);
+                    }}
+                  >
+                    <Chevron className="size-3.5 shrink-0 text-muted-foreground" />
+                    {texto}
+                  </button>
+                ) : (
+                  texto
+                ))}
             </TableCell>
           ),
         )}
@@ -234,6 +267,21 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {plegable && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                dias.plegar(
+                  grupos.map((g) => g.fecha),
+                  !todosPlegados,
+                )
+              }
+            >
+              {todosPlegados ? <ChevronsUpDown /> : <ChevronsDownUp />}
+              {todosPlegados ? "Desplegar todos" : "Plegar todos"}
+            </Button>
+          )}
           {porDia && (
             <Button size="sm" variant="ghost" title="Cambiar el orden de los días" onClick={() => setOrden(antiguosPrimero ? null : { key: "fecha", dir: 1 })}>
               {antiguosPrimero ? <ArrowUp /> : <ArrowDown />}
@@ -272,7 +320,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
           {grupos.map((g) => (
             <Fragment key={g.fecha || "todos"}>
               {porDia && filaDia(g)}
-              {g.filas.map((d) => (
+              {(plegado(g.fecha) ? [] : g.filas).map((d) => (
                 <TableRow
                   key={d.id}
                   className="cursor-pointer"
@@ -307,8 +355,8 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
           ))}
         </TableBody>
         {totales && (
-          <TableFooter>
-            <TableRow>
+          <TableFooter data-barra-inferior className={STICKY_PIE}>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
               {pie.map((c, i) =>
                 c.tipo === "total" ? (
                   <TableCell key={i} className={num}>

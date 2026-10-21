@@ -210,6 +210,8 @@ export function AsignacionPage() {
         totales={filtros.r}
         soloLectura={cerrada}
         volverLabel={a.gerenteNombre}
+        clave={`asignacion-${a.id}`}
+        filtrando={filtros.activos}
         vacio={
           filtros.hayDepositos ? (
             <Vacio texto="Ningún depósito coincide con la búsqueda o los filtros.">
