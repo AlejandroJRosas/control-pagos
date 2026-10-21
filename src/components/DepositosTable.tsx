@@ -248,9 +248,8 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
           />
         </div>
       </div>
-      {/* Sin overflow propio: así el encabezado se pega arriba al bajar por la página. */}
-      <Table contenedorClassName="overflow-visible">
-        <TableHeader className="sticky top-0 z-20 bg-background shadow-[inset_0_-1px_0_var(--border)]">
+      <Table>
+        <TableHeader>
           <TableRow className="hover:bg-transparent">
             {!soloLectura && (
               <TableHead className="w-8">

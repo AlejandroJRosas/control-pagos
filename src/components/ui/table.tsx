@@ -3,12 +3,13 @@
 import * as React from "react"
 import { cn } from "cn"
 
-// contenedorClassName: p. ej. "overflow-visible" para que un encabezado sticky se pegue al scroll de la página.
+// Sin overflow propio: así el encabezado (sticky) se pega arriba al bajar por la página. Dentro de una Card el fondo
+// del encabezado es el de la tarjeta (--fondo-tabla).
 function Table({ className, contenedorClassName, ...props }: React.ComponentProps<"table"> & { contenedorClassName?: string }) {
   return (
     <div
       data-slot="table-container"
-      className={cn("relative w-full overflow-x-auto", contenedorClassName)}
+      className={cn("relative w-full", contenedorClassName)}
     >
       <table
         data-slot="table"
@@ -23,7 +24,10 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn(
+        "sticky top-0 z-20 bg-[var(--fondo-tabla,var(--background))] shadow-[inset_0_-1px_0_var(--border)] [&_tr]:border-b",
+        className
+      )}
       {...props}
     />
   )
