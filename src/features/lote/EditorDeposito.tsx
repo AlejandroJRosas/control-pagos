@@ -19,7 +19,8 @@ import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { conVolver } from "@/lib/volver";
 import { DepositoCampos } from "@/features/deposito/DepositoCampos";
-import { MotivoDuplicado } from "@/features/deposito/DuplicadoBloqueo";
+import { BotonConMotivo } from "@/components/BotonConMotivo";
+import { irA, SELECTOR_DUPLICADO } from "@/lib/irAError";
 import { useDepositoForm } from "@/features/deposito/useDepositoForm";
 import { useAutoguardado } from "./useAutoguardado";
 import { BarraAcciones, TeclaAtajo } from "./RevisionLayout";
@@ -177,16 +178,17 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
             <Trash2 />
             Descartar
           </Button>
-          {duplicado && <MotivoDuplicado />}
           <Button type="button" variant="outline" size="lg" disabled={saving} onClick={onSaltar}>
             <SkipForward />
             Saltar
           </Button>
-          <Button type="submit" size="lg" className="px-4" disabled={cerrada || saving || f.tasa === undefined || duplicado} title="Ctrl+Enter">
-            <Check />
-            Hecho
-            <TeclaAtajo>Ctrl+Enter</TeclaAtajo>
-          </Button>
+          <BotonConMotivo motivo={duplicado ? "Ya está registrado: clic para verlo arriba" : undefined} onMotivo={() => irA(document, SELECTOR_DUPLICADO)}>
+            <Button type="submit" size="lg" className="px-4" disabled={cerrada || saving || f.tasa === undefined || duplicado} title={duplicado ? undefined : "Ctrl+Enter"}>
+              <Check />
+              Hecho
+              <TeclaAtajo>Ctrl+Enter</TeclaAtajo>
+            </Button>
+          </BotonConMotivo>
         </BarraAcciones>
       )}
       <ConfirmDialog
