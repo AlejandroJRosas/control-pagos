@@ -9,7 +9,7 @@ import { getDb } from "@/db";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { listGerentes } from "@/db/repos/gerentes";
 import { importarPagos, planificarImportacion, type PlanImportacion } from "@/db/operaciones/importarPagos";
-import { parseCuadroPagos, type CampoEditable } from "@/import/cuadroPagos";
+import { parseLibro, type CampoEditable } from "@/import/cuadroPagos";
 import { validateDestino } from "@/domain/validation";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
@@ -40,18 +40,23 @@ export function ImportarPage() {
           if (!/\.xlsx$/i.test(file.name)) throw new Error("solo se aceptan archivos .xlsx");
           const wb = new ExcelJS.Workbook();
           await wb.xlsx.load(await file.arrayBuffer());
-          const plan = await planificarImportacion(db, campanaId, parseCuadroPagos(wb, file.name));
-          if (plan.filas.length === 0) toast.warning(`${file.name}: el cuadro de pagos no tiene depósitos`);
-          const a: Archivo = {
-            key: crypto.randomUUID(),
-            nombre: file.name,
-            plan,
-            destino: plan.destino,
-            marcadas: marcadasPorDefecto(plan.filas),
-            actualizarSaldo: false,
-            ediciones: new Map(),
-          };
-          setArchivos((prev) => [...prev, a]);
+          const cuadros = parseLibro(wb, file.name);
+          for (const cuadro of cuadros) {
+            const plan = await planificarImportacion(db, campanaId, cuadro);
+            // Un Excel exportado por la app trae un cuadro por gerente: cada uno va en su tarjeta.
+            const nombre = cuadros.length > 1 ? `${file.name} · ${cuadro.gerenteNombre}` : file.name;
+            if (plan.filas.length === 0 && cuadros.length === 1) toast.warning(`${file.name}: el cuadro de pagos no tiene depósitos`);
+            const a: Archivo = {
+              key: crypto.randomUUID(),
+              nombre,
+              plan,
+              destino: plan.destino,
+              marcadas: marcadasPorDefecto(plan.filas),
+              actualizarSaldo: false,
+              ediciones: new Map(),
+            };
+            setArchivos((prev) => [...prev, a]);
+          }
         } catch (e) {
           reportError(e, file.name);
         }
@@ -113,7 +118,7 @@ export function ImportarPage() {
         filas,
       });
       toast.success(
-        `${r.depositos} depósito(s) importado(s) de ${a.nombre}` + (r.tasasCreadas > 0 ? ` · ${r.tasasCreadas} tasa(s) registrada(s)` : ""),
+        (filas.length === 0 ? `Gerente agregado a la campaña desde ${a.nombre}` : `${r.depositos} depósito(s) importado(s) de ${a.nombre}`) + (r.tasasCreadas > 0 ? ` · ${r.tasasCreadas} tasa(s) registrada(s)` : ""),
       );
       invalidate();
       await replanificar(a.key);
@@ -127,7 +132,7 @@ export function ImportarPage() {
       <PageHeader
         back={{ to: `/campanas/${campanaId}`, label: campana.nombre }}
         title="Importar depósitos desde Excel"
-        subtitle="Se lee la hoja CUADRO DE PAGOS de cada factura: el gerente, su saldo inicial y los depósitos."
+        subtitle="Se lee la hoja CUADRO DE PAGOS de cada factura (el gerente, su saldo inicial y los depósitos) o el Excel exportado por la app (cada gerente con su asignado y sus depósitos)."
       />
       {cerrada && <Aviso>La campaña está cerrada: no se pueden importar depósitos.</Aviso>}
 

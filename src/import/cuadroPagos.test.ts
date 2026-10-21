@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
-import { aplicarEdicion, camposFaltantes, nombreDesdeArchivo, parseCuadroPagos } from "./cuadroPagos";
+import { aplicarEdicion, camposFaltantes, nombreDesdeArchivo, parseCuadroPagos, parseLibro } from "./cuadroPagos";
+import { buildCampanaWorkbook, buildGerenteWorkbook } from "@/export/campanaWorkbook";
+import { buildCampanaView, type DepositoData } from "@/domain/campanaView";
+import type { Campana } from "@/db/repos/campanas";
 
 /** Imita la hoja "CUADRO DE PAGOS " de las facturas por gerente (celdas combinadas, fórmulas con resultado). */
 function libro(filas: (ExcelJS.CellValue | undefined)[][] = []): ExcelJS.Workbook {
@@ -148,5 +151,70 @@ describe("nombreDesdeArchivo", () => {
   it("toma el último tramo separado por guiones", () => {
     expect(nombreDesdeArchivo("FACTURA C3 - 2026 - ROSMARY MADERO.xlsx")).toBe("ROSMARY MADERO");
     expect(nombreDesdeArchivo("pagos.xlsx")).toBeNull();
+  });
+});
+
+describe("parseLibro con un Excel exportado por la app", () => {
+  const campana: Campana = { id: 1, nombre: "Marzo", fechaInicio: "2026-03-01", fechaFin: null, estado: "activa", notas: null, creadoEn: "x" };
+  const dep = (id: number, asignacionId: number, montoBs: string, observaciones: string | null = null): DepositoData => ({
+    id,
+    asignacionId,
+    fecha: "2026-03-0" + id,
+    creadoEn: `2026-01-01T00:00:0${id}.000Z`,
+    banco: "Banesco",
+    referencia: `00${id}`,
+    cuentaDestino: "0102 Inv. JD",
+    montoBs,
+    tasaId: 1,
+    tasaValor: "36.1234",
+    observaciones,
+    imagenPath: id === 1 ? "imagenes/abc.png" : null,
+  });
+  const view = buildCampanaView(
+    [
+      { id: 1, gerenteId: 1, gerenteNombre: "Ana Pérez", saldoUsd: "1234.56" },
+      { id: 2, gerenteId: 2, gerenteNombre: "Luis Gómez de la Torre Hernández", saldoUsd: "50" },
+      { id: 3, gerenteId: 3, gerenteNombre: "Sin Depósitos", saldoUsd: "10" },
+    ],
+    [dep(1, 1, "90000.543", "primer pago"), dep(2, 1, "1000"), dep(3, 2, "730.5")],
+  );
+
+  async function roundTrip(wb: ExcelJS.Workbook): Promise<ExcelJS.Workbook> {
+    const out = new ExcelJS.Workbook();
+    await out.xlsx.load(await wb.xlsx.writeBuffer());
+    return out;
+  }
+
+  it("de la campaña: un cuadro por gerente con su asignado y todos sus depósitos", async () => {
+    const r = parseLibro(await roundTrip(buildCampanaWorkbook(campana, view)), "marzo-2026-03-10.xlsx");
+    expect(r.map((c) => [c.gerenteNombre, c.saldoInicial, c.filas.length])).toEqual([
+      ["Ana Pérez", "1234.56", 2],
+      ["Luis Gómez de la Torre Hernández", "50", 1],
+      ["Sin Depósitos", "10", 0],
+    ]);
+    expect(r[0].filas[0]).toEqual({
+      fila: 6,
+      fecha: "2026-03-01",
+      banco: "Banesco",
+      referencia: "001",
+      cuentaDestino: "0102 Inv. JD",
+      montoBs: "90000.543",
+      tasa: "36.1234",
+      observaciones: "primer pago",
+      problemas: [],
+    });
+  });
+
+  it("de un solo gerente", async () => {
+    const r = parseLibro(await roundTrip(buildGerenteWorkbook(campana, view, 2)), "luis-2026-03-10.xlsx");
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ gerenteNombre: "Luis Gómez de la Torre Hernández", saldoInicial: "50" });
+    expect(r[0].filas.map((f) => [f.referencia, f.montoBs, f.tasa])).toEqual([["003", "730.5", "36.1234"]]);
+  });
+
+  it("una factura con CUADRO DE PAGOS sigue dando un solo cuadro", () => {
+    const r = parseLibro(libro([[d("2026-10-06"), "VENEZUELA", 1, "C", 10, 2]]));
+    expect(r).toHaveLength(1);
+    expect(r[0].gerenteNombre).toBe("ROSMARY MADERO");
   });
 });

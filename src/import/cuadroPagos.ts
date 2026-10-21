@@ -194,17 +194,10 @@ export function aplicarEdicion(f: FilaCuadro, ed: EdicionFila | undefined): Fila
   return r;
 }
 
-export function parseCuadroPagos(wb: ExcelJS.Workbook, archivo?: string): CuadroPagos {
-  const hallado = elegirHoja(wb);
-  if (!hallado) {
-    throw new DomainError(
-      "VALIDACION",
-      "No se encontró el CUADRO DE PAGOS: se busca una fila con las columnas Fecha, Referencia, Bs. y Tasa",
-    );
-  }
-  const { ws, enc } = hallado;
-  const celda = (row: ExcelJS.Row, col: Columna): unknown => (enc.cols[col] ? valor(row.getCell(enc.cols[col])) : null);
+type Encabezado = NonNullable<ReturnType<typeof buscarEncabezado>>;
 
+function leerFilas(ws: ExcelJS.Worksheet, enc: Encabezado, decimalesBs: number): FilaCuadro[] {
+  const celda = (row: ExcelJS.Row, col: Columna): unknown => (enc.cols[col] ? valor(row.getCell(enc.cols[col])) : null);
   const filas: FilaCuadro[] = [];
   for (let r = enc.fila + 1; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
@@ -223,7 +216,7 @@ export function parseCuadroPagos(wb: ExcelJS.Workbook, archivo?: string): Cuadro
       banco: texto(celda(row, "banco")),
       referencia: crudo.referencia,
       cuentaDestino: texto(celda(row, "cuenta")),
-      montoBs: numero(crudo.bs, 2, parseMonto),
+      montoBs: numero(crudo.bs, decimalesBs, parseMonto),
       tasa: numero(celda(row, "tasa"), 8, parseTasa),
       observaciones: texto(celda(row, "obs")) || null,
       problemas: [],
@@ -231,11 +224,44 @@ export function parseCuadroPagos(wb: ExcelJS.Workbook, archivo?: string): Cuadro
     f.problemas = problemas(f, texto(celda(row, "tasa")) !== "");
     filas.push(f);
   }
+  return filas;
+}
 
+export function parseCuadroPagos(wb: ExcelJS.Workbook, archivo?: string): CuadroPagos {
+  const hallado = elegirHoja(wb);
+  if (!hallado) {
+    throw new DomainError(
+      "VALIDACION",
+      "No se encontró el CUADRO DE PAGOS: se busca una fila con las columnas Fecha, Referencia, Bs. y Tasa",
+    );
+  }
+  const { ws, enc } = hallado;
   return {
     hoja: ws.name,
     gerenteNombre: leerGerente(ws, enc.fila) ?? (archivo ? nombreDesdeArchivo(archivo) : null),
     saldoInicial: leerSaldoInicial(ws, enc.fila),
-    filas,
+    filas: leerFilas(ws, enc, 2),
   };
+}
+
+/**
+ * Hoja de un gerente en el Excel que exporta la app (`addDepositos` en `export/campanaWorkbook.ts`): A1 = nombre completo
+ * (el de la hoja puede venir recortado), A2 = "Campaña …" y A3 = "Asignado $ 1.234,56 · Pagado …".
+ */
+function hojaExportada(ws: ExcelJS.Worksheet): CuadroPagos | null {
+  const enc = buscarEncabezado(ws);
+  const nombre = texto(valor(ws.getCell(1, 1))).replace(/\s+/g, " ");
+  const asignado = /^Asignado\s+\$\s*([\d.,]+)/.exec(texto(valor(ws.getCell(3, 1))));
+  if (!enc || !nombre || !asignado || !texto(valor(ws.getCell(2, 1))).startsWith("Campaña ")) return null;
+  // La app guarda los Bs con hasta 3 decimales y los exporta como número sin redondear.
+  return { hoja: ws.name, gerenteNombre: nombre, saldoInicial: parseMonto(asignado[1]), filas: leerFilas(ws, enc, 4) };
+}
+
+/**
+ * Cuadros a importar de un libro: uno por gerente si es un Excel exportado por la app (de la campaña o de un gerente;
+ * la hoja "Todos los depósitos" repite los mismos y se ignora), o el CUADRO DE PAGOS de una factura.
+ */
+export function parseLibro(wb: ExcelJS.Workbook, archivo?: string): CuadroPagos[] {
+  const exportadas = wb.worksheets.map(hojaExportada).filter((c): c is CuadroPagos => c !== null);
+  return exportadas.length > 0 ? exportadas : [parseCuadroPagos(wb, archivo)];
 }

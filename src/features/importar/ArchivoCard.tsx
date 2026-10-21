@@ -74,6 +74,8 @@ export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, 
   const saldoDistinto = asignacion && cuadro.saldoInicial && !new Decimal(asignacion.saldoUsd).eq(cuadro.saldoInicial);
   const importables = filas.filter((f) => f.importable);
   const todas = importables.length > 0 && importables.every((f) => a.marcadas.has(f.fila));
+  // Sin depósitos elegidos todavía sirve para agregar el gerente a la campaña (p. ej. uno sin depósitos en un Excel exportado).
+  const soloGerente = elegidas.length === 0 && filas.length === 0 && a.destino.sel !== "" && !selAsignacion;
 
   function marcar(fila: number, si: boolean) {
     const next = new Set(a.marcadas);
@@ -184,7 +186,7 @@ export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, 
             {elegidas.length} depósito(s) · {formatUsd(totalUsd)}
           </span>
           <Button
-            disabled={cerrada || importando || elegidas.length === 0}
+            disabled={cerrada || importando || (elegidas.length === 0 && !soloGerente)}
             onClick={async () => {
               setImportando(true);
               try {
@@ -194,7 +196,7 @@ export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, 
               }
             }}
           >
-            {importando ? "Importando…" : `Importar ${elegidas.length} depósito(s)`}
+            {importando ? "Importando…" : soloGerente ? "Agregar el gerente a la campaña" : `Importar ${elegidas.length} depósito(s)`}
           </Button>
         </div>
       </CardContent>
