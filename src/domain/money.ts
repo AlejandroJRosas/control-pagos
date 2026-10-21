@@ -78,7 +78,13 @@ export const formatPct = (pct: number): string => `${formatNumberVE(pct, 1)} %`;
  * puntos son los de miles que puso la máscara). `caret` se ajusta para quedar detrás del mismo dígito.
  */
 export function mascaraMonto(texto: string, caret: number, decimalEn: number | null = null): { texto: string; caret: number } {
-  if (/[^\d.,]/.test(texto)) return { texto, caret };
+  if (/[^\d.,]/.test(texto)) {
+    // Solo se aceptan dígitos, puntos y comas: lo demás se descarta y el cursor y el punto decimal se corren.
+    const antes = (i: number) => texto.slice(0, i).replace(/[\d.,]/g, "").length;
+    const limpio = texto.replace(/[^\d.,]/g, "");
+    const dec = decimalEn != null && /[.,]/.test(texto[decimalEn] ?? "") ? decimalEn - antes(decimalEn) : null;
+    return mascaraMonto(limpio, caret - antes(caret), dec);
+  }
   const decimal = decimalEn ?? texto.lastIndexOf(",");
   const digitos = (s: string) => s.replace(/\D/g, "");
   const ent = digitos(decimal < 0 ? texto : texto.slice(0, decimal)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");

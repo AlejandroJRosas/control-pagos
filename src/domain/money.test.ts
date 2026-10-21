@@ -117,8 +117,10 @@ describe("mascaraMonto", () => {
     expect(mascaraMonto("1.234,5.6", 8, 7).texto).toBe("12.345,6");
   });
 
-  it("deja igual lo que no es un monto", () => {
-    expect(mascaraMonto("Bs 12", 5)).toEqual({ texto: "Bs 12", caret: 5 });
+  it("descarta lo que no es dígito, punto o coma", () => {
+    expect(mascaraMonto("Bs 12", 5)).toEqual({ texto: "12", caret: 2 });
+    expect(mascaraMonto("12a34", 3)).toEqual({ texto: "1.234", caret: 3 });
+    expect(mascaraMonto("1-2.5", 5, 3)).toEqual({ texto: "12,5", caret: 4 });
   });
 
   it("mantiene el cursor detrás del mismo dígito", () => {

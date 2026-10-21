@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MontoInput } from "@/components/MontoInput";
 import { Field } from "@/components/Field";
 import { getDb } from "@/db";
 import { updateSaldoAsignacion } from "@/db/repos/asignaciones";
@@ -56,13 +56,12 @@ export function AsignacionFormDialog({ asignacion, onOpenChange }: Props) {
             <DialogTitle>Saldo de {asignacion?.gerenteNombre}</DialogTitle>
           </DialogHeader>
           <Field id="a-saldo" label="Saldo a pagar (USD)" error={error} hint="Ej. 1.500,00">
-            <Input
+            <MontoInput
               id="a-saldo"
               autoFocus
-              inputMode="decimal"
               className="text-right tabular-nums"
               value={saldo}
-              onChange={(e) => setSaldo(e.target.value)}
+              onChange={setSaldo}
             />
           </Field>
           <DialogFooter>

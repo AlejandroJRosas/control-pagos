@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MontoInput } from "@/components/MontoInput";
 import { getDb } from "@/db";
 import { EtiquetaChip } from "@/components/EtiquetaChip";
 import { listGerentesConCampanas } from "@/db/repos/gerentes";
@@ -165,14 +166,13 @@ export function AgregarGerentesDialog({ campanaId, gerentesEnCampana, open, onOp
                         })}
                       </label>
                       <div className="w-36">
-                        <Input
+                        <MontoInput
                           aria-label={`Saldo de ${g.nombre}`}
                           aria-invalid={!!errores[g.id]}
-                          inputMode="decimal"
                           placeholder="0,00"
                           className="h-7 text-right tabular-nums"
                           value={f.saldo}
-                          onChange={(e) => cambiar(g.id, { saldo: e.target.value, marcado: f.marcado || e.target.value.trim() !== "" })}
+                          onChange={(v) => cambiar(g.id, { saldo: v, marcado: f.marcado || v.trim() !== "" })}
                         />
                         {errores[g.id] && <p className="mt-0.5 text-xs text-destructive">{errores[g.id]}</p>}
                       </div>
@@ -183,13 +183,12 @@ export function AgregarGerentesDialog({ campanaId, gerentesEnCampana, open, onOp
 
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Mismo saldo para los marcados:</span>
-                <Input
+                <MontoInput
                   aria-label="Saldo para los marcados"
-                  inputMode="decimal"
                   placeholder="Ej. 1.500,00"
                   className="w-36 text-right tabular-nums"
                   value={saldoComun}
-                  onChange={(e) => setSaldoComun(e.target.value)}
+                  onChange={setSaldoComun}
                 />
                 <Button type="button" variant="outline" disabled={elegidos.length === 0 || !saldoComun.trim()} onClick={aplicarSaldoComun}>
                   Aplicar
