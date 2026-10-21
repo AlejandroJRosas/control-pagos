@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { FechaInput } from "@/components/FechaInput";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { MontoInput } from "@/components/MontoInput";
 import { formatBs, formatTasa, formatUsd, parseMonto, toInputVE } from "@/domain/money";
 import { cn } from "@/lib/utils";
 import { confClass } from "@/lib/confianza";
+import { irA, SELECTOR_ERROR } from "@/lib/irAError";
 import { TasaFormDialog } from "@/features/tasas/TasaFormDialog";
 import type { DepositoForm } from "./useDepositoForm";
 import { DuplicadoBloqueo, type AccionesDuplicado } from "./DuplicadoBloqueo";
@@ -51,11 +52,16 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
   // Día cuya tasa rige: sábado, domingo y feriados usan la del siguiente día hábil.
   const fechaTasa = fechaValida ? fechaDeTasa(draft.fecha, feriados) : draft.fecha;
   const motivo = feriados.has(draft.fecha) ? "Feriado: " : "";
+  // En pantallas chicas el campo con error puede quedar fuera de la vista: al intentar guardar se va a él.
+  const camposRef = useRef<HTMLFieldSetElement>(null);
+  useEffect(() => {
+    if (f.intentosFallidos > 0) irA(camposRef.current, SELECTOR_ERROR);
+  }, [f.intentosFallidos]);
 
   return (
     <>
       {duplicado && duplicados.length > 0 && <DuplicadoBloqueo duplicados={duplicados} acciones={duplicado} />}
-      <fieldset disabled={disabled} className="grid gap-4">
+      <fieldset ref={camposRef} disabled={disabled} className="grid gap-4">
         {!asignacion && (
           <DestinoGerente id="d-destino" asignaciones={data.asignaciones} gerentes={gerentes} value={form.destino} errors={f.destinoErrors} onChange={f.setDestino} />
         )}

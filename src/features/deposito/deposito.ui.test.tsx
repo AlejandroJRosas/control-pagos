@@ -44,6 +44,9 @@ it("un duplicado no se guarda: se actualiza el existente o se descarta con Ctrl+
   await escribir();
   expect(await screen.findByText("Este depósito ya está registrado")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Guardar" })).toBeDisabled();
+  // Con el botón deshabilitado se dice por qué y se lleva al bloque del duplicado.
+  await user.click(screen.getByRole("button", { name: "Ya está registrado: ver arriba" }));
+  expect(screen.getByRole("alert")).toHaveClass("resaltar-error");
 
   await user.keyboard("{Control>}d{/Control}");
   await waitFor(() => expect(screen.getByLabelText("Referencia bancaria")).toHaveValue(""));
@@ -68,4 +71,16 @@ it("el monto separa los miles mientras se escribe y el punto escrito es el decim
   await user.clear(monto);
   await user.paste("1.234");
   expect(monto).toHaveValue("1.234,00");
+});
+
+it("guardar con errores lleva al primer campo con error y lo resalta", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  const { user } = await renderApp(`/asignaciones/${s.asignacionId}/depositos/nuevo`, { db, hoy: "2026-03-02" });
+  await screen.findByText(/36,50 Bs\/USD/);
+  await user.type(screen.getByLabelText("Referencia bancaria"), "123");
+  await user.click(screen.getByRole("button", { name: "Guardar" }));
+  const banco = screen.getByLabelText("Banco de origen");
+  await waitFor(() => expect(banco).toHaveFocus());
+  expect(banco.closest("[data-error]")).toHaveClass("resaltar-error");
 });

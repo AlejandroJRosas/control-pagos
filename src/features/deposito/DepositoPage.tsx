@@ -31,6 +31,7 @@ import { tomarArchivos, useReceptorArchivos } from "@/lib/soltarArchivos";
 import { receptorCampana, receptorCerrada } from "@/components/SoltarImagenes";
 import { sugerenciasBancos } from "@/domain/bancos";
 import { DepositoCampos } from "./DepositoCampos";
+import { MotivoDuplicado } from "./DuplicadoBloqueo";
 import { camposOcr, conExtraccion, depositoVacio, SIN_DESTINO, useDepositoForm, type DepositoFormState } from "./useDepositoForm";
 
 /** `asignacion` es null al registrar desde la campaña: el gerente se elige (o se crea) en el formulario. */
@@ -283,7 +284,8 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
             duplicado={deposito ? undefined : { onActualizar: (d) => void actualizarExistente(d), onDescartar: descartar, ocupado: cerrada || saving }}
           />
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            {duplicado && <MotivoDuplicado className="mr-auto" />}
             <Button type="button" variant="outline" onClick={() => navigate(-1)}>
               Cancelar
             </Button>

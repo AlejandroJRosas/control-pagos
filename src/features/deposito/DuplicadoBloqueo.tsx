@@ -1,11 +1,13 @@
 import { CopyX, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Tecla } from "@/components/AyudaAtajos";
 import { ComprobanteThumb } from "@/components/ComprobanteThumb";
 import type { Duplicado } from "@/db/repos/depositos";
 import { formatFecha } from "@/domain/dates";
 import { formatBs } from "@/domain/money";
 import { useAtajo } from "@/hooks/useAtajo";
+import { irA, SELECTOR_DUPLICADO } from "@/lib/irAError";
 
 export type AccionesDuplicado = {
   /** El existente toma los datos del formulario. */
@@ -19,7 +21,7 @@ export type AccionesDuplicado = {
 export function DuplicadoBloqueo({ duplicados, acciones }: { duplicados: Duplicado[]; acciones: AccionesDuplicado }) {
   useAtajo("d", acciones.onDescartar, { ctrl: true, activo: !acciones.ocupado });
   return (
-    <div role="alert" className="grid gap-3 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm">
+    <div role="alert" data-duplicado className="grid gap-3 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm">
       <div className="flex items-start gap-2">
         <CopyX className="mt-0.5 size-4 shrink-0 text-destructive" />
         <div>
@@ -62,5 +64,14 @@ export function DuplicadoBloqueo({ duplicados, acciones }: { duplicados: Duplica
         </Button>
       </div>
     </div>
+  );
+}
+
+/** Junto a los botones de guardar, que quedan deshabilitados: dice por qué y lleva al bloque del duplicado. */
+export function MotivoDuplicado({ className }: { className?: string }) {
+  return (
+    <button type="button" className={cn("self-center text-sm text-destructive underline-offset-4 hover:underline", className)} onClick={() => irA(document, SELECTOR_DUPLICADO)}>
+      Ya está registrado: ver arriba
+    </button>
   );
 }

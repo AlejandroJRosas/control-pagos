@@ -52,6 +52,8 @@ export function useDepositoForm({ inicial, data, asignacion, depositoId }: Opcio
   const [errors, setErrors] = useState<Partial<Record<keyof DepositoDraft, string>>>({});
   const [destinoErrors, setDestinoErrors] = useState<Partial<Record<keyof DestinoDraft, string>>>({});
   const [duplicados, setDuplicados] = useState<Duplicado[]>([]);
+  // Cuenta los intentos de guardar con errores: cada uno lleva la vista al primer campo con error.
+  const [intentosFallidos, setIntentosFallidos] = useState(0);
   const draft = form.draft;
 
   // La tasa siempre es la de la fecha del depósito (sábado y domingo: la del lunes).
@@ -139,6 +141,7 @@ export function useDepositoForm({ inicial, data, asignacion, depositoId }: Opcio
     if (!r.ok || (rd && !rd.ok)) {
       if (!r.ok) setErrors(r.errors);
       if (rd && !rd.ok) setDestinoErrors(rd.errors);
+      setIntentosFallidos((n) => n + 1);
       return null;
     }
     return { deposito: r.value, destino: rd?.ok ? rd.value : null };
@@ -159,6 +162,7 @@ export function useDepositoForm({ inicial, data, asignacion, depositoId }: Opcio
     errors,
     destinoErrors,
     duplicados,
+    intentosFallidos,
     validar,
     reiniciar,
     calculo: { usd, restanteGerente, restanteGeneral },

@@ -19,6 +19,7 @@ import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { conVolver } from "@/lib/volver";
 import { DepositoCampos } from "@/features/deposito/DepositoCampos";
+import { MotivoDuplicado } from "@/features/deposito/DuplicadoBloqueo";
 import { useDepositoForm } from "@/features/deposito/useDepositoForm";
 import { useAutoguardado } from "./useAutoguardado";
 import { BarraAcciones, TeclaAtajo } from "./RevisionLayout";
@@ -176,6 +177,7 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
             <Trash2 />
             Descartar
           </Button>
+          {duplicado && <MotivoDuplicado />}
           <Button type="button" variant="outline" size="lg" disabled={saving} onClick={onSaltar}>
             <SkipForward />
             Saltar

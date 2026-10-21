@@ -206,3 +206,13 @@
     @apply font-sans;
     }
 }
+
+/* Campo con error (o bloque de duplicado) al que se lleva la vista al intentar guardar (lib/irAError.ts). */
+@keyframes resaltar-error {
+  0%, 60% { box-shadow: 0 0 0 4px color-mix(in oklab, var(--destructive) 35%, transparent); }
+  100% { box-shadow: 0 0 0 4px transparent; }
+}
+.resaltar-error {
+  border-radius: var(--radius-md);
+  animation: resaltar-error 1.6s ease-out;
+}
