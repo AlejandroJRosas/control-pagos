@@ -7,6 +7,7 @@ import { bdvTransferenciaTerceros } from "./bdvTransferenciaTerceros";
 import { tasaMariandres } from "./tasaMariandres";
 import { banescoOperacion } from "./banescoOperacion";
 import { mercantilSolicitud } from "./mercantilSolicitud";
+import { bncMovimiento } from "./bncMovimiento";
 import { reconocedoresDeposito, reconocedoresTasa } from "./index";
 import bdvOscuro from "./__fixtures__/bdv-oscuro.json";
 import bdvClaro from "./__fixtures__/bdv-claro.json";
@@ -16,6 +17,7 @@ import bdvEnvuelta2 from "./__fixtures__/bdv-envuelta-2.json";
 import tasaFixture from "./__fixtures__/tasa-mariandres.json";
 import banescoFixture from "./__fixtures__/banesco.json";
 import mercantilFixture from "./__fixtures__/mercantil.json";
+import bncFixture from "./__fixtures__/bnc.json";
 
 const HOY = "2026-10-18";
 const filasDe = (r: OcrResultado) => agruparFilas(r);
@@ -98,12 +100,44 @@ describe("tasa-mariandres con texto sintético", () => {
   });
 });
 
+describe("bnc-movimiento", () => {
+  it("captura real: el OCR pierde la fecha y la etiqueta Referencia; la referencia es la fila de dígitos antes de Monto", () => {
+    const f = filasDe(bncFixture);
+    expect(bncMovimiento.detecta(f)).toBe(true);
+    const r = bncMovimiento.extrae(f);
+    expect(valores(normalizarDeposito(r, HOY))).toEqual({ montoBs: "386.715,93", referencia: "931491184", banco: "BNC", cuentaDestino: "584141234567" });
+    expect(r.referencia?.certeza).toBe("heuristica");
+  });
+
+  it("con todas las etiquetas: fecha y referencia por etiqueta", () => {
+    const f = filas(
+      "App BNC - Datos compartido de movimiento",
+      "Comprobante de la Operación",
+      "Fecha/Hora:",
+      "19/10/2026 11:42:28 a. m.",
+      "Descripción:",
+      "Cargo Pago Movil BNC",
+      "Referencia:",
+      "931491184",
+      "Monto:",
+      "386.715,93",
+      "Detalle de la Operación:",
+      "TELF.:584141234567 CED.:011223344 BANCO:0172",
+    );
+    const r = bncMovimiento.extrae(f);
+    expect(r.fecha).toEqual({ texto: "19/10/2026", certeza: "etiqueta" });
+    expect(r.referencia).toEqual({ texto: "931491184", certeza: "etiqueta" });
+    expect(r.cuentaDestino).toEqual({ texto: "584141234567", certeza: "etiqueta" });
+  });
+});
+
 describe("detección", () => {
   it("cada reconocedor detecta solo sus imágenes", () => {
     const propias = new Map<Reconocedor<string>, OcrResultado[]>([
       [bdvTransferenciaTerceros, [bdvOscuro, bdvClaro, bdvRecortada, bdvEnvuelta1, bdvEnvuelta2]],
       [banescoOperacion, [banescoFixture]],
       [mercantilSolicitud, [mercantilFixture]],
+      [bncMovimiento, [bncFixture]],
       [tasaMariandres, [tasaFixture]],
     ]);
     const todas = [...propias.values()].flat();
@@ -116,10 +150,11 @@ describe("detección", () => {
     expect(tasaMariandres.detecta(f)).toBe(false);
     expect(banescoOperacion.detecta(f)).toBe(false);
     expect(mercantilSolicitud.detecta(f)).toBe(false);
+    expect(bncMovimiento.detecta(f)).toBe(false);
   });
 
   it("el registro incluye los formatos", () => {
-    expect(reconocedoresDeposito).toEqual(expect.arrayContaining([bdvTransferenciaTerceros, banescoOperacion, mercantilSolicitud]));
+    expect(reconocedoresDeposito).toEqual(expect.arrayContaining([bdvTransferenciaTerceros, banescoOperacion, mercantilSolicitud, bncMovimiento]));
     expect(reconocedoresTasa).toContain(tasaMariandres);
   });
 });

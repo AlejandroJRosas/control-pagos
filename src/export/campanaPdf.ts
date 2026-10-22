@@ -28,9 +28,10 @@ function barra(ancho: number, alto: number, r: Resumen, color: string): ContentC
   };
 }
 
-/** Líneas horizontales finas, encabezado subrayado en azul y línea marcada sobre el total. */
+/** Líneas horizontales finas, encabezado subrayado en azul, filas alternadas con un fondo suave y línea marcada sobre el total. */
 function layoutTabla(conTotal: boolean): CustomTableLayout {
   return {
+    fillColor: (i, node) => (i > 0 && i % 2 === 0 && !(conTotal && i === node.table.body.length - 1) ? hex(COLOR.banda) : null),
     hLineWidth: (i, node) => {
       const filas = node.table.body.length;
       if (i === 0) return 0;

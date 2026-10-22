@@ -60,3 +60,20 @@ it("Marcar todos y Ctrl+A marcan todos los pendientes; otra vez, los desmarcan",
   await user.keyboard("{Control>}a{/Control}");
   expect(marcadas()).toEqual(["Banco 1", "Banco 2", "Banco 3"]);
 });
+
+it("las flechas ↑ y ↓ abren el comprobante anterior o el siguiente de la lista", async () => {
+  const { db, s } = await conCola(3);
+  const { user } = await renderApp(`/campanas/${s.campanaId}/revision`, { db, hoy: "2026-03-02" });
+  await screen.findByText("Banco 3");
+  const abierto = () => screen.getAllByRole("listitem").find((li) => li.getAttribute("aria-current") === "true")?.textContent?.match(/Banco \d/)?.[0];
+
+  expect(abierto()).toBe("Banco 1");
+  (document.activeElement as HTMLElement | null)?.blur();
+  await user.keyboard("{ArrowDown}");
+  expect(abierto()).toBe("Banco 2");
+  await user.keyboard("{ArrowDown}{ArrowDown}");
+  expect(abierto()).toBe("Banco 3");
+  await user.keyboard("{ArrowUp}");
+  expect(abierto()).toBe("Banco 2");
+  expect(marcadas()).toEqual(["Banco 2"]);
+});

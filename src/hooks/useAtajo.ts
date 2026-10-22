@@ -60,6 +60,7 @@ export const ATAJOS: { titulo: string; atajos: { teclas: string[]; que: string }
       { teclas: ["Ctrl", "Enter"], que: "Guardar el depósito (o Hecho en la revisión en lote)" },
       { teclas: ["Ctrl", "D"], que: "Descartar el depósito que se está registrando si está duplicado (en la revisión en lote, descartar el comprobante o la captura de tasa)" },
       { teclas: ["Enter"], que: "Al subir en lote: ir a revisar (si todavía se está leyendo, espera a que termine)" },
+      { teclas: ["↑", "↓"], que: "En la revisión en lote: abrir el comprobante (o la captura de tasa) anterior o siguiente de la lista" },
       { teclas: ["Ctrl", "A"], que: "En la revisión en lote: marcar todos los pendientes (Ctrl o Shift + clic para marcar varios)" },
       { teclas: ["1", "2"], que: "En Depósitos duplicados: quedarse con el de la izquierda o el de la derecha (también ← y →)" },
     ],

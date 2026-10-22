@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 import { PageHeader, type Miga } from "@/components/PageHeader";
 import { Vacio } from "@/components/Feedback";
@@ -86,6 +86,18 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
   const nMarcados = marcables.filter((id) => marcados.has(id)).length;
   const marcarTodos = () => seleccion && onSeleccion?.(seleccionarTodos(seleccion, marcables));
   useAtajo("a", marcarTodos, { ctrl: true, enCampos: false, activo: conSeleccion });
+  const listaRef = useRef<HTMLUListElement>(null);
+  /** ↑ / ↓: abre el anterior o el siguiente de la lista, como un clic simple. */
+  function mover(paso: number) {
+    const i = visibles.findIndex((v) => v.id === actualId);
+    const sig = visibles[i < 0 ? 0 : i + paso];
+    if (!sig) return;
+    if (conSeleccion) onSeleccion!(clicSeleccion(seleccion!, marcables, sig.id, { ctrl: false, shift: false }));
+    onElegir(sig.id);
+    listaRef.current?.querySelector(`[data-id="${sig.id}"]`)?.scrollIntoView?.({ block: "nearest" });
+  }
+  useAtajo("ArrowDown", () => mover(1));
+  useAtajo("ArrowUp", () => mover(-1));
 
   /** Clic simple: abre y marca solo ese. Con Ctrl o Shift solo cambia la selección. */
   function clic(e: React.MouseEvent, id: number) {
@@ -122,7 +134,7 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
           <span className="ml-auto">Ctrl o Shift + clic: varios</span>
         </label>
       )}
-      <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto select-none">
+      <ul ref={listaRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto select-none">
         {visibles.length === 0 && <li className="py-6 text-center text-sm text-muted-foreground">Nada por aquí.</li>}
         {visibles.map((i) => {
           const actual = i.id === actualId;
@@ -131,6 +143,8 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
           return (
             <li
               key={i.id}
+              data-id={i.id}
+              aria-current={actual || undefined}
               aria-selected={conSeleccion ? marcado : undefined}
               className={cn(
                 "flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm",

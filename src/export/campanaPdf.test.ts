@@ -125,6 +125,16 @@ describe("buildCampanaPdf", () => {
     expect(textos(footer(2, 3, pagina))).toEqual([]);
   });
 
+  it("filas alternadas con un fondo suave (sin tocar el encabezado ni el total)", () => {
+    const tablas = buscar(dd.content, (o) => typeof o.table === "object" && typeof (o.layout as { fillColor?: unknown })?.fillColor === "function");
+    const deps = tablas.find((t) => textos(t).includes("Referencia"))!;
+    const body = (deps.table as { body: unknown[] }).body;
+    const fill = (deps.layout as { fillColor: (i: number, node: unknown) => string | null }).fillColor;
+    const node = { table: { body } };
+    expect(body).toHaveLength(4); // encabezado, 2 depósitos, total
+    expect([0, 1, 2, 3].map((i) => fill(i, node))).toEqual([null, null, "#f5f8fc", null]);
+  });
+
   it("las barras nunca pasan de su fondo", () => {
     for (const c of buscar(dd.content, (o) => Array.isArray(o.canvas))) {
       const [fondo, ...resto] = c.canvas as { w: number }[];

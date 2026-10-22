@@ -140,11 +140,11 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
           />
         </Field>
         <Field id="d-obs" label="Observaciones">
-          <Textarea id="d-obs" rows={3} value={draft.observaciones} onChange={(e) => set("observaciones", e.target.value)} />
+          <Textarea id="d-obs" rows={1} className="min-h-8" value={draft.observaciones} onChange={(e) => set("observaciones", e.target.value)} />
         </Field>
 
         <Card className="py-4">
-          <CardContent className="grid grid-cols-3 gap-4 px-4 text-sm">
+          <CardContent className="grid grid-cols-3 gap-4 px-4 text-center text-sm">
             <div>
               <div className="text-muted-foreground">Dólares</div>
               <div className="text-lg font-semibold tabular-nums">{usd ? formatUsd(usd) : "—"}</div>
