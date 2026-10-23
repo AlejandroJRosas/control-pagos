@@ -18,7 +18,9 @@ beforeEach(() => {
 async function campanaConDeposito() {
   const db = await createTestDb();
   const s = await seedBasico(db);
-  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "123" }));
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "123" }));
+  // Se crea con el reloj real y el envío se marca con la fecha simulada: fecha fija anterior para no depender de la hora ni la zona.
+  await db.execute("UPDATE depositos SET actualizado_en = ? WHERE id = ?", ["2026-03-02T12:00:00.000Z", id]);
   return { db, s };
 }
 
