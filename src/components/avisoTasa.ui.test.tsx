@@ -23,3 +23,11 @@ it("en fin de semana avisa la del lunes y la registra en esa fecha", async () =>
   await user.click(within(dialogo).getByRole("button", { name: "Guardar" }));
   await waitFor(() => expect(screen.queryByText(/Falta la tasa/)).not.toBeInTheDocument());
 });
+
+// Al final: el cierre dura mientras falten las mismas fechas y no se reabra la app (estado del módulo).
+it("se puede cerrar el aviso para que no ocupe lugar", async () => {
+  const { user } = await renderApp("/campanas", { hoy: "2026-10-19" });
+  await screen.findByText("Falta la tasa de hoy (lunes 19/10/2026)");
+  await user.click(screen.getByRole("button", { name: "Cerrar aviso de tasa" }));
+  expect(screen.queryByText(/Falta la tasa/)).not.toBeInTheDocument();
+});

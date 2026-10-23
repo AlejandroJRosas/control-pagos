@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { CalendarX2 } from "lucide-react";
+import { CalendarX2, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { getDb } from "@/db";
@@ -12,7 +12,10 @@ import { useHoy } from "@/hooks/useHoy";
 import { reportError } from "@/lib/reportError";
 import { TasaFormDialog } from "@/features/tasas/TasaFormDialog";
 
-const ambar = "flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200";
+/** Lo que faltaba cuando se cerró el aviso: hasta que cambie (o se reabra la app) no vuelve a salir. */
+let cerradoCon: string | null = null;
+
+const ambar = "flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 py-2 pr-10 pl-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200";
 
 /**
  * La tasa se registra en la mañana al abrir: si falta la que rige hoy (en fin de semana, la del lunes, que la empresa
@@ -24,6 +27,13 @@ export function AvisoTasaFaltante() {
   const navigate = useNavigate();
   const [registrar, setRegistrar] = useState(false);
   const [feriado, setFeriado] = useState(false);
+  const [cerrado, setCerrado] = useState(cerradoCon);
+  const faltan = data ? [data.hoy ?? "", ...data.anteriores].join(",") : "";
+
+  function cerrar() {
+    cerradoCon = faltan;
+    setCerrado(faltan);
+  }
 
   async function marcarFeriado() {
     try {
@@ -36,9 +46,13 @@ export function AvisoTasaFaltante() {
     }
   }
 
-  if (!data || (!data.hoy && data.anteriores.length === 0)) return null;
+  if (!data || (!data.hoy && data.anteriores.length === 0) || cerrado === faltan) return null;
   return (
-    <div className="mb-4 grid gap-2">
+    <div className="relative mb-4 grid gap-2">
+      {/* Cerrar: quita el espacio arriba (p. ej. en la revisión, que ya dice si falta la tasa del depósito). */}
+      <Button size="icon-sm" variant="ghost" className="absolute top-1.5 right-1.5 text-amber-900 dark:text-amber-200" aria-label="Cerrar aviso de tasa" title="Cerrar" onClick={cerrar}>
+        <X />
+      </Button>
       {data.hoy && (
         <div className={ambar} role="status">
           <CalendarX2 className="size-4 shrink-0" />

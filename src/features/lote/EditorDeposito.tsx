@@ -136,7 +136,7 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
 
   return (
     <form
-      className="grid content-start gap-4"
+      className="grid content-start gap-3"
       onSubmit={(e) => {
         e.preventDefault();
         void marcarHecho();

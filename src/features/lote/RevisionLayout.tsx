@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 import { PageHeader, type Miga } from "@/components/PageHeader";
 import { Vacio } from "@/components/Feedback";
@@ -22,10 +22,13 @@ type Props = {
 
 /** Revisión uno a uno: cola a la izquierda, imagen con zoom al centro y formulario a la derecha. */
 export function RevisionLayout({ migas, titulo, hechos, total, acciones, lista, imagenPath, children }: Props) {
+  const grilla = useRef<HTMLDivElement>(null);
+  const alto = useAltoRestante(grilla);
   return (
     <div>
       <PageHeader migas={migas} title={titulo} subtitle={`${hechos} de ${total} hechos`} actions={acciones} />
-      <div className="grid h-[calc(100vh-12rem)] min-h-[32rem] grid-cols-[17rem_minmax(0,1fr)_28rem] gap-4">
+      {/* Imagen más angosta que el formulario: así los campos y los saldos no se cortan. */}
+      <div ref={grilla} style={{ height: alto }} className="grid min-h-[26rem] grid-cols-[16rem_minmax(0,1fr)_32rem] gap-4">
         <div className="flex min-h-0 flex-col gap-2">{lista}</div>
         <div className="min-h-0 rounded-lg border bg-muted/30 p-2">
           {imagenPath ? (
@@ -39,6 +42,40 @@ export function RevisionLayout({ migas, titulo, hechos, total, acciones, lista, 
       </div>
     </div>
   );
+}
+
+/**
+ * Alto que deja libre el `<main>` desde el borde de arriba de `ref` hasta su padding de abajo, para que la revisión llene la
+ * pantalla sin scroll. Se vuelve a medir si cambia la ventana o aparece o se cierra un aviso arriba (tasa faltante…).
+ */
+function useAltoRestante(ref: React.RefObject<HTMLElement | null>): number | undefined {
+  const [alto, setAlto] = useState<number>();
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const main = el?.closest("main");
+    if (!el || !main) return;
+    const medir = () => {
+      const top = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
+      const abajo = parseFloat(getComputedStyle(main).paddingBottom) || 0;
+      setAlto(Math.floor(main.clientHeight - top - abajo));
+    };
+    const tamano = new ResizeObserver(medir);
+    const observar = () => {
+      tamano.disconnect();
+      tamano.observe(main);
+      for (const hijo of Array.from(main.children)) tamano.observe(hijo);
+      medir();
+    };
+    // Los avisos son hijos directos del <main>: se montan y desmontan solos.
+    const hijos = new MutationObserver(observar);
+    hijos.observe(main, { childList: true });
+    observar();
+    return () => {
+      tamano.disconnect();
+      hijos.disconnect();
+    };
+  }, [ref]);
+  return alto;
 }
 
 /** Hecho / Saltar / Descartar: siempre a la vista al pie de la columna del formulario, aunque este haga scroll. */
