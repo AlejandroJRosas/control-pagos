@@ -81,8 +81,8 @@ it("el comprobante es la primera columna", async () => {
   const { db, s } = await campanaConDosDias();
   await renderApp(`/campanas/${s.campanaId}`, { db });
   await screen.findByText("Martes 03/03/2026");
-  const celdas = within(screen.getAllByRole("row")[0]).getAllByRole("columnheader");
-  // Tras la casilla de selección.
+  const celdas = within(screen.getAllByRole("row")[1]).getAllByRole("columnheader");
+  // Tras la casilla de selección (la primera fila del encabezado es la del contexto).
   expect(celdas[1]).toHaveAccessibleName("Comprobante");
 });
 
@@ -95,7 +95,7 @@ it("un día se pliega y se despliega, y se recuerda al volver", async () => {
   expect(screen.getByText("111")).toBeInTheDocument();
   // Plegado sigue mostrando la cantidad y los subtotales del día, y el total no cambia.
   expect(filas().find((t) => t.includes("Martes 03/03/2026"))).toContain("2.555,00");
-  expect(filas()[filas().length - 1]).toContain("Total (3 depósitos)");
+  expect(filas()[filas().length - 1]).toContain("Total campaña (3 depósitos)");
   unmount();
 
   const otra = await renderApp(`/campanas/${s.campanaId}`, { db });

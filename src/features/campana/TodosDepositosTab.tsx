@@ -43,6 +43,8 @@ export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: P
         filas={r.filas}
         mostrarGerente
         saldoLabel="Saldo general restante"
+        contexto={{ campana: campanaNombre, vista: "Todos los depósitos", saldo: view.total.restante }}
+        totalDe="campaña"
         totales={r}
         soloLectura={cerrada}
         vacio={vacio}

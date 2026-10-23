@@ -207,6 +207,8 @@ export function AsignacionPage() {
         filas={filtros.r.filas}
         mostrarGerente={false}
         saldoLabel="Saldo restante"
+        contexto={{ campana: a.campanaNombre, vista: a.gerenteNombre, saldo: resumen.restante }}
+        totalDe={a.gerenteNombre}
         totales={filtros.r}
         soloLectura={cerrada}
         volverLabel={a.gerenteNombre}

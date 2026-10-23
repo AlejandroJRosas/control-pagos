@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { agruparPorDia, buildCampanaView, calcResumen, compareRecientePrimero, estadoGerente, filtrarDepositos, type AsignacionData, type DepositoData } from "./campanaView";
+import { agruparPorDia, buildCampanaView, calcResumen, compareRecientePrimero, estadoGerente, filtrarDepositos, sumarResumenes, type AsignacionData, type DepositoData } from "./campanaView";
 
 const asig = (id: number, gerenteId: number, gerenteNombre: string, saldoUsd: string): AsignacionData => ({ id, gerenteId, gerenteNombre, saldoUsd });
 
@@ -136,6 +136,38 @@ describe("estadoGerente", () => {
     expect(estado("100", ["40", "60"])).toBe("completo");
     expect(estado("100", ["40", "60.01"])).toBe("excedido");
     expect(estado("0", [])).toBe("sin-pagos");
+  });
+});
+
+describe("sumarResumenes", () => {
+  it("suma los gerentes y saca el avance del total, no del promedio", () => {
+    const a = calcResumen("100", ["100"], ["2026-03-02"]);
+    const b = calcResumen("300", ["30", "120.5"], ["2026-03-05", "2026-03-01"]);
+    const c = calcResumen("50", ["60"], ["2026-03-03"]);
+    expect(sumarResumenes([a, b, c])).toEqual({
+      asignado: "450.00",
+      pagado: "310.50",
+      restante: "139.50",
+      ratio: 0.69,
+      pct: 69,
+      cantidad: 4,
+      ultimaFecha: "2026-03-05",
+    });
+  });
+
+  it("coincide con el total de la campaña sin filtros", () => {
+    const view = buildCampanaView(
+      [asig(1, 10, "Ana", "100"), asig(2, 20, "Luis", "50")],
+      [
+        dep({ asignacionId: 1, fecha: "2026-03-02", montoBs: "3650", tasaValor: "36.5" }),
+        dep({ asignacionId: 2, fecha: "2026-03-03", montoBs: "2555", tasaValor: "36.5" }),
+      ],
+    );
+    expect(sumarResumenes(view.gerentes)).toEqual(view.total);
+  });
+
+  it("sin gerentes da ceros", () => {
+    expect(sumarResumenes([])).toMatchObject({ asignado: "0.00", pagado: "0.00", restante: "0.00", pct: 0, cantidad: 0, ultimaFecha: null });
   });
 });
 

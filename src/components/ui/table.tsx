@@ -33,6 +33,10 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   )
 }
 
+// Pie de totales pegado abajo, con el total a la vista; data-barra-inferior en el tfoot sube el botón de volver arriba
+// para no taparlo.
+const STICKY_PIE = "sticky bottom-0 z-20 border-t-0 bg-[var(--fondo-tabla,var(--background))] shadow-[inset_0_1px_0_var(--border)]"
+
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
@@ -117,4 +121,5 @@ export {
   TableRow,
   TableCell,
   TableCaption,
+  STICKY_PIE,
 }

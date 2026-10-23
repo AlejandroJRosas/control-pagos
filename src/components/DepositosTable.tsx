@@ -3,7 +3,7 @@ import Decimal from "decimal.js";
 import { useLocation, useNavigate } from "react-router";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { STICKY_PIE, Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { agruparPorDia, compareRecientePrimero, type FilaDeposito, type GrupoDia } from "@/domain/campanaView";
 import { formatFecha, nombreDia } from "@/domain/dates";
 import { formatNumberVE, formatTasa, formatUsd } from "@/domain/money";
@@ -29,6 +29,10 @@ type Props = {
   filas: FilaDeposito[];
   mostrarGerente: boolean;
   saldoLabel: string;
+  /** Dónde se está: la franja fija sobre las columnas (campaña › vista y el saldo restante), para no perderse al bajar. */
+  contexto: { campana: string; vista: string; saldo: string };
+  /** De quién es el total del pie ("campaña" o el gerente). */
+  totalDe: string;
   totales?: { totalBs: string; totalUsd: string; cantidad: number };
   /** Campaña cerrada: sin selección ni eliminación. */
   soloLectura?: boolean;
@@ -66,11 +70,9 @@ const COLUMNAS: Columnas<FilaDeposito, Ordenable> = {
 };
 
 const num = "text-right tabular-nums";
-// El encabezado mide h-10: la fila del día se pega justo debajo. El borde va como sombra porque con
-// border-collapse los bordes de una celda sticky no la acompañan.
-const STICKY_DIA = "sticky top-10 z-10 bg-muted py-1.5 shadow-[inset_0_-1px_0_var(--border)]";
-// El pie queda pegado abajo con el total a la vista; data-barra-inferior sube el botón de volver arriba para no taparlo.
-const STICKY_PIE = "sticky bottom-0 z-20 border-t-0 bg-[var(--fondo-tabla,var(--background))] shadow-[inset_0_1px_0_var(--border)]";
+// El encabezado mide h-8 (contexto) + h-10 (columnas): la fila del día se pega justo debajo. El borde va como sombra
+// porque con border-collapse los bordes de una celda sticky no la acompañan.
+const STICKY_DIA = "sticky top-18 z-10 bg-muted py-1.5 shadow-[inset_0_-1px_0_var(--border)]";
 
 function Celda({ col, d }: { col: Col; d: FilaDeposito }) {
   switch (col) {
@@ -109,7 +111,7 @@ function Celda({ col, d }: { col: Col; d: FilaDeposito }) {
   }
 }
 
-export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, soloLectura = false, vacio, volverLabel, clave, filtrando = false }: Props) {
+export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, totalDe, totales, soloLectura = false, vacio, volverLabel, clave, filtrando = false }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const { orden, setOrden, alternar } = useOrden<Ordenable>();
@@ -302,6 +304,23 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
+            <td colSpan={visibles.length + extra.length * 2} data-testid="contexto-tabla" className="h-8 px-2 py-0 text-xs">
+              <div className="flex items-center justify-between gap-4">
+                <span className="truncate">
+                  <span className="text-muted-foreground">{contexto.campana}</span>
+                  <span className="mx-1.5 text-muted-foreground">{mostrarGerente ? "·" : "›"}</span>
+                  <span className="font-semibold">{contexto.vista}</span>
+                </span>
+                <span className="whitespace-nowrap">
+                  <span className="text-muted-foreground">{saldoLabel}</span>
+                  <span className={cn("ml-1.5 font-semibold tabular-nums", new Decimal(contexto.saldo).isNegative() && "text-destructive")}>
+                    {formatUsd(contexto.saldo)}
+                  </span>
+                </span>
+              </div>
+            </td>
+          </TableRow>
+          <TableRow className="hover:bg-transparent">
             {!soloLectura && (
               <TableHead className="w-8">
                 <Casilla
@@ -364,7 +383,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, totales, sol
                   </TableCell>
                 ) : (
                   <TableCell key={i} colSpan={c.span} className="whitespace-nowrap">
-                    {c.tipo === "etiqueta" && `Total (${totales.cantidad} depósitos)`}
+                    {c.tipo === "etiqueta" && `Total ${totalDe} (${totales.cantidad} ${totales.cantidad === 1 ? "depósito" : "depósitos"})`}
                   </TableCell>
                 ),
               )}

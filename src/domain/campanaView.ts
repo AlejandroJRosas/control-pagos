@@ -53,8 +53,22 @@ export function compareRecientePrimero(a: Ordenable, b: Ordenable): number {
 }
 
 export function calcResumen(asignado: Decimal.Value, usds: string[], fechas: string[]): Resumen {
-  const asig = new Decimal(asignado);
   const pagado = usds.reduce((acc, u) => acc.plus(u), new Decimal(0));
+  return resumen(new Decimal(asignado), pagado, usds.length, ultima(fechas));
+}
+
+/** Total de varios gerentes (el pie de "Por gerente"): el avance sale de los totales, no del promedio de los porcentajes. */
+export function sumarResumenes(rs: Resumen[]): Resumen {
+  const suma = (k: "asignado" | "pagado") => rs.reduce((acc, r) => acc.plus(r[k]), new Decimal(0));
+  const fechas = rs.flatMap((r) => (r.ultimaFecha ? [r.ultimaFecha] : []));
+  return resumen(suma("asignado"), suma("pagado"), rs.reduce((n, r) => n + r.cantidad, 0), ultima(fechas));
+}
+
+function ultima(fechas: string[]): string | null {
+  return fechas.length > 0 ? fechas.reduce((max, f) => (f > max ? f : max)) : null;
+}
+
+function resumen(asig: Decimal, pagado: Decimal, cantidad: number, ultimaFecha: string | null): Resumen {
   const ratio = asig.gt(0) ? pagado.div(asig) : new Decimal(0);
   const pct = Decimal.min(Decimal.max(ratio.times(100), 0), 100).toDecimalPlaces(1).toNumber();
   return {
@@ -63,8 +77,8 @@ export function calcResumen(asignado: Decimal.Value, usds: string[], fechas: str
     restante: asig.minus(pagado).toFixed(2),
     ratio: ratio.toNumber(),
     pct,
-    cantidad: usds.length,
-    ultimaFecha: fechas.length > 0 ? fechas.reduce((max, f) => (f > max ? f : max)) : null,
+    cantidad,
+    ultimaFecha,
   };
 }
 

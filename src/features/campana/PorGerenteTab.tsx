@@ -4,19 +4,19 @@ import { useNavigate } from "react-router";
 import { Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { STICKY_PIE, Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Vacio } from "@/components/Feedback";
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { ColumnasMenu } from "@/components/ColumnasMenu";
 import { BotonConMotivo, MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { ESTADOS_GERENTE, EstadoGerenteBadge, ORDEN_ESTADOS } from "@/components/EstadoGerenteBadge";
-import { estadoGerente, type EstadoGerente, type GerenteResumen } from "@/domain/campanaView";
+import { estadoGerente, sumarResumenes, type EstadoGerente, type GerenteResumen, type Resumen } from "@/domain/campanaView";
 import { formatFecha } from "@/domain/dates";
 import { formatPct, formatUsd } from "@/domain/money";
 import { claveComparacion } from "@/domain/texto";
 import { useFiltrosUrl } from "@/lib/filtrosUrl";
 import { ordenar, type Columnas } from "@/lib/orden";
-import { useColumnas } from "@/lib/columnas";
+import { agruparPie, useColumnas } from "@/lib/columnas";
 import { cn } from "@/lib/utils";
 
 type Fila = GerenteResumen & { estado: EstadoGerente };
@@ -44,6 +44,24 @@ const COLUMNAS: Columnas<Fila, Key> = {
   ultimaFecha: { tipo: "texto", valor: (g) => g.ultimaFecha },
 };
 const FILTROS = ["qg", "estado"] as const;
+const CON_TOTAL: Key[] = ["asignado", "pagado", "restante", "pct", "cantidad"];
+
+/** Celda con un total del pie: el mismo formato que la de cada gerente. */
+function CeldaTotal({ col, t }: { col: Key; t: Resumen }) {
+  switch (col) {
+    case "asignado":
+    case "pagado":
+      return <TableCell className="text-right tabular-nums">{formatUsd(t[col])}</TableCell>;
+    case "restante":
+      return (
+        <TableCell className={cn("text-right tabular-nums", new Decimal(t.restante).isNegative() && "text-destructive")}>{formatUsd(t.restante)}</TableCell>
+      );
+    case "pct":
+      return <TableCell className="text-right tabular-nums">{formatPct(t.pct)}</TableCell>;
+    default:
+      return <TableCell className="text-right tabular-nums">{t.cantidad}</TableCell>;
+  }
+}
 
 function Celda({ col, g }: { col: Key; g: Fila }) {
   switch (col) {
@@ -97,6 +115,7 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
     const visibles = conEstado.filter((g) => (!f.estado || g.estado === f.estado) && claveComparacion(g.gerenteNombre).includes(k));
     return ordenar(visibles, COLUMNAS, orden);
   }, [conEstado, f.qg, f.estado, orden]);
+  const total = useMemo(() => sumarResumenes(filas), [filas]);
 
   if (gerentes.length === 0)
     return (
@@ -198,6 +217,19 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
               </TableRow>
             ))}
           </TableBody>
+          <TableFooter data-barra-inferior className={STICKY_PIE}>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              {agruparPie<Key | "acciones">([...columnas.visibles, "acciones"], CON_TOTAL).map((c, i) =>
+                c.tipo === "total" ? (
+                  <CeldaTotal key={i} col={c.col as Key} t={total} />
+                ) : (
+                  <TableCell key={i} colSpan={c.span} className="whitespace-nowrap">
+                    {c.tipo === "etiqueta" && `Total (${filas.length} ${filas.length === 1 ? "gerente" : "gerentes"})`}
+                  </TableCell>
+                ),
+              )}
+            </TableRow>
+          </TableFooter>
         </Table>
       )}
     </div>
