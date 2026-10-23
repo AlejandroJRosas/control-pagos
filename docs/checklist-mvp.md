@@ -121,11 +121,11 @@ Ejecutar con `pnpm tauri dev` (o con el instalador) partiendo de datos vacíos.
 
 Usar la instancia aislada de `CLAUDE.md` como segunda app (otros datos y puerto), con la misma campaña en ambas.
 
-- [ ] Campaña → menú Campaña → "Compartir para consolidar": elegir gerentes, "Copiar y abrir WhatsApp"; en el chat, Ctrl+V pega el `.cpagos` como archivo. "Guardar como…" crea el archivo. Deshabilitado si la campaña no tiene gerentes.
+- [ ] Campaña → menú Campaña → "Compartir para consolidar": elegir gerentes, "Copiar para WhatsApp" (solo copia el archivo y avisa "Copiado: pégalo en el chat de WhatsApp con Ctrl+V"; no abre WhatsApp); en el chat, Ctrl+V pega el `.cpagos` como archivo. "Guardar como…" crea el archivo. Deshabilitado si la campaña no tiene gerentes.
 - [ ] En la otra app, soltar el `.cpagos` en cualquier pantalla: abre Consolidar con la campaña sugerida. También por menú Campaña → "Consolidar desde archivo…". Un archivo que no es paquete (renombrado) da "El archivo no es un paquete de Control de Pagos válido".
 - [ ] Emparejamiento: campaña y gerentes se reconocen por lo recordado o por nombre; dos gerentes del archivo no se dejan emparejar con el mismo local (aplicar queda bloqueado con el motivo).
 - [ ] Ida y vuelta: registrar depósitos distintos en cada app, enviar A → B y aplicar (nuevos con su comprobante, tasas creadas si faltan); luego B → A. Ambas quedan con los mismos depósitos y saldos. Volver a enviar sin cambios: todo "sin cambios".
-- [ ] Corregir un depósito en A y enviar "solo cambios": en B aparece como corrección con el antes/después. Corregirlo en ambas apps: sale como conflicto; con "Mía" se conserva y el siguiente archivo vuelve a marcarlo conflicto; con "Del archivo" se reemplaza.
-- [ ] Eliminar un depósito en A (y probar Deshacer): el envío siguiente lo elimina en B solo si no se deshizo; la eliminación se ve en su sección con Deshacer tras aplicar.
-- [ ] Un depósito duplicado, con tasa distinta o con saldo distinto: aparece en su sección y exige elegir antes de aplicar. Campaña cerrada: no deja consolidar.
-- [ ] Tras aplicar: resumen con el aviso de lo consolidado y botón para deshacer; si algo falla a mitad, la campaña queda como estaba.
+- [ ] Corregir un depósito en A y enviar con "Solo lo que cambió desde mi último envío": en B aparece como corrección con el antes/después. Corregirlo en ambas apps: sale como conflicto; con "Quedarse con la mía" se conserva y el siguiente archivo vuelve a marcarlo conflicto; con "Usar la del archivo" se reemplaza.
+- [ ] Eliminar un depósito en A (y probar Deshacer): el envío siguiente lo elimina en B solo si no se deshizo; la eliminación aparece en su sección con casillas; solo se eliminan las marcadas.
+- [ ] Un depósito duplicado, con tasa distinta o con saldo distinto: aparece en su sección con botones para elegir (una tasa distinta hay que elegirla para poder consolidar). Campaña cerrada: no deja consolidar.
+- [ ] Tras aplicar: antes de aplicar, resumen antes → después por gerente; al aplicar se crea un respaldo `antes-de-consolidar-*` y sale un aviso con lo consolidado; si algo falla a mitad, se revierte todo.
