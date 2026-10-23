@@ -173,6 +173,25 @@ describe("aplicarConsolidacion", () => {
     expect(await destino.db.select("SELECT * FROM eliminaciones")).toEqual([]);
   });
 
+  it("rechaza dos gerentes del archivo emparejados con la misma asignación, sin escribir nada", async () => {
+    const origen = await instalacion();
+    const luis = await createGerente(origen.db, { nombre: "Luis", telefono: null });
+    const aLuis = await createAsignacion(origen.db, { campanaId: origen.s.campanaId, gerenteId: luis, saldoUsd: "10" });
+    await createDeposito(origen.db, origen.s.asignacionId, depositoBase(origen.s.tasaId, { referencia: "111" }));
+    await createDeposito(origen.db, aLuis, depositoBase(origen.s.tasaId, { referencia: "222" }));
+    const destino = await instalacion();
+    const antes = await volcado(destino.db);
+
+    const p = await paqueteDe(origen);
+    const gerentes = Object.fromEntries(p.asignaciones.map((a) => [a.uuid, { asignacionId: destino.s.asignacionId, estado: "elegido" as const }]));
+    const plan = clasificar(p, await cargarLocal(destino.db, destino.s.campanaId), gerentes);
+    const deps = { importarImagen, ahora: "2026-03-05T12:00:00.000Z" };
+    await expect(aplicarConsolidacion(destino.db, p, plan, gerentes, decisionesIniciales(plan), deps)).rejects.toThrow(
+      "Ana y Luis no pueden ser el mismo gerente de tu campaña",
+    );
+    expect(await volcado(destino.db)).toEqual(antes);
+  });
+
   it('tasa distinta con "archivo" cambia la tasa local; sin elegir no se aplica', async () => {
     const origen = await instalacion();
     const destino = await instalacion();

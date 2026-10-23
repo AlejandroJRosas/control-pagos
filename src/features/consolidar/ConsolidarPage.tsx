@@ -103,7 +103,8 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
   const asignaciones = datos?.local.asignaciones ?? [];
   const nombreDe = (id: number) => asignaciones.find((a) => a.id === id)?.gerenteNombre ?? "";
   const resumen = useMemo(() => (datos && plan && d ? resumenConsolidacion(datos.base, plan, d, datos.local.tasas) : []), [datos, plan, d]);
-  const motivo = !plan || !d ? "Elige en qué campaña consolidar el archivo" : motivoPendiente(plan, gerentes, d);
+  const nombres = useMemo(() => Object.fromEntries(paquete.asignaciones.map((a) => [a.uuid, a.gerente.nombre])), [paquete]);
+  const motivo = !plan || !d ? "Elige en qué campaña consolidar el archivo" : motivoPendiente(plan, gerentes, d, nombres);
 
   async function elegirCampana(valor: string) {
     const id = Number(valor) || null;
@@ -117,8 +118,11 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
     }
   }
 
-  const elegirGerente = (uuid: string, valor: string) =>
+  function elegirGerente(uuid: string, valor: string) {
     setGerentes((g) => ({ ...g, [uuid]: { asignacionId: valor === "" ? undefined : valor === NO_INCLUIR ? null : Number(valor), estado: "elegido" } }));
+    // Lo elegido sobre los montos asignados era de otro emparejamiento.
+    setElecciones((x) => ({ ...x, saldos: {} }));
+  }
 
   const elegir = <K extends "tasas" | "saldos" | "conflictos">(k: K, clave: string | number, e: Eleccion) =>
     setElecciones((x) => ({ ...x, [k]: { ...x[k], [clave]: e } }));
@@ -151,8 +155,11 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
   }
 
   const porDecidir = paquete.asignaciones.filter((a) => gerentes[a.uuid] && gerentes[a.uuid].estado !== "recordado");
-  const opcionesGerente = [
-    ...asignaciones.map((a) => ({ value: String(a.id), label: a.gerenteNombre })),
+  /** Las asignaciones que ya tiene otro gerente del archivo no se ofrecen: el emparejamiento es uno a uno. */
+  const opcionesGerente = (uuid: string) => [
+    ...asignaciones
+      .filter((a) => !Object.entries(gerentes).some(([otro, g]) => otro !== uuid && g.asignacionId === a.id))
+      .map((a) => ({ value: String(a.id), label: a.gerenteNombre })),
     { value: NO_INCLUIR, label: "No incluir" },
   ];
   const valorGerente = (g: GerenteEmparejado) => (g.asignacionId === undefined ? "" : g.asignacionId === null ? NO_INCLUIR : String(g.asignacionId));
@@ -197,7 +204,7 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
                     id={`consolidar-${a.uuid}`}
                     value={valorGerente(gerentes[a.uuid])}
                     onChange={(v) => elegirGerente(a.uuid, v)}
-                    opciones={opcionesGerente}
+                    opciones={opcionesGerente(a.uuid)}
                     placeholder="Elige el gerente…"
                   />
                 </div>

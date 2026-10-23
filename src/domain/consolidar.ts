@@ -293,14 +293,40 @@ export function decisionesIniciales(plan: PlanConsolidacion): Decisiones {
   };
 }
 
-/** Por qué todavía no se puede consolidar, o null si se puede. */
-export function motivoPendiente(plan: PlanConsolidacion, gerentes: Record<string, GerenteEmparejado>, d: Decisiones): string | null {
+/** Dos gerentes del archivo (uuid de su asignación) emparejados con la misma asignación local, o null. */
+export function gerentesRepetidos(gerentes: Record<string, GerenteEmparejado>): [string, string] | null {
+  const vistos = new Map<number, string>();
+  for (const [uuid, g] of Object.entries(gerentes)) {
+    if (typeof g.asignacionId !== "number") continue;
+    const otro = vistos.get(g.asignacionId);
+    if (otro !== undefined) return [otro, uuid];
+    vistos.set(g.asignacionId, uuid);
+  }
+  return null;
+}
+
+/** Mensaje de `gerentesRepetidos`, con los nombres del archivo si se conocen. */
+export function motivoRepetidos([a, b]: [string, string], nombres: Record<string, string>): string {
+  return nombres[a] && nombres[b]
+    ? `${nombres[a]} y ${nombres[b]} no pueden ser el mismo gerente de tu campaña`
+    : "Dos gerentes del archivo no pueden ser el mismo de tu campaña";
+}
+
+/** Por qué todavía no se puede consolidar, o null si se puede. `nombres`: nombre de cada gerente del archivo por uuid de su asignación. */
+export function motivoPendiente(
+  plan: PlanConsolidacion,
+  gerentes: Record<string, GerenteEmparejado>,
+  d: Decisiones,
+  nombres: Record<string, string> = {},
+): string | null {
   if (plan.campana.estado === "cerrada") return MOTIVO_CERRADA;
   for (const [uuid, g] of Object.entries(gerentes)) {
     if (g.asignacionId !== undefined) continue;
     const nombre = plan.noIncluidos.find((n) => n.remoto.asignacionUuid === uuid)?.gerenteNombre;
     return nombre ? `Indica quién es ${nombre} en tu campaña` : "Indica quién es cada gerente del archivo en tu campaña";
   }
+  const repetidos = gerentesRepetidos(gerentes);
+  if (repetidos) return motivoRepetidos(repetidos, nombres);
   const tasa = plan.tasasDistintas.find((t) => d.tasas[t.fecha] === undefined);
   if (tasa) return `Elige la tasa del ${formatFecha(tasa.fecha)}`;
   const hayAlgo =

@@ -121,3 +121,16 @@ it("un archivo que no se puede leer ofrece abrir otro", async () => {
   expect(await screen.findByRole("button", { name: "Abrir otro archivo" })).toBeInTheDocument();
   expect(screen.getAllByText(/sin paquete/).length).toBeGreaterThan(0);
 });
+
+it("no ofrece a un gerente que ya tiene otro del archivo", async () => {
+  await paqueteDeOrigen(async (db, s) => {
+    const luis = await createGerente(db, { nombre: "Luis", telefono: null });
+    await createAsignacion(db, { campanaId: s.campanaId, gerenteId: luis, saldoUsd: "10" });
+  });
+  const { db, s } = await destino();
+  const { user } = await renderApp(`/consolidar?carpeta=recibidos/p1&campana=${s.campanaId}`, { db, hoy: "2026-03-06" });
+
+  await user.click(await screen.findByLabelText("Luis es…"));
+  const opciones = (await screen.findAllByRole("option")).map((o) => o.textContent);
+  expect(opciones).toEqual(["No incluir"]);
+});

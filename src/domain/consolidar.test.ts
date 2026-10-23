@@ -370,6 +370,10 @@ describe("decisiones y motivoPendiente", () => {
     // el nombre sale de un depósito del archivo de ese gerente
     const conC = clasificar(paq([rem({ uuid: "c1", referencia: "555", asignacionUuid: "rc" })]), base(), sinDecidir);
     expect(motivoPendiente(conC, sinDecidir, decisionesIniciales(conC))).toBe("Indica quién es Carlos en tu campaña");
+    // dos gerentes del archivo en el mismo de tu campaña (antes que la tasa)
+    const repetido = { ...GER, rb: { asignacionId: 10, estado: "elegido" as const } };
+    expect(motivoPendiente(plan, repetido, d, { ra: "José Pérez", rb: "Ana" })).toBe("José Pérez y Ana no pueden ser el mismo gerente de tu campaña");
+    expect(motivoPendiente(plan, repetido, d)).toBe("Dos gerentes del archivo no pueden ser el mismo de tu campaña");
     expect(motivoPendiente(plan, GER, d)).toBe("Elige la tasa del 04/03/2026");
     expect(motivoPendiente(plan, GER, { ...d, tasas: { "2026-03-04": "mia" } })).toBeNull();
     const vacio = clasificar(paq([rem()]), base({ depositos: [loc()] }), GER);

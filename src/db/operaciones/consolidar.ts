@@ -8,7 +8,7 @@ import {
   deleteEquivalencia, getEquivalencias, getIntercambios, marcarIntercambio, setEquivalencia, uuidsEliminados, type TablaEquivalencia,
 } from "../repos/consolidacion";
 import {
-  emparejarCampana, emparejarGerentes, type AsignacionLocal, type Decisiones, type DepositoLocal, type EstadoEmparejamiento,
+  emparejarCampana, emparejarGerentes, gerentesRepetidos, motivoRepetidos, type AsignacionLocal, type Decisiones, type DepositoLocal, type EstadoEmparejamiento,
   type GerenteEmparejado, type LocalConsolidar, type PlanConsolidacion,
 } from "@/domain/consolidar";
 import type { DepositoPaquete, Paquete } from "@/domain/paquete";
@@ -88,6 +88,8 @@ export async function aplicarConsolidacion(
   if (Object.values(gerentes).some((g) => g.asignacionId === undefined)) {
     throw new DomainError("VALIDACION", "Indica quién es cada gerente del archivo en tu campaña");
   }
+  const repetidos = gerentesRepetidos(gerentes);
+  if (repetidos) throw new DomainError("VALIDACION", motivoRepetidos(repetidos, Object.fromEntries(p.asignaciones.map((a) => [a.uuid, a.gerente.nombre]))));
   const sinElegir = plan.tasasDistintas.find((t) => d.tasas[t.fecha] === undefined);
   if (sinElegir) throw new DomainError("VALIDACION", `Elige la tasa del ${formatFecha(sinElegir.fecha)}`);
 
