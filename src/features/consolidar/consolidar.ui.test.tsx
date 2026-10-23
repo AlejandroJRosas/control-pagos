@@ -90,6 +90,8 @@ it("gerente que no está en la campaña aparece en No se incluyen", async () => 
 
   const fuera = await seccion(/No se incluyen \(1\)/);
   expect(within(fuera).getByText(/Luis no está en tu campaña/)).toBeInTheDocument();
+  expect(within(fuera).getByText(/Para recibirlos más adelante, pide que te manden la campaña con «Solo lo que cambió desde mi último envío» desmarcado/))
+    .toBeInTheDocument();
   expect(await seccion(/Nuevos \(1\)/)).toBeInTheDocument();
 });
 

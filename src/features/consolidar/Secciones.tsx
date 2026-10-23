@@ -289,7 +289,16 @@ export function Diferencias({
 
 export function NoIncluidos({ plan }: { plan: PlanConsolidacion }) {
   return (
-    <Seccion titulo="No se incluyen" cantidad={plan.noIncluidos.length} descripcion="Estos depósitos del archivo no entran en tu campaña.">
+    <Seccion
+      titulo="No se incluyen"
+      cantidad={plan.noIncluidos.length}
+      descripcion={
+        <>
+          Estos depósitos del archivo no entran en tu campaña. Para recibirlos más adelante, pide que te manden la campaña con «Solo lo que cambió desde
+          mi último envío» desmarcado.
+        </>
+      }
+    >
       <ul className="divide-y text-sm">
         {plan.noIncluidos.map((n) => (
           <li key={n.remoto.uuid} className="flex flex-wrap gap-x-2 py-1.5 first:pt-0 last:pb-0">
