@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { archivoBase } from "@/export/fileName";
+import { archivoBase } from "@/domain/texto";
 
 /** En qué se envía el estado de cuenta; se recuerda el último elegido (localStorage). */
 export const FORMATOS_ENVIO = ["imagen", "pdf", "excel"] as const;

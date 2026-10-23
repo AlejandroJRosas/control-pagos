@@ -12,3 +12,13 @@ export function claveReferencia(ref: string): string {
   const sinCeros = k.replace(/^0+/, "");
   return sinCeros === "" && k !== "" ? "0" : sinCeros;
 }
+
+/** Nombre apto para archivo: sin acentos, minúsculas y guiones. */
+export function archivoBase(nombre: string): string {
+  return nombre
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
