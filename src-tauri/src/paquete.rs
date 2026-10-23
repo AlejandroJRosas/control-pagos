@@ -57,30 +57,75 @@ pub fn crear(dest: &Path, datos: &str, imagenes_dir: &Path, imagenes: &[String])
     r
 }
 
-/// Extrae `paquete.json` e `imagenes/*` a `destino` y devuelve el texto del JSON.
+const GRANDE: &str = "El archivo es demasiado grande o está dañado";
+
+struct Limites {
+    json: u64,
+    imagen: u64,
+    total: u64,
+    entradas: usize,
+}
+
+const LIMITES: Limites = Limites { json: 5 << 20, imagen: 50 << 20, total: 4 << 30, entradas: 20_000 };
+
+/// Extrae `paquete.json` e `imagenes/*` a `destino` y devuelve el texto del JSON. Si falla, no deja nada en `destino`.
 pub fn abrir(zip: &Path, destino: &Path) -> Result<String, String> {
+    abrir_con(zip, destino, &LIMITES)
+}
+
+fn abrir_con(zip: &Path, destino: &Path, lim: &Limites) -> Result<String, String> {
     let file = fs::File::open(zip).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|_| INVALIDO.to_string())?;
+    if archive.len() > lim.entradas {
+        return Err(GRANDE.to_string());
+    }
+    // Primera pasada: validar todos los nombres antes de escribir nada.
+    for i in 0..archive.len() {
+        let entrada = archive.by_index(i).map_err(|_| INVALIDO.to_string())?;
+        let nombre = entrada.name();
+        if let Some(resto) = nombre.strip_prefix("imagenes/") {
+            if !resto.is_empty() && !nombre_simple(resto) {
+                return Err(format!("El archivo contiene una ruta no permitida: {nombre}"));
+            }
+        }
+    }
+    let r = extraer(&mut archive, destino, lim);
+    if r.is_err() {
+        let _ = fs::remove_dir_all(destino);
+    }
+    r
+}
+
+fn extraer(archive: &mut zip::ZipArchive<fs::File>, destino: &Path, lim: &Limites) -> Result<String, String> {
     let s = |e: &dyn std::fmt::Display| e.to_string();
     let mut json: Option<String> = None;
+    let mut total: u64 = 0;
     for i in 0..archive.len() {
         let mut entrada = archive.by_index(i).map_err(|_| INVALIDO.to_string())?;
         let nombre = entrada.name().to_string();
         if nombre == "paquete.json" {
             let mut texto = String::new();
-            entrada.read_to_string(&mut texto).map_err(|_| INVALIDO.to_string())?;
+            let n = (&mut entrada).take(lim.json + 1).read_to_string(&mut texto).map_err(|_| INVALIDO.to_string())?;
+            if n as u64 > lim.json {
+                return Err(GRANDE.to_string());
+            }
+            total += n as u64;
             json = Some(texto);
         } else if let Some(resto) = nombre.strip_prefix("imagenes/") {
             if resto.is_empty() {
                 continue;
             }
-            if resto.contains(['/', '\\', ':']) || resto.contains("..") {
-                return Err(format!("El archivo contiene una ruta no permitida: {nombre}"));
-            }
             let carpeta = destino.join("imagenes");
             fs::create_dir_all(&carpeta).map_err(|e| s(&e))?;
             let mut out = fs::File::create(carpeta.join(resto)).map_err(|e| s(&e))?;
-            std::io::copy(&mut entrada, &mut out).map_err(|e| s(&e))?;
+            let n = std::io::copy(&mut (&mut entrada).take(lim.imagen + 1), &mut out).map_err(|e| s(&e))?;
+            if n > lim.imagen {
+                return Err(GRANDE.to_string());
+            }
+            total += n;
+        }
+        if total > lim.total {
+            return Err(GRANDE.to_string());
         }
     }
     let json = json.ok_or_else(|| INVALIDO.to_string())?;
@@ -154,13 +199,35 @@ mod tests {
     #[test]
     fn rechaza_rutas_peligrosas() {
         let t = tempfile::tempdir().unwrap();
-        for malo in ["imagenes/../x.jpg", "imagenes/a\\b.jpg", "imagenes/c:x.jpg"] {
+        for (i, malo) in ["imagenes/../x.jpg", r"imagenes/a\b.jpg", "imagenes/c:x.jpg", "imagenes/CON", "imagenes/A.JPG"].iter().enumerate() {
             let z = t.path().join("m.cpagos");
-            zip_con(&z, &["paquete.json", malo]);
-            let e = abrir(&z, &t.path().join("out")).unwrap_err();
+            zip_con(&z, &["paquete.json", "imagenes/ok.jpg", malo]);
+            let out = t.path().join(format!("out{i}"));
+            let e = abrir(&z, &out).unwrap_err();
             assert!(e.contains("ruta no permitida"), "{malo}: {e}");
+            assert!(!out.exists(), "{malo}");
+            assert!(!out.join("x.jpg").exists());
         }
-        assert!(!t.path().join("x.jpg").exists());
+    }
+
+    #[test]
+    fn rechaza_entradas_sobre_el_limite_y_limpia() {
+        let t = tempfile::tempdir().unwrap();
+        let z = t.path().join("m.cpagos");
+        zip_con(&z, &["paquete.json", "imagenes/a.jpg"]); // cada entrada pesa 1 byte
+        let casos = [
+            Limites { json: 0, imagen: 10, total: 100, entradas: 10 },
+            Limites { json: 10, imagen: 0, total: 100, entradas: 10 },
+            Limites { json: 10, imagen: 10, total: 1, entradas: 10 },
+            Limites { json: 10, imagen: 10, total: 100, entradas: 1 },
+        ];
+        for (i, lim) in casos.iter().enumerate() {
+            let out = t.path().join(format!("out{i}"));
+            assert_eq!(abrir_con(&z, &out, lim).unwrap_err(), GRANDE, "caso {i}");
+            assert!(!out.exists(), "caso {i}");
+        }
+        let ok = Limites { json: 10, imagen: 10, total: 100, entradas: 10 };
+        assert!(abrir_con(&z, &t.path().join("bien"), &ok).is_ok());
     }
 
     #[test]
