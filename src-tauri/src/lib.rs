@@ -1,6 +1,7 @@
 mod backup;
 mod envios;
 pub mod ocr;
+mod paquete;
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -163,6 +164,73 @@ fn copiar_envio(app: AppHandle, nombre: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Escribe un paquete `.cpagos`. `imagenes` llegan como "imagenes/x.jpg". Sin `ruta` va a `envios\<nombre>`; devuelve la ruta escrita.
+#[tauri::command]
+fn crear_paquete(app: AppHandle, datos: String, imagenes: Vec<String>, nombre: String, ruta: Option<String>) -> Result<String, String> {
+    let data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let mut nombres = Vec::with_capacity(imagenes.len());
+    for i in &imagenes {
+        let n = i.strip_prefix("imagenes/").unwrap_or(i);
+        if !paquete::nombre_simple(n) {
+            return Err(format!("Nombre de imagen inválido: {i}"));
+        }
+        nombres.push(n.to_string());
+    }
+    let dest = match ruta {
+        Some(r) => PathBuf::from(r),
+        None => {
+            if !envios::nombre_valido(&nombre) {
+                return Err("Nombre de archivo inválido".into());
+            }
+            let dir = data.join("envios");
+            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            dir.join(&nombre)
+        }
+    };
+    paquete::crear(&dest, &datos, &data.join("imagenes"), &nombres)?;
+    Ok(dest.display().to_string())
+}
+
+/// Extrae un paquete a `recibidos\p<nanos>\` y devuelve esa carpeta relativa a AppData. El origen es `ruta` (absoluta)
+/// o `recibidos\<recibido>`. Antes borra lo de `recibidos\` con más de 7 días.
+#[tauri::command]
+fn abrir_paquete(app: AppHandle, ruta: Option<String>, recibido: Option<String>) -> Result<String, String> {
+    let data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let recibidos = data.join("recibidos");
+    std::fs::create_dir_all(&recibidos).map_err(|e| e.to_string())?;
+    paquete::podar_recibidos(&recibidos, Duration::from_secs(7 * 24 * 60 * 60), SystemTime::now());
+    let origen = match (ruta, recibido) {
+        (Some(r), _) => PathBuf::from(r),
+        (None, Some(n)) => {
+            if !paquete::nombre_simple(&n) || !n.ends_with(".cpagos") {
+                return Err("Nombre de archivo inválido".into());
+            }
+            recibidos.join(n)
+        }
+        (None, None) => return Err("Falta el archivo del paquete".into()),
+    };
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let carpeta = format!("p{nanos}");
+    paquete::abrir(&origen, &recibidos.join(&carpeta))?;
+    Ok(format!("recibidos/{carpeta}"))
+}
+
+#[tauri::command]
+fn tamano_imagenes(app: AppHandle, imagenes: Vec<String>) -> Result<u64, String> {
+    let data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let nombres: Vec<String> = imagenes
+        .iter()
+        .map(|i| i.strip_prefix("imagenes/").unwrap_or(i).to_string())
+        .filter(|n| paquete::nombre_simple(n))
+        .collect();
+    Ok(paquete::tamano(&data.join("imagenes"), &nombres))
+}
+
+#[tauri::command]
+fn nombre_equipo() -> String {
+    std::env::var("COMPUTERNAME").unwrap_or_default()
+}
+
 /// Recibe los bytes de la imagen como cuerpo crudo del invoke.
 #[tauri::command]
 async fn ocr_imagen(request: tauri::ipc::Request<'_>) -> Result<ocr::OcrResultado, String> {
@@ -213,6 +281,10 @@ pub fn run() {
             list_backups,
             restore_backup,
             copiar_envio,
+            crear_paquete,
+            abrir_paquete,
+            tamano_imagenes,
+            nombre_equipo,
             ocr_imagen
         ])
         .run(tauri::generate_context!())

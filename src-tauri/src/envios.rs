@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-/// Solo un nombre de archivo simple (sin carpetas) con extensión .pdf o .xlsx.
+/// Solo un nombre de archivo simple (sin carpetas) con extensión .pdf, .xlsx o .cpagos.
 pub fn nombre_valido(nombre: &str) -> bool {
     let (base, ext) = match nombre.rsplit_once('.') {
         Some(p) => p,
@@ -12,7 +12,7 @@ pub fn nombre_valido(nombre: &str) -> bool {
     };
     !base.is_empty()
         && base.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-        && matches!(ext, "pdf" | "xlsx")
+        && matches!(ext, "pdf" | "xlsx" | "cpagos")
 }
 
 /// Borra los envíos con más de `edad` (WhatsApp lee el archivo al pegarlo, así que el recién copiado se queda).
@@ -54,6 +54,7 @@ mod tests {
     fn acepta_solo_nombres_simples_de_pdf_o_excel() {
         assert!(nombre_valido("estado-de-cuenta-ana-julio-2026-10-21.pdf"));
         assert!(nombre_valido("ana_julio.xlsx"));
+        assert!(nombre_valido("consolidar-marzo-pc-2026-10-23.cpagos"));
         assert!(!nombre_valido("..\\control-pagos.db"));
         assert!(!nombre_valido("a/b.pdf"));
         assert!(!nombre_valido("ana.exe"));
