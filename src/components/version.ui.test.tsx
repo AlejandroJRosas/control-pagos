@@ -15,7 +15,7 @@ it("Configuración dice que está al día después de buscar, o muestra la versi
   tauri.invoke.mockImplementation(async (cmd: string) =>
     cmd === "data_paths" ? { dbPath: "db", imagesDir: "img", backupsDir: "resp" } : cmd === "list_backups" ? [] : null,
   );
-  const { user } = await renderApp("/configuracion");
+  const { user } = await renderApp("/configuracion?tab=acerca");
   expect(await screen.findByText("Versión instalada: 0.0.0-test")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Buscar actualizaciones" }));

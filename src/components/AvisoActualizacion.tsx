@@ -6,7 +6,10 @@ import { Progress } from "@/components/ui/progress";
 import { instalarActualizacion, posponerActualizacion, useActualizacion } from "@/platform/actualizacion";
 import { reportError } from "@/lib/reportError";
 
-/** Aviso de versión nueva: aparece al abrir la app (si hay internet), al buscar desde Configuración o con el botón de la barra lateral. */
+/**
+ * Aviso de versión nueva: aparece al abrir la app (si hay internet), al buscar desde Configuración o con el botón de la barra lateral.
+ * Es corto a propósito: lo nuevo se muestra al abrir la versión ya instalada (`NovedadesVersion`).
+ */
 export function AvisoActualizacion() {
   const { update, abierto } = useActualizacion();
   const [instalando, setInstalando] = useState(false);
@@ -36,10 +39,9 @@ export function AvisoActualizacion() {
           <DialogTitle>Hay una versión nueva</DialogTitle>
           <DialogDescription>
             Versión {update?.version} (tienes la {update?.currentVersion}). Antes de instalar se guarda un respaldo de los datos; la
-            app se cierra y se vuelve a abrir sola.
+            app se cierra y se vuelve a abrir sola, y ahí te muestra lo nuevo.
           </DialogDescription>
         </DialogHeader>
-        {update?.body && <div className="max-h-60 overflow-auto text-sm whitespace-pre-wrap">{update.body}</div>}
         {instalando && (
           <div className="space-y-1">
             <Progress value={progreso} />

@@ -116,7 +116,10 @@ export const PASOS: Paso[] = [
     objetivo: "tutorial-config",
     texto: (
       <>
-        <p>Respaldos (se hace uno automático cada día), la copia en Google Drive, los mensajes de WhatsApp, los colores de la app y las actualizaciones.</p>
+        <p>
+          Va por secciones: General (colores de la app), Datos y respaldos (se hace uno automático cada día, y la copia en Google Drive), Mensajes y avisos
+          (WhatsApp y cumpleaños) y Acerca de (actualizaciones y lo nuevo de cada versión).
+        </p>
         <p>Aquí también activas o desactivas este tutorial.</p>
       </>
     ),

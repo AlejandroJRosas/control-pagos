@@ -1,6 +1,8 @@
 # Publica una versión: compila el instalador NSIS firmado y crea el release de GitHub con
 # `latest.json`, que es lo que consultan las apps instaladas para actualizarse.
 # Se dispara al subir una etiqueta vX.Y.Z (anotada: su mensaje son las notas que ve el usuario).
+# La app incluye al compilar las notas de todas las etiquetas (historial de cambios): por eso el
+# `git fetch --force --tags` va antes de compilar.
 # Requiere los secretos TAURI_SIGNING_PRIVATE_KEY (contenido de la clave privada) y, si la
 # clave tiene contraseña, TAURI_SIGNING_PRIVATE_KEY_PASSWORD.
 name: release

@@ -62,7 +62,7 @@ it("cambia los días de antelación en Configuración", async () => {
   tauri.invoke.mockImplementation(async (cmd: string) =>
     cmd === "data_paths" ? { dbPath: "db", imagesDir: "img", backupsDir: "resp" } : cmd === "list_backups" ? [] : null,
   );
-  const { user } = await renderApp("/configuracion", { db });
+  const { user } = await renderApp("/configuracion?tab=mensajes", { db });
   const campo = await screen.findByLabelText("Días de antelación");
   expect(campo).toHaveValue(3);
   await user.clear(campo);

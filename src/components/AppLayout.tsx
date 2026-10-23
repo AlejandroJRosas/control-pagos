@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { BusquedaGlobal } from "@/components/BusquedaGlobal";
 import { AyudaAtajos, Tecla } from "@/components/AyudaAtajos";
 import { AvisoActualizacion } from "@/components/AvisoActualizacion";
+import { NovedadesVersion } from "@/components/Novedades";
 import { AvisoTasaFaltante } from "@/components/AvisoTasaFaltante";
 import { AvisoEspejo } from "@/components/AvisoEspejo";
 import { AvisoCumpleanos } from "@/components/AvisoCumpleanos";
@@ -174,6 +175,7 @@ export function AppLayout() {
       <BusquedaGlobal open={buscar} onOpenChange={setBuscar} />
       <AyudaAtajos open={ayuda} onOpenChange={setAyuda} />
       <AvisoActualizacion />
+      <NovedadesVersion />
       <SoltarImagenes />
       <Tutorial />
     </div>

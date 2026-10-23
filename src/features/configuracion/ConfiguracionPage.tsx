@@ -1,15 +1,17 @@
 import { useMemo, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
-import { Archive, Check, Download, GraduationCap, Moon, RefreshCw, RotateCcw, Sun } from "lucide-react";
+import { Archive, Check, Database, Download, GraduationCap, Info, MessageSquare, Moon, RefreshCw, RotateCcw, SlidersHorizontal, Sun, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
 import { Cargando, Vacio } from "@/components/Feedback";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SortableHead, useOrden } from "@/components/SortableHead";
+import { ListaNovedades } from "@/components/Novedades";
 import { getDb } from "@/db";
 import { createBackup, getDataPaths, listBackups, restoreBackup, type BackupInfo } from "@/platform/backup";
 import { abrirAvisoActualizacion, buscarActualizacion, useActualizacion, useRevisadoEn } from "@/platform/actualizacion";
@@ -18,6 +20,8 @@ import { formatNumberVE } from "@/domain/money";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { ordenar, type Columnas } from "@/lib/orden";
+import { NOVEDADES } from "@/lib/novedades";
+import { usePestanaUrl } from "@/lib/pestanaUrl";
 import { MODOS, TEMAS, setModo, setTema, useModo, useTema } from "@/lib/tema";
 import { cn } from "@/lib/utils";
 import { abrirTutorial, setTutorialActivado, useTutorialActivado } from "@/lib/tutorial";
@@ -35,6 +39,15 @@ const COLUMNAS: Columnas<BackupInfo, Col> = {
   tamano: { tipo: "numero", valor: (b) => b.sizeBytes },
 };
 
+/** Secciones del menú lateral (al estilo de la Configuración de Windows); la elegida va en `?tab=`. */
+const SECCIONES: { id: string; nombre: string; descripcion: string; icono: LucideIcon }[] = [
+  { id: "general", nombre: "General", descripcion: "Colores de la app y el tutorial.", icono: SlidersHorizontal },
+  { id: "datos", nombre: "Datos y respaldos", descripcion: "Dónde se guardan los datos, los respaldos y la copia en Google Drive.", icono: Database },
+  { id: "mensajes", nombre: "Mensajes y avisos", descripcion: "Mensajes de WhatsApp y aviso de cumpleaños.", icono: MessageSquare },
+  { id: "acerca", nombre: "Acerca de", descripcion: "Versión instalada, actualizaciones e historial de cambios.", icono: Info },
+];
+const PESTANAS = SECCIONES.map((s) => s.id);
+
 export function ConfiguracionPage() {
   const { data, error } = useData(
     async () => ({ paths: await getDataPaths(), backups: await listBackups(), version: await getVersion() }),
@@ -43,6 +56,7 @@ export function ConfiguracionPage() {
   const [restaurar, setRestaurar] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { orden, alternar } = useOrden<Col>();
+  const [seccion, setSeccion] = usePestanaUrl(PESTANAS);
   const backups = useMemo(() => ordenar(data?.backups ?? [], COLUMNAS, orden), [data, orden]);
 
   async function respaldar() {
@@ -82,90 +96,116 @@ export function ConfiguracionPage() {
   if (!data) return <Cargando error={error} />;
 
   return (
-    <div className="space-y-6">
+    <div>
       <PageHeader title="Configuración" />
-      <Apariencia />
-      <TutorialCard />
-      <Actualizaciones version={data.version} />
-      <Card>
-        <CardHeader>
-          <CardTitle>Datos</CardTitle>
-          <CardDescription>Todo se guarda en esta computadora.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-1 text-sm">
-          <div>
-            <span className="text-muted-foreground">Base de datos: </span>
-            <code>{data.paths.dbPath}</code>
-          </div>
-          <div>
-            <span className="text-muted-foreground">Imágenes: </span>
-            <code>{data.paths.imagesDir}</code>
-          </div>
-          <div>
-            <span className="text-muted-foreground">Respaldos: </span>
-            <code>{data.paths.backupsDir}</code>
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs orientation="vertical" value={seccion} onValueChange={(v) => setSeccion(String(v))} className="flex-row items-start gap-6">
+        <TabsList aria-label="Secciones" className="sticky top-0 h-auto w-52 shrink-0 flex-col items-stretch gap-0.5 bg-transparent p-0">
+          {SECCIONES.map(({ id, nombre, icono: Icono }) => (
+            <TabsTrigger
+              key={id}
+              value={id}
+              className="h-auto justify-start gap-2.5 px-3 py-2 data-active:bg-muted data-active:shadow-none hover:bg-fila-hover dark:data-active:border-transparent"
+            >
+              <Icono />
+              {nombre}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="general" className="min-w-0 space-y-6">
+          <Encabezado id="general" />
+          <Apariencia />
+          <TutorialCard />
+        </TabsContent>
+        <TabsContent value="datos" className="min-w-0 space-y-6">
+          <Encabezado id="datos" />
+          <Card>
+            <CardHeader>
+              <CardTitle>Datos</CardTitle>
+              <CardDescription>Todo se guarda en esta computadora.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-1 text-sm">
+              <div>
+                <span className="text-muted-foreground">Base de datos: </span>
+                <code>{data.paths.dbPath}</code>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Imágenes: </span>
+                <code>{data.paths.imagesDir}</code>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Respaldos: </span>
+                <code>{data.paths.backupsDir}</code>
+              </div>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Respaldos</CardTitle>
-          <CardDescription>
-            Un respaldo (.zip) incluye la base de datos y todas las imágenes. Cada día se crea uno automático y se conservan los últimos 7. Las copias que se hacen antes de restaurar o eliminar una campaña se guardan 30 días (siempre quedan al menos las 5 más recientes).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Button onClick={respaldar} disabled={busy}>
-              <Archive />
-              Crear respaldo…
-            </Button>
-            <Button variant="outline" onClick={elegirArchivo} disabled={busy}>
-              <RotateCcw />
-              Restaurar desde archivo…
-            </Button>
-          </div>
-          {data.backups.length === 0 ? (
-            <Vacio texto="Aún no hay respaldos en la carpeta de respaldos." />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableHead col="archivo" orden={orden} onOrden={alternar}>
-                    Archivo
-                  </SortableHead>
-                  <SortableHead col="fecha" orden={orden} onOrden={alternar}>
-                    Fecha
-                  </SortableHead>
-                  <SortableHead col="tamano" orden={orden} onOrden={alternar} className="text-right">
-                    Tamaño
-                  </SortableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {backups.map((b) => (
-                  <TableRow key={b.path}>
-                    <TableCell className="font-mono text-xs">{b.name}</TableCell>
-                    <TableCell>{new Date(b.modifiedMs).toLocaleString("es-VE")}</TableCell>
-                    <TableCell className="text-right tabular-nums">{tamano(b.sizeBytes)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => setRestaurar(b.path)}>
-                        Restaurar
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <CopiaDrive />
-      <MensajesWhatsApp />
-      <AvisoCumpleanosCard />
+          <Card>
+            <CardHeader>
+              <CardTitle>Respaldos</CardTitle>
+              <CardDescription>
+                Un respaldo (.zip) incluye la base de datos y todas las imágenes. Cada día se crea uno automático y se conservan los últimos 7. Las copias que se hacen antes de restaurar o eliminar una campaña se guardan 30 días (siempre quedan al menos las 5 más recientes).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Button onClick={respaldar} disabled={busy}>
+                  <Archive />
+                  Crear respaldo…
+                </Button>
+                <Button variant="outline" onClick={elegirArchivo} disabled={busy}>
+                  <RotateCcw />
+                  Restaurar desde archivo…
+                </Button>
+              </div>
+              {data.backups.length === 0 ? (
+                <Vacio texto="Aún no hay respaldos en la carpeta de respaldos." />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <SortableHead col="archivo" orden={orden} onOrden={alternar}>
+                        Archivo
+                      </SortableHead>
+                      <SortableHead col="fecha" orden={orden} onOrden={alternar}>
+                        Fecha
+                      </SortableHead>
+                      <SortableHead col="tamano" orden={orden} onOrden={alternar} className="text-right">
+                        Tamaño
+                      </SortableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {backups.map((b) => (
+                      <TableRow key={b.path}>
+                        <TableCell className="font-mono text-xs">{b.name}</TableCell>
+                        <TableCell>{new Date(b.modifiedMs).toLocaleString("es-VE")}</TableCell>
+                        <TableCell className="text-right tabular-nums">{tamano(b.sizeBytes)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="outline" disabled={busy} onClick={() => setRestaurar(b.path)}>
+                            Restaurar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+          <CopiaDrive />
+        </TabsContent>
+        <TabsContent value="mensajes" className="min-w-0 space-y-6">
+          <Encabezado id="mensajes" />
+          <MensajesWhatsApp />
+          <AvisoCumpleanosCard />
+        </TabsContent>
+        <TabsContent value="acerca" className="min-w-0 space-y-6">
+          <Encabezado id="acerca" />
+          <Actualizaciones version={data.version} />
+          <Historial version={data.version} />
+        </TabsContent>
+      </Tabs>
 
       <ConfirmDialog
         open={restaurar !== null}
@@ -179,6 +219,30 @@ export function ConfiguracionPage() {
         onConfirm={confirmarRestaurar}
       />
     </div>
+  );
+}
+
+function Encabezado({ id }: { id: string }) {
+  const s = SECCIONES.find((x) => x.id === id)!;
+  return (
+    <div>
+      <h2 className="text-xl font-semibold">{s.nombre}</h2>
+      <p className="text-sm text-muted-foreground">{s.descripcion}</p>
+    </div>
+  );
+}
+
+function Historial({ version }: { version: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Historial de cambios</CardTitle>
+        <CardDescription>Lo nuevo de cada versión, la más reciente primero.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {NOVEDADES.length === 0 ? <Vacio texto="Esta compilación no trae el historial de cambios." /> : <ListaNovedades novedades={NOVEDADES} instalada={version} />}
+      </CardContent>
+    </Card>
   );
 }
 

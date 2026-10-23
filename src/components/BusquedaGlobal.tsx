@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { FolderKanban, LineChart, Receipt, Search, Settings, User, Users, type LucideIcon } from "lucide-react";
+import { Archive, FolderKanban, LineChart, Receipt, Search, Settings, Sparkles, User, Users, type LucideIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { buscarGlobal, type ResultadoBusqueda } from "@/db/queries/busqueda";
 import { formatFecha } from "@/domain/dates";
@@ -15,7 +15,9 @@ const PANTALLAS: Item[] = [
   { key: "p-campanas", grupo: "Ir a", titulo: "Campañas", icono: FolderKanban, ir: "/campanas" },
   { key: "p-gerentes", grupo: "Ir a", titulo: "Gerentes", icono: Users, ir: "/gerentes" },
   { key: "p-tasas", grupo: "Ir a", titulo: "Tasas", icono: LineChart, ir: "/tasas" },
-  { key: "p-config", grupo: "Ir a", titulo: "Configuración y respaldos", icono: Settings, ir: "/configuracion" },
+  { key: "p-config", grupo: "Ir a", titulo: "Configuración", icono: Settings, ir: "/configuracion" },
+  { key: "p-respaldos", grupo: "Ir a", titulo: "Respaldos y copia en Drive", icono: Archive, ir: "/configuracion?tab=datos" },
+  { key: "p-novedades", grupo: "Ir a", titulo: "Novedades e historial de cambios", icono: Sparkles, ir: "/configuracion?tab=acerca" },
 ];
 
 function aItems(texto: string, r: ResultadoBusqueda | undefined): Item[] {

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { reiniciarTauri, tauri } from "./tauri";
 import { reiniciarTutorial, setTutorialActivado } from "@/lib/tutorial";
+import { KEY_NOVEDADES_VISTAS } from "@/lib/novedades";
 
 // jsdom no trae estas APIs del navegador que usan la app y Base UI.
 window.matchMedia ??= ((query: string) => ({
@@ -50,11 +51,19 @@ vi.mock("@tauri-apps/plugin-log", () => ({ error: async () => {}, warn: async ()
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: (u: string) => tauri.openUrl(u), openPath: async () => {} }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: async () => tauri.update }));
 vi.mock("@tauri-apps/plugin-sql", () => ({ default: { load: async () => ({}) } }));
+// Historial fijo en vez del de git (la versión simulada es 0.0.0-test).
+vi.mock("virtual:novedades", () => ({
+  default: [
+    { version: "0.0.0-test", fecha: "2026-10-22", notas: ["Novedad de prueba."] },
+    { version: "0.0.0-anterior", fecha: "2026-10-01", notas: ["Cambio viejo."] },
+  ],
+}));
 
-// El tutorial se abriría solo en cada prueba: se apaga salvo en las que lo prueban.
+// El tutorial y las novedades de la versión se abrirían solos en cada prueba: se apagan salvo en las que los prueban.
 beforeEach(() => {
   reiniciarTutorial();
   setTutorialActivado(false);
+  localStorage.setItem(KEY_NOVEDADES_VISTAS, "0.0.0-test");
 });
 
 afterEach(() => {

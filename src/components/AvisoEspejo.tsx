@@ -48,7 +48,7 @@ export function AvisoEspejo() {
       <Button size="sm" variant="outline" disabled={busy} onClick={() => void reintentar()}>
         Reintentar
       </Button>
-      <Link to="/configuracion" className={buttonVariants({ size: "sm", variant: "ghost" })}>
+      <Link to="/configuracion?tab=datos" className={buttonVariants({ size: "sm", variant: "ghost" })}>
         Ir a Configuración
       </Link>
     </div>
