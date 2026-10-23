@@ -15,7 +15,7 @@ import { cargarEnvio } from "@/db/queries/envioConsolidar";
 import { marcarIntercambio } from "@/db/repos/consolidacion";
 import { listEtiquetas } from "@/db/repos/etiquetas";
 import { listGerentesConCampanas } from "@/db/repos/gerentes";
-import { formatFecha, todayIso } from "@/domain/dates";
+import { formatFechaHora, todayIso } from "@/domain/dates";
 import { formatNumberVE } from "@/domain/money";
 import { armarPaquete, nombreArchivoPaquete } from "@/domain/paquete";
 import { invalidate, useData } from "@/hooks/useData";
@@ -32,13 +32,6 @@ async function cargar(db: SqlDriver, campanaId: number) {
     nombreEquipo(),
   ]);
   return { datos, etiquetasDe: new Map(gerentes.map((g) => [g.id, g.etiquetas])), etiquetas, hayDuplicados: duplicados.length > 0, equipo };
-}
-
-/** dd/mm/aaaa hh:mm en hora local. */
-function fechaHora(iso: string): string {
-  const d = new Date(iso);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${formatFecha(todayIso(d))} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 type Props = { campanaId: number; open: boolean; onOpenChange: (open: boolean) => void };
@@ -182,7 +175,7 @@ export function CompartirConsolidarDialog({ campanaId, open, onOpenChange }: Pro
                   Solo lo que cambió desde mi último envío
                 </label>
               </BotonConMotivo>
-              {ultimo && <p className="text-muted-foreground">Último envío: {fechaHora(ultimo)}</p>}
+              {ultimo && <p className="text-muted-foreground">Último envío: {formatFechaHora(ultimo)}</p>}
               <p className="text-muted-foreground">Tamaño aproximado: {megas === null ? "…" : `${formatNumberVE(megas, 1)} MB`}</p>
             </div>
           </div>

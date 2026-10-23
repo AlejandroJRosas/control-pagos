@@ -67,3 +67,10 @@ const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "
 
 /** Nombre del día de la semana en español ("lunes"). */
 export const nombreDia = (iso: string): string => DIAS[diaSemana(iso)];
+
+/** dd/mm/aaaa hh:mm en hora local. */
+export function formatFechaHora(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${formatFecha(todayIso(d))} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}

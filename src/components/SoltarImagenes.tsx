@@ -8,6 +8,9 @@ import { hayDialogoAbierto } from "@/hooks/useAtajo";
 import { useCampanaActual } from "@/lib/campanaActual";
 import { entregarArchivos, receptorActual, type Receptor } from "@/lib/soltarArchivos";
 import { ACCEPTED_IMAGE_TYPES, separarImagenes } from "@/platform/images";
+import { abrirPaqueteDeArchivo, esPaquete } from "@/platform/paquete";
+import { rutaConsolidar } from "@/lib/rutaConsolidar";
+import { reportError } from "@/lib/reportError";
 import { cn } from "@/lib/utils";
 
 /** Estado de navegación de la subida en lote: gerente elegido de antemano (`a:<asignacionId>`). */
@@ -64,6 +67,11 @@ export function SoltarImagenes() {
   const receptor = () => receptorActual() ?? porDefecto;
   const receptorRef = useRef(receptor);
   receptorRef.current = receptor;
+  // Un .cpagos va a Consolidar con la campaña de la ruta o la actual como sugerencia.
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const campanaRef = useRef<number | null>(null);
+  campanaRef.current = enTasas ? actualId : campanaId;
 
   useEffect(() => {
     let ocultar: ReturnType<typeof setTimeout> | undefined;
@@ -83,7 +91,14 @@ export function SoltarImagenes() {
       // Sin esto el WebView abriría el archivo en lugar de la app.
       e.preventDefault();
       if (hayDialogoAbierto()) return;
-      const { aceptadas, rechazadas } = separarImagenes(Array.from(e.dataTransfer?.files ?? []));
+      const archivos = Array.from(e.dataTransfer?.files ?? []);
+      const paquete = archivos.find(esPaquete);
+      if (paquete) {
+        if (archivos.length > 1) toast.warning(`Se abre solo "${paquete.name}": suelta un archivo a la vez`);
+        abrirPaqueteDeArchivo(paquete).then((carpeta) => navigateRef.current(rutaConsolidar(carpeta, campanaRef.current)), (err: unknown) => reportError(err));
+        return;
+      }
+      const { aceptadas, rechazadas } = separarImagenes(archivos);
       for (const f of rechazadas) toast.error(`"${f.name}" no es una imagen PNG, JPG o WEBP`);
       if (aceptadas.length === 0) return;
       const r = receptorRef.current();

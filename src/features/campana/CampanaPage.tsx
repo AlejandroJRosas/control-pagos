@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { ChevronDown, CopyX, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Pencil, Plus, MessageCircle, Settings2, Share2, Trash2, UserPlus } from "lucide-react";
+import { ChevronDown, CopyX, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Merge, Pencil, Plus, MessageCircle, Settings2, Share2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -30,6 +30,8 @@ import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { setCampanaActual } from "@/lib/campanaActual";
+import { rutaConsolidar } from "@/lib/rutaConsolidar";
+import { abrirPaqueteDeDialogo } from "@/platform/paquete";
 import { usePestanaUrl } from "@/lib/pestanaUrl";
 import { CampanaFormDialog } from "@/features/campanas/CampanaFormDialog";
 import { AsignacionFormDialog, type AsignacionEditable } from "./AsignacionFormDialog";
@@ -66,6 +68,15 @@ export function CampanaPage() {
   const cerradaAtajo = data?.campana.estado !== "activa";
   useAtajo("n", () => navigate(`/campanas/${campanaId}/depositos/nuevo`), { activo: !cerradaAtajo });
   useAtajo("l", () => navigate(`/campanas/${campanaId}/lote`), { activo: !cerradaAtajo });
+
+  async function consolidarDesdeArchivo() {
+    try {
+      const carpeta = await abrirPaqueteDeDialogo();
+      if (carpeta) navigate(rutaConsolidar(carpeta, campanaId));
+    } catch (e) {
+      reportError(e);
+    }
+  }
 
   const existe = data !== undefined;
   useEffect(() => {
@@ -178,6 +189,12 @@ export function CampanaPage() {
                   <Share2 />
                   Compartir para consolidar
                 </DropdownMenuItem>
+                <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
+                  <DropdownMenuItem disabled={cerrada} onClick={() => void consolidarDesdeArchivo()}>
+                    <Merge />
+                    Consolidar desde archivo…
+                  </DropdownMenuItem>
+                </BotonConMotivo>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem disabled={cerrada} onClick={() => setAgregar(true)}>
                   <UserPlus />
