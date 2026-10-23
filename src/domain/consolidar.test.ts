@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { emparejarCampana, emparejarGerentes, type AsignacionLocal } from "./consolidar";
-import type { AsignacionPaquete } from "./paquete";
+import {
+  clasificar, decisionesIniciales, emparejarCampana, emparejarGerentes, motivoPendiente,
+  type AsignacionLocal, type DepositoLocal, type GerenteEmparejado, type LocalConsolidar, type PlanConsolidacion,
+} from "./consolidar";
+import { MOTIVO_CERRADA } from "./motivos";
+import type { AsignacionPaquete, DepositoPaquete, Paquete } from "./paquete";
 
 const remota = (uuid: string, gerenteUuid: string, nombre: string): AsignacionPaquete => ({ uuid, gerente: { uuid: gerenteUuid, nombre }, saldoUsd: "0", desde: null });
 const local = (id: number, gerenteId: number, gerenteNombre: string): AsignacionLocal => ({
@@ -46,5 +50,283 @@ describe("emparejarGerentes", () => {
     const r = emparejarGerentes([remota("a1", "g1", "José Pérez"), remota("a2", "g2", "jose perez")], [local(10, 5, "José Pérez")], new Map());
     expect(r.a1).toEqual({ asignacionId: 10, estado: "nombre" });
     expect(r.a2).toEqual({ asignacionId: undefined, estado: "varios" });
+  });
+});
+
+// ---------- Clasificar ----------
+
+const ULTIMO = "2026-03-01T00:00:00.000Z";
+const asigLocal = (id: number, gerenteNombre: string, saldoUsd: string): AsignacionLocal => ({
+  id, uuid: `l${id}`, gerenteId: id, gerenteNombre, saldoUsd, ultimoEnvio: ULTIMO, ultimoRecibo: null,
+});
+const rem = (o: Partial<DepositoPaquete> = {}): DepositoPaquete => ({
+  uuid: "r1", asignacionUuid: "ra", fecha: "2026-03-04", banco: "Banesco", referencia: "111", cuentaDestino: "0134", montoBs: "1000",
+  observaciones: null, tasaFecha: "2026-03-04", creadoEn: "2026-03-04T10:00:00.000Z", actualizadoEn: "2026-03-04T10:00:00.000Z", imagen: null, ...o,
+});
+const loc = (o: Partial<DepositoLocal> = {}): DepositoLocal => ({
+  id: 1, uuid: "r1", asignacionId: 10, campanaId: 1, campanaNombre: "Marzo", fecha: "2026-03-04", banco: "Banesco", referencia: "111",
+  cuentaDestino: "0134", montoBs: "1000.00", observaciones: null, imagenPath: null, actualizadoEn: "2026-03-04T10:00:00.000Z", ...o,
+});
+const paq = (depositos: DepositoPaquete[], o: Partial<Paquete> = {}): Paquete => ({
+  formato: 1, appVersion: "1.0.0", creadoEn: "2026-03-10T00:00:00.000Z", origen: "Oficina", campana: { uuid: "rc1", nombre: "Marzo" },
+  asignaciones: [
+    { uuid: "ra", gerente: { uuid: "gA", nombre: "José Pérez" }, saldoUsd: "100", desde: null },
+    { uuid: "rb", gerente: { uuid: "gB", nombre: "Ana" }, saldoUsd: "50", desde: null },
+    { uuid: "rc", gerente: { uuid: "gC", nombre: "Carlos" }, saldoUsd: "70", desde: null },
+  ],
+  depositos, tasas: [{ fecha: "2026-03-04", valor: "36.5" }], eliminaciones: [], ...o,
+});
+const base = (o: Partial<LocalConsolidar> = {}): LocalConsolidar => ({
+  campana: { id: 1, uuid: "c1", nombre: "Marzo", estado: "activa" },
+  asignaciones: [asigLocal(10, "José Pérez", "100"), asigLocal(11, "Ana", "50")],
+  depositos: [], tasas: new Map([["2026-03-04", { id: 1, valor: "36.50", usos: 3 }]]), feriados: new Set(), eliminados: new Set(),
+  equivalenciasDepositos: new Map(), ...o,
+});
+const GER: Record<string, GerenteEmparejado> = {
+  ra: { asignacionId: 10, estado: "nombre" }, rb: { asignacionId: 11, estado: "nombre" }, rc: { asignacionId: null, estado: "ninguno" },
+};
+const motivos = (plan: PlanConsolidacion) => plan.noIncluidos.map((n) => n.motivo);
+
+describe("clasificar", () => {
+  it("nuevo con tasa existente", () => {
+    const plan = clasificar(paq([rem()]), base(), GER);
+    expect(plan.nuevos).toEqual([{ remoto: rem(), asignacionId: 10, tasa: { fecha: "2026-03-04", accion: "existente" } }]);
+    expect(plan.tasasNuevas).toEqual([]);
+    expect(plan.tasasDistintas).toEqual([]);
+  });
+
+  it("nuevo crea la tasa que falta", () => {
+    const plan = clasificar(paq([rem(), rem({ uuid: "r2", referencia: "222" })]), base({ tasas: new Map() }), GER);
+    expect(plan.nuevos.map((n) => n.tasa)).toEqual([{ fecha: "2026-03-04", accion: "crear" }, { fecha: "2026-03-04", accion: "crear" }]);
+    expect(plan.tasasNuevas).toEqual([{ fecha: "2026-03-04", valor: "36.5" }]);
+  });
+
+  it("feriado local sin tasa no se incluye", () => {
+    const d = rem({ fecha: "2026-03-02", tasaFecha: "2026-03-02" });
+    const plan = clasificar(paq([d], { tasas: [{ fecha: "2026-03-02", valor: "36" }] }), base({ feriados: new Set(["2026-03-02"]) }), GER);
+    expect(plan.nuevos).toEqual([]);
+    expect(plan.noIncluidos).toEqual([{ remoto: d, gerenteNombre: "José Pérez", motivo: "Falta la tasa del 03/03/2026" }]);
+  });
+
+  it("feriado local usa la tasa del siguiente hábil que trae el archivo", () => {
+    const d = rem({ fecha: "2026-03-02", tasaFecha: "2026-03-02" });
+    const tasas = [{ fecha: "2026-03-02", valor: "36" }, { fecha: "2026-03-03", valor: "37" }];
+    const plan = clasificar(paq([d], { tasas }), base({ feriados: new Set(["2026-03-02"]) }), GER);
+    expect(plan.nuevos[0].tasa).toEqual({ fecha: "2026-03-03", accion: "crear" });
+    expect(plan.tasasNuevas).toEqual([{ fecha: "2026-03-03", valor: "37" }]);
+  });
+
+  it("tasa del depósito que el archivo no trae: existente si la tengo, si no falta", () => {
+    const d = rem({ tasaFecha: "2026-03-04" });
+    expect(clasificar(paq([d], { tasas: [] }), base(), GER).nuevos[0].tasa).toEqual({ fecha: "2026-03-04", accion: "existente" });
+    expect(motivos(clasificar(paq([d], { tasas: [] }), base({ tasas: new Map() }), GER))).toEqual(["Falta la tasa del 04/03/2026"]);
+  });
+
+  it("tasa distinta se lista una vez por fecha", () => {
+    const plan = clasificar(paq([rem(), rem({ uuid: "r2", referencia: "222" })], { tasas: [{ fecha: "2026-03-04", valor: "36.6" }] }), base(), GER);
+    expect(plan.nuevos.map((n) => n.tasa.accion)).toEqual(["distinta", "distinta"]);
+    expect(plan.tasasDistintas).toEqual([{ fecha: "2026-03-04", local: "36.50", archivo: "36.6", usos: 3 }]);
+  });
+
+  it("gerente no emparejado o excluido no se incluye", () => {
+    const d1 = rem({ asignacionUuid: "rc" });
+    const d2 = rem({ uuid: "r2", referencia: "222", asignacionUuid: "rb" });
+    const d3 = rem({ uuid: "r3", referencia: "333", asignacionUuid: "zz" });
+    const ger = { ...GER, rb: { asignacionId: null, estado: "elegido" as const } };
+    expect(motivos(clasificar(paq([d1, d2, d3]), base(), ger))).toEqual([
+      "Carlos no está en tu campaña", "Elegiste no incluir a Ana", "(desconocido) no está en tu campaña",
+    ]);
+  });
+
+  it("corrección cuando el remoto es más nuevo y el local no se tocó", () => {
+    const d = rem({ montoBs: "1500", observaciones: "corregido", asignacionUuid: "rb", actualizadoEn: "2026-03-05T10:00:00.000Z" });
+    const l = loc({ actualizadoEn: "2026-02-28T10:00:00.000Z" });
+    const plan = clasificar(paq([d]), base({ depositos: [l] }), GER);
+    expect(plan.correcciones).toEqual([{
+      remoto: d, local: l, asignacionId: 11, tasa: { fecha: "2026-03-04", accion: "existente" },
+      cambios: [
+        { campo: "montoBs", antes: "1000.00", despues: "1500" },
+        { campo: "observaciones", antes: null, despues: "corregido" },
+        { campo: "gerente", antes: "José Pérez", despues: "Ana" },
+      ],
+    }]);
+    expect(plan.conflictos).toEqual([]);
+  });
+
+  it("monto igual con otra escritura no es un cambio", () => {
+    const d = rem({ actualizadoEn: "2026-03-05T10:00:00.000Z" });
+    const plan = clasificar(paq([d]), base({ depositos: [loc({ actualizadoEn: "2026-02-28T10:00:00.000Z" })] }), GER);
+    expect(plan.correcciones[0].cambios).toEqual([]);
+  });
+
+  it("conflicto editadoEnAmbas", () => {
+    const d = rem({ montoBs: "1500", actualizadoEn: "2026-03-05T10:00:00.000Z" });
+    const l = loc({ actualizadoEn: "2026-03-02T10:00:00.000Z" }); // después del último envío
+    const plan = clasificar(paq([d]), base({ depositos: [l] }), GER);
+    expect(plan.correcciones).toEqual([]);
+    expect(plan.conflictos).toEqual([{
+      tipo: "editadoEnAmbas", remoto: d, local: l, asignacionId: 10, tasa: { fecha: "2026-03-04", accion: "existente" },
+      cambios: [{ campo: "montoBs", antes: "1000.00", despues: "1500" }],
+    }]);
+  });
+
+  it("sin intercambio previo cuenta como editado", () => {
+    const d = rem({ montoBs: "1500", actualizadoEn: "2026-03-05T10:00:00.000Z" });
+    const asignaciones = [{ ...asigLocal(10, "José Pérez", "100"), ultimoEnvio: null }];
+    const plan = clasificar(paq([d]), base({ asignaciones, depositos: [loc({ actualizadoEn: "2026-02-01T10:00:00.000Z" })] }), GER);
+    expect(plan.conflictos.map((c) => c.tipo)).toEqual(["editadoEnAmbas"]);
+  });
+
+  it("el último intercambio es el mayor entre envío y recibo", () => {
+    const d = rem({ montoBs: "1500", actualizadoEn: "2026-03-09T10:00:00.000Z" });
+    const asignaciones = [{ ...asigLocal(10, "José Pérez", "100"), ultimoRecibo: "2026-03-03T00:00:00.000Z" }];
+    const plan = clasificar(paq([d]), base({ asignaciones, depositos: [loc({ actualizadoEn: "2026-03-02T10:00:00.000Z" })] }), GER);
+    expect(plan.correcciones).toHaveLength(1);
+  });
+
+  it("mi versión más nueva no se toca", () => {
+    const d = rem({ montoBs: "1500", actualizadoEn: "2026-03-04T10:00:00.000Z" });
+    const l = loc({ actualizadoEn: "2026-03-06T10:00:00.000Z" });
+    const plan = clasificar(paq([d]), base({ depositos: [l] }), GER);
+    expect(plan.masNuevasAqui).toHaveLength(1);
+    expect(plan.masNuevasAqui[0]).toMatchObject({ remoto: d, local: l, cambios: [{ campo: "montoBs", antes: "1000.00", despues: "1500" }] });
+    expect([plan.correcciones, plan.conflictos, plan.nuevos]).toEqual([[], [], []]);
+  });
+
+  it("mismo actualizadoEn = sin cambios", () => {
+    const plan = clasificar(paq([rem()]), base({ depositos: [loc()] }), GER);
+    expect(plan.sinCambios).toBe(1);
+    expect([plan.nuevos, plan.correcciones, plan.conflictos, plan.noIncluidos]).toEqual([[], [], [], []]);
+  });
+
+  it("corrección que quedaría duplicada de otro local no se incluye", () => {
+    const d = rem({ referencia: "999", actualizadoEn: "2026-03-05T10:00:00.000Z" });
+    const otro = loc({ id: 2, uuid: "x2", referencia: "0999" });
+    const plan = clasificar(paq([d]), base({ depositos: [loc({ actualizadoEn: "2026-02-28T10:00:00.000Z" }), otro] }), GER);
+    expect(motivos(plan)).toEqual(["Quedaría duplicado de Banesco 999"]);
+    expect(plan.correcciones).toEqual([]);
+  });
+
+  it("duplicado igual se vincula", () => {
+    const d = rem({ uuid: "r9", banco: "Banesco", referencia: "00111" });
+    const l = loc({ uuid: "otro", referencia: "00111" });
+    const plan = clasificar(paq([d]), base({ depositos: [l] }), GER);
+    expect(plan.vinculos).toEqual([{ remoto: d, local: l }]);
+    expect([plan.nuevos, plan.conflictos]).toEqual([[], []]);
+  });
+
+  it("duplicado distinto es conflicto", () => {
+    const d = rem({ uuid: "r9", referencia: "111", fecha: "2026-03-05", tasaFecha: "2026-03-05" });
+    const l = loc({ uuid: "otro" });
+    const tasas = [{ fecha: "2026-03-05", valor: "37" }];
+    const plan = clasificar(paq([d], { tasas }), base({ depositos: [l] }), GER);
+    expect(plan.conflictos).toEqual([{
+      tipo: "duplicado", remoto: d, local: l, asignacionId: 10, tasa: { fecha: "2026-03-05", accion: "crear" },
+      cambios: [{ campo: "fecha", antes: "2026-03-04", despues: "2026-03-05" }],
+    }]);
+    expect(plan.vinculos).toEqual([]);
+  });
+
+  it("duplicado en otra campaña no se incluye", () => {
+    const l = loc({ uuid: "otro", campanaId: 2, campanaNombre: "Febrero" });
+    expect(motivos(clasificar(paq([rem()]), base({ depositos: [l] }), GER))).toEqual(["Ya existe en tu campaña Febrero"]);
+  });
+
+  it("repetido en el archivo", () => {
+    const plan = clasificar(paq([rem(), rem({ uuid: "r2", referencia: "0111" })]), base(), GER);
+    expect(plan.nuevos.map((n) => n.remoto.uuid)).toEqual(["r1"]);
+    expect(motivos(plan)).toEqual(["Repetido en el archivo"]);
+  });
+
+  it("duplicado de un local que ya es de otro depósito del archivo es repetido", () => {
+    const plan = clasificar(paq([rem({ uuid: "r2" }), rem()]), base({ depositos: [loc()] }), GER);
+    expect(plan.sinCambios).toBe(1);
+    expect(plan.vinculos).toEqual([]);
+    expect(motivos(plan)).toEqual(["Repetido en el archivo"]);
+  });
+
+  it("uuid en otra campaña no se incluye", () => {
+    const l = loc({ campanaId: 2, campanaNombre: "Febrero" });
+    expect(motivos(clasificar(paq([rem()]), base({ depositos: [l] }), GER))).toEqual(["Está en tu campaña Febrero"]);
+  });
+
+  it("eliminado aquí no se recrea", () => {
+    const plan = clasificar(paq([rem()]), base({ eliminados: new Set(["r1"]) }), GER);
+    expect(plan.nuevos).toEqual([]);
+    expect(motivos(plan)).toEqual(["Lo eliminaste en tu app"]);
+  });
+
+  it("depósito vinculado se reconoce por equivalencia", () => {
+    const d = rem({ uuid: "r9", montoBs: "2000", actualizadoEn: "2026-03-05T10:00:00.000Z" });
+    const l = loc({ id: 7, uuid: "mio", actualizadoEn: "2026-02-28T10:00:00.000Z" });
+    const plan = clasificar(paq([d]), base({ depositos: [l], equivalenciasDepositos: new Map([["r9", 7]]) }), GER);
+    expect(plan.correcciones.map((c) => c.local.id)).toEqual([7]);
+  });
+
+  it("eliminación remota se resuelve por equivalencia", () => {
+    const l7 = loc({ id: 7, uuid: "mio" });
+    const lOtra = loc({ id: 8, uuid: "r8", campanaId: 2, campanaNombre: "Febrero" });
+    const eliminaciones = [
+      { uuid: "r9", asignacionUuid: "ra", eliminadoEn: "2026-03-05T00:00:00.000Z" },
+      { uuid: "r8", asignacionUuid: "ra", eliminadoEn: "2026-03-05T00:00:00.000Z" },
+      { uuid: "nada", asignacionUuid: "ra", eliminadoEn: "2026-03-05T00:00:00.000Z" },
+    ];
+    const plan = clasificar(paq([], { eliminaciones }), base({ depositos: [l7, lOtra], equivalenciasDepositos: new Map([["r9", 7]]) }), GER);
+    expect(plan.eliminaciones).toEqual([{ remotoUuid: "r9", local: l7 }]);
+  });
+
+  it("saldo distinto", () => {
+    const p = paq([]);
+    p.asignaciones[0].saldoUsd = "120";
+    p.asignaciones[1].saldoUsd = "50.00";
+    expect(clasificar(p, base(), GER).saldos).toEqual([{ asignacionId: 10, gerenteNombre: "José Pérez", local: "100", archivo: "120" }]);
+  });
+});
+
+describe("decisiones y motivoPendiente", () => {
+  const conPendientes = () => {
+    const p = paq([rem({ uuid: "r9", montoBs: "5" }), rem({ uuid: "r2", referencia: "222", montoBs: "9", actualizadoEn: "2026-03-05T10:00:00.000Z" })], {
+      tasas: [{ fecha: "2026-03-04", valor: "40" }],
+      eliminaciones: [{ uuid: "r7", asignacionUuid: "ra", eliminadoEn: "2026-03-05T00:00:00.000Z" }],
+    });
+    p.asignaciones[0].saldoUsd = "120";
+    const depositos = [
+      loc({ uuid: "otro" }),
+      loc({ id: 2, uuid: "r2", referencia: "222", actualizadoEn: "2026-03-02T10:00:00.000Z" }),
+      loc({ id: 3, uuid: "r7", referencia: "777" }),
+    ];
+    return clasificar(p, base({ depositos }), GER);
+  };
+
+  it("decisionesIniciales", () => {
+    const plan = conPendientes();
+    expect(plan.conflictos.map((c) => c.tipo).sort()).toEqual(["duplicado", "editadoEnAmbas"]);
+    const d = decisionesIniciales(plan);
+    expect(d).toEqual({ tasas: {}, saldos: { 10: "mia" }, conflictos: { r9: "mia", r2: "archivo" }, eliminar: new Set(["r7"]) });
+  });
+
+  it("motivoPendiente en orden", () => {
+    const plan = conPendientes();
+    const d = decisionesIniciales(plan);
+    const cerrada = { ...plan, campana: { ...plan.campana, estado: "cerrada" as const } };
+    const sinDecidir = { ...GER, rc: { asignacionId: undefined, estado: "varios" as const } };
+    expect(motivoPendiente(cerrada, sinDecidir, d)).toBe(MOTIVO_CERRADA);
+    // el nombre sale de un depósito del archivo de ese gerente
+    const conC = clasificar(paq([rem({ uuid: "c1", referencia: "555", asignacionUuid: "rc" })]), base(), sinDecidir);
+    expect(motivoPendiente(conC, sinDecidir, decisionesIniciales(conC))).toBe("Indica quién es Carlos en tu campaña");
+    expect(motivoPendiente(plan, GER, d)).toBe("Elige la tasa del 04/03/2026");
+    expect(motivoPendiente(plan, GER, { ...d, tasas: { "2026-03-04": "mia" } })).toBeNull();
+    const vacio = clasificar(paq([rem()]), base({ depositos: [loc()] }), GER);
+    expect(motivoPendiente(vacio, GER, decisionesIniciales(vacio))).toBe("No hay nada nuevo para consolidar");
+    const elim = [{ uuid: "r7", asignacionUuid: "ra", eliminadoEn: "2026-03-05T00:00:00.000Z" }];
+    const soloEliminacion = clasificar(paq([], { eliminaciones: elim }), base({ depositos: [loc({ id: 3, uuid: "r7", referencia: "777" })] }), GER);
+    const dElim = decisionesIniciales(soloEliminacion);
+    expect(motivoPendiente(soloEliminacion, GER, dElim)).toBeNull();
+    expect(motivoPendiente(soloEliminacion, GER, { ...dElim, eliminar: new Set() })).toBe("No hay nada nuevo para consolidar");
+    const p = paq([]);
+    p.asignaciones[0].saldoUsd = "120";
+    const soloSaldo = clasificar(p, base(), GER);
+    expect(motivoPendiente(soloSaldo, GER, decisionesIniciales(soloSaldo))).toBe("No hay nada nuevo para consolidar");
+    expect(motivoPendiente(soloSaldo, GER, { ...decisionesIniciales(soloSaldo), saldos: { 10: "archivo" } })).toBeNull();
   });
 });

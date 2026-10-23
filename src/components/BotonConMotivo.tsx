@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 import { Tooltip } from "@base-ui/react";
 
-/** Motivo de los botones que cambian algo en una campaña cerrada. */
-export const MOTIVO_CERRADA = "La campaña está cerrada: reábrela para hacer cambios";
+export { MOTIVO_CERRADA } from "@/domain/motivos";
 
 /** Motivo de no poder eliminar una tasa que usan depósitos. */
 export const motivoTasaEnUso = (usos: number) => `La usan ${usos} depósito(s): elimínalos o muévelos de fecha antes`;

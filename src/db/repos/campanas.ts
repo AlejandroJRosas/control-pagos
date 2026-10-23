@@ -2,8 +2,9 @@ import type { SqlDriver } from "../driver";
 import { nowIso } from "../clock";
 import type { CampanaValida } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
+import type { EstadoCampana } from "@/domain/campana";
 
-export type EstadoCampana = "activa" | "cerrada";
+export type { EstadoCampana };
 export type Campana = {
   id: number;
   nombre: string;
