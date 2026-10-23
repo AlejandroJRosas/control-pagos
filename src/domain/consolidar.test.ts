@@ -153,10 +153,44 @@ describe("clasificar", () => {
     expect(plan.conflictos).toEqual([]);
   });
 
-  it("monto igual con otra escritura no es un cambio", () => {
-    const d = rem({ actualizadoEn: "2026-03-05T10:00:00.000Z" });
-    const plan = clasificar(paq([d]), base({ depositos: [loc({ actualizadoEn: "2026-02-28T10:00:00.000Z" })] }), GER);
-    expect(plan.correcciones[0].cambios).toEqual([]);
+  it("sin diferencias en los campos es sin cambios aunque cambie actualizadoEn (monto con otra escritura)", () => {
+    for (const actualizadoEn of ["2026-03-05T10:00:00.000Z", "2026-02-01T10:00:00.000Z"]) {
+      const plan = clasificar(paq([rem({ actualizadoEn })]), base({ depositos: [loc({ actualizadoEn: "2026-02-28T10:00:00.000Z" })] }), GER);
+      expect(plan.sinCambios).toBe(1);
+      expect([plan.correcciones, plan.masNuevasAqui, plan.conflictos]).toEqual([[], [], []]);
+    }
+  });
+
+  it("volver a aplicar un depósito vinculado es sin cambios", () => {
+    const d = rem({ uuid: "r9", referencia: "00111", actualizadoEn: "2026-03-05T10:00:00.000Z" });
+    const l = loc({ id: 7, uuid: "mio", referencia: "00111", actualizadoEn: "2026-03-02T10:00:00.000Z" });
+    const plan = clasificar(paq([d]), base({ depositos: [l], equivalenciasDepositos: new Map([["r9", 7]]) }), GER);
+    expect(plan.sinCambios).toBe(1);
+    expect([plan.vinculos, plan.conflictos, plan.correcciones]).toEqual([[], [], []]);
+  });
+
+  it("después de quedarme con mi versión en un conflicto, el mismo archivo vuelve a ser conflicto", () => {
+    const T = "2026-03-06T10:00:00.000Z"; // aplicar con "mia" deja actualizado_en = ultimo_recibo = T
+    const asignaciones = [{ ...asigLocal(10, "José Pérez", "100"), ultimoRecibo: T }];
+    const l = loc({ actualizadoEn: T });
+    const nuevo = clasificar(paq([rem({ montoBs: "1500", actualizadoEn: "2026-03-07T10:00:00.000Z" })]), base({ asignaciones, depositos: [l] }), GER);
+    expect(nuevo.conflictos.map((c) => c.tipo)).toEqual(["editadoEnAmbas"]);
+    expect(nuevo.correcciones).toEqual([]);
+    const viejo = clasificar(paq([rem({ montoBs: "1500", actualizadoEn: "2026-03-05T10:00:00.000Z" })]), base({ asignaciones, depositos: [l] }), GER);
+    expect(viejo.masNuevasAqui).toHaveLength(1);
+    expect([viejo.correcciones, viejo.conflictos]).toEqual([[], []]);
+  });
+
+  it("la tasa de una corrección solo cuenta si cambia la fecha", () => {
+    const tasas = [{ fecha: "2026-03-04", valor: "40" }, { fecha: "2026-03-05", valor: "41" }];
+    const l = loc({ actualizadoEn: "2026-02-28T10:00:00.000Z" });
+    const misma = clasificar(paq([rem({ montoBs: "2", actualizadoEn: "2026-03-05T10:00:00.000Z" })], { tasas }), base({ depositos: [l] }), GER);
+    expect(misma.correcciones[0].tasa).toEqual({ fecha: "2026-03-04", accion: "existente" });
+    expect([misma.tasasDistintas, misma.tasasNuevas]).toEqual([[], []]);
+    const d = rem({ fecha: "2026-03-05", tasaFecha: "2026-03-05", actualizadoEn: "2026-03-05T10:00:00.000Z" });
+    const otra = clasificar(paq([d], { tasas }), base({ depositos: [l] }), GER);
+    expect(otra.correcciones[0].tasa).toEqual({ fecha: "2026-03-05", accion: "crear" });
+    expect(otra.tasasNuevas).toEqual([{ fecha: "2026-03-05", valor: "41" }]);
   });
 
   it("conflicto editadoEnAmbas", () => {
@@ -205,6 +239,15 @@ describe("clasificar", () => {
     const plan = clasificar(paq([d]), base({ depositos: [loc({ actualizadoEn: "2026-02-28T10:00:00.000Z" }), otro] }), GER);
     expect(motivos(plan)).toEqual(["Quedaría duplicado de Banesco 999"]);
     expect(plan.correcciones).toEqual([]);
+  });
+
+  it("corrección que quedaría duplicada de un nuevo anterior del archivo no se incluye", () => {
+    const nuevo = rem({ uuid: "r5", referencia: "999" });
+    const correccion = rem({ referencia: "999", actualizadoEn: "2026-03-05T10:00:00.000Z" });
+    const plan = clasificar(paq([nuevo, correccion]), base({ depositos: [loc({ actualizadoEn: "2026-02-28T10:00:00.000Z" })] }), GER);
+    expect(plan.nuevos.map((n) => n.remoto.uuid)).toEqual(["r5"]);
+    expect(plan.correcciones).toEqual([]);
+    expect(motivos(plan)).toEqual(["Quedaría duplicado de Banesco 999"]);
   });
 
   it("duplicado igual se vincula", () => {
@@ -275,6 +318,14 @@ describe("clasificar", () => {
     expect(plan.eliminaciones).toEqual([{ remotoUuid: "r9", local: l7 }]);
   });
 
+  it("eliminación de un gerente no emparejado no se ofrece", () => {
+    const l = loc({ uuid: "r7", referencia: "777" });
+    const eliminaciones = ["rc", "zz"].map((asignacionUuid) => ({ uuid: "r7", asignacionUuid, eliminadoEn: "2026-03-05T00:00:00.000Z" }));
+    const sinDecidir = { ...GER, rc: { asignacionId: undefined, estado: "varios" as const } };
+    expect(clasificar(paq([], { eliminaciones }), base({ depositos: [l] }), GER).eliminaciones).toEqual([]);
+    expect(clasificar(paq([], { eliminaciones }), base({ depositos: [l] }), sinDecidir).eliminaciones).toEqual([]);
+  });
+
   it("saldo distinto", () => {
     const p = paq([]);
     p.asignaciones[0].saldoUsd = "120";
@@ -285,7 +336,12 @@ describe("clasificar", () => {
 
 describe("decisiones y motivoPendiente", () => {
   const conPendientes = () => {
-    const p = paq([rem({ uuid: "r9", montoBs: "5" }), rem({ uuid: "r2", referencia: "222", montoBs: "9", actualizadoEn: "2026-03-05T10:00:00.000Z" })], {
+    const depositosArchivo = [
+      rem({ uuid: "r9", montoBs: "5" }),
+      rem({ uuid: "r2", referencia: "222", montoBs: "9", actualizadoEn: "2026-03-05T10:00:00.000Z" }),
+      rem({ uuid: "r5", referencia: "555" }), // nuevo: trae la tasa distinta
+    ];
+    const p = paq(depositosArchivo, {
       tasas: [{ fecha: "2026-03-04", valor: "40" }],
       eliminaciones: [{ uuid: "r7", asignacionUuid: "ra", eliminadoEn: "2026-03-05T00:00:00.000Z" }],
     });

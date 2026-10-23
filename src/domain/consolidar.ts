@@ -167,6 +167,9 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
     }
     return { fecha: rige, accion: "crear" };
   };
+  /** En una corrección o conflicto la tasa solo cuenta si el archivo cambia la fecha; si no, queda la del local. */
+  const tasaDeCorreccion = (d: DepositoPaquete, l: DepositoLocal): TasaUsada | null =>
+    d.fecha !== l.fecha ? tasaDe(d) : { fecha: fechaDeTasa(l.fecha, local.feriados), accion: "existente" };
 
   for (const d of p.depositos) {
     const nombre = asignacionesArchivo.get(d.asignacionUuid)?.gerente.nombre ?? "(desconocido)";
@@ -215,7 +218,7 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
           plan.vinculos.push({ remoto: d, local: aqui });
           continue;
         }
-        const tasa = tasaDe(d);
+        const tasa = tasaDeCorreccion(d, aqui);
         if (!tasa) faltaTasa();
         else plan.conflictos.push({ tipo: "duplicado", remoto: d, local: aqui, asignacionId, tasa, cambios });
         continue;
@@ -228,21 +231,25 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
     }
 
     // 5. Con copia en esta campaña
+    // Con otra clave, choca con otro local o con un depósito anterior del archivo (sin depender del orden: los posteriores ven esta clave).
+    const quedariaDuplicado =
+      clave !== "" && clave !== claveDuplicado(l.banco, l.referencia) && (clavesArchivo.has(clave) || (porClave.get(clave) ?? []).some((x) => x.id !== l.id));
     if (clave) clavesArchivo.add(clave);
-    if (d.actualizadoEn === l.actualizadoEn) {
+    // Sin diferencias en los campos (p. ej. un vinculado con otro reloj) = sin cambios. Un cambio solo de imagen no se detecta.
+    const cambios = d.actualizadoEn === l.actualizadoEn ? [] : compararCampos(d, l, asignacionId, nombreLocal);
+    if (cambios.length === 0) {
       plan.sinCambios++;
       continue;
     }
-    const cambios = compararCampos(d, l, asignacionId, nombreLocal);
     if (d.actualizadoEn < l.actualizadoEn) {
       plan.masNuevasAqui.push({ remoto: d, local: l, asignacionId, tasa: { fecha: fechaDeTasa(l.fecha, local.feriados), accion: "existente" }, cambios });
       continue;
     }
-    if (clave && clave !== claveDuplicado(l.banco, l.referencia) && (porClave.get(clave) ?? []).some((x) => x.id !== l.id)) {
+    if (quedariaDuplicado) {
       noIncluir(`Quedaría duplicado de ${d.banco} ${d.referencia}`);
       continue;
     }
-    const tasa = tasaDe(d);
+    const tasa = tasaDeCorreccion(d, l);
     if (!tasa) {
       faltaTasa();
       continue;
@@ -252,13 +259,15 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
     const envio = a?.ultimoEnvio ?? null;
     const recibo = a?.ultimoRecibo ?? null;
     const ultimo = envio === null ? recibo : recibo === null ? envio : envio > recibo ? envio : recibo;
-    if (ultimo === null || l.actualizadoEn > ultimo) plan.conflictos.push({ ...correccion, tipo: "editadoEnAmbas" });
+    // >=: al quedarse con "mia" en un conflicto, aplicar deja actualizado_en = ahora, y el próximo archivo vuelve a ser conflicto.
+    if (ultimo === null || l.actualizadoEn >= ultimo) plan.conflictos.push({ ...correccion, tipo: "editadoEnAmbas" });
     else plan.correcciones.push(correccion);
   }
 
-  // Eliminaciones: solo las de depósitos que existen en esta campaña.
+  // Eliminaciones: solo las de gerentes emparejados y depósitos que existen en esta campaña.
   const eliminados = new Set<number>();
   for (const e of p.eliminaciones) {
+    if (typeof gerentes[e.asignacionUuid]?.asignacionId !== "number") continue;
     const l = resolver(e.uuid);
     if (!l || l.campanaId !== campanaId || eliminados.has(l.id)) continue;
     eliminados.add(l.id);
