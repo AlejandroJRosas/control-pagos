@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { ChevronDown, CopyX, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Pencil, Plus, MessageCircle, Settings2, Trash2, UserPlus } from "lucide-react";
+import { ChevronDown, CopyX, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Pencil, Plus, MessageCircle, Settings2, Share2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -12,6 +12,7 @@ import { ResumenCards } from "@/components/ResumenCards";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { BotonConMotivo, MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { EnvioLoteDialog } from "./EnvioLoteDialog";
+import { CompartirConsolidarDialog } from "./CompartirConsolidarDialog";
 import { getDb } from "@/db";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { setEstadoCampana } from "@/db/repos/campanas";
@@ -60,6 +61,7 @@ export function CampanaPage() {
   const [eliminar, setEliminar] = useState(false);
   const [exportando, setExportando] = useState(false);
   const [envio, setEnvio] = useState(false);
+  const [compartir, setCompartir] = useState(false);
 
   const cerradaAtajo = data?.campana.estado !== "activa";
   useAtajo("n", () => navigate(`/campanas/${campanaId}/depositos/nuevo`), { activo: !cerradaAtajo });
@@ -171,6 +173,10 @@ export function CampanaPage() {
                 <DropdownMenuItem disabled={view.gerentes.length === 0} onClick={() => setEnvio(true)}>
                   <MessageCircle />
                   Enviar estados de cuenta
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={view.gerentes.length === 0} onClick={() => setCompartir(true)}>
+                  <Share2 />
+                  Compartir para consolidar
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem disabled={cerrada} onClick={() => setAgregar(true)}>
@@ -305,6 +311,7 @@ export function CampanaPage() {
         onConfirm={() => (quitar ? quitarGerente(quitar) : undefined)}
       />
       <EnvioLoteDialog campanaId={campanaId} open={envio} onOpenChange={setEnvio} />
+      <CompartirConsolidarDialog campanaId={campanaId} open={compartir} onOpenChange={setCompartir} />
     </div>
   );
 }
