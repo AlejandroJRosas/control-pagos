@@ -8,6 +8,8 @@ export type AsignacionPaquete = { uuid: string; gerente: { uuid: string; nombre:
 export type DepositoPaquete = {
   uuid: string; asignacionUuid: string; fecha: string; banco: string; referencia: string; cuentaDestino: string; montoBs: string;
   observaciones: string | null; tasaFecha: string; creadoEn: string; actualizadoEn: string; imagen: string | null; // nombre dentro de imagenes/
+  /** uuids de depósitos de otra instalación vinculados a este (duplicados resueltos): así quien recibe lo reconoce aunque solo tenga uno de ellos. */
+  equivalentes: string[];
 };
 export type EliminacionPaquete = { uuid: string; asignacionUuid: string; eliminadoEn: string };
 export type Paquete = {
@@ -85,6 +87,7 @@ const uuid = (v: unknown): string => (typeof v === "string" && v !== "" ? v : in
 const monto = (v: unknown): string => (typeof v === "string" && /^\d+(\.\d+)?$/.test(v) ? v : invalido());
 const fecha = (v: unknown): string => (typeof v === "string" && isValidIsoDate(v) ? v : invalido());
 const nullable = <T>(v: unknown, f: (x: unknown) => T): T | null => (v === null ? null : f(v));
+const uuids = (v: unknown): string[] => (Array.isArray(v) ? v.map(uuid) : invalido());
 const lista = (v: unknown): Obj[] => (Array.isArray(v) && v.every(esObj) ? (v as Obj[]) : invalido());
 const imagen = (v: unknown): string => (typeof v === "string" && /^[A-Za-z0-9_-]+\.(png|jpe?g|webp)$/i.test(v) ? v : invalido());
 
@@ -127,6 +130,7 @@ export function leerPaquete(texto_: string): Paquete {
       creadoEn: texto(x.creadoEn),
       actualizadoEn: texto(x.actualizadoEn),
       imagen: nullable(x.imagen, imagen),
+      equivalentes: x.equivalentes === undefined ? [] : uuids(x.equivalentes), // los archivos anteriores no lo traen
     })),
     tasas: lista(raw.tasas).map((t) => ({ fecha: fecha(t.fecha), valor: monto(t.valor) })),
     eliminaciones: lista(raw.eliminaciones).map((e) => ({ uuid: uuid(e.uuid), asignacionUuid: uuid(e.asignacionUuid), eliminadoEn: texto(e.eliminadoEn) })),

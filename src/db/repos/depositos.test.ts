@@ -7,7 +7,7 @@ import { createCampana, setEstadoCampana } from "./campanas";
 import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, getDeposito, listBancosUsados, listCuentasDestinoUsadas, restaurarDepositos, updateDeposito } from "./depositos";
 import { createGerente } from "./gerentes";
 import { createAsignacion } from "./asignaciones";
-import { listEliminaciones, uuidsEliminados } from "./consolidacion";
+import { listEliminaciones, setEquivalencia, uuidsEliminados } from "./consolidacion";
 import { borradorDepositoVacio, encolarDeposito, getItemColaDeposito } from "./cola";
 
 let db: SqlDriver;
@@ -179,6 +179,21 @@ it("restaurarDepositos quita la eliminación", async () => {
   const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
   const [{ uuid: campanaUuid }] = await db.select<{ uuid: string }>("SELECT uuid FROM campanas WHERE id = ?", [s.campanaId]);
   const e = await deleteDeposito(db, id);
+  await restaurarDepositos(db, e);
+  expect(await listEliminaciones(db, campanaUuid)).toEqual([]);
+});
+
+it("eliminar un depósito vinculado registra también la eliminación de sus equivalentes; restaurar las quita", async () => {
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
+  const otro = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "999" }));
+  const d = await getDeposito(db, id);
+  const [{ uuid: campanaUuid }] = await db.select<{ uuid: string }>("SELECT uuid FROM campanas WHERE id = ?", [s.campanaId]);
+  const [{ uuid: asignacionUuid }] = await db.select<{ uuid: string }>("SELECT uuid FROM asignaciones WHERE id = ?", [s.asignacionId]);
+  await setEquivalencia(db, "depositos", "remoto-1", id);
+  await setEquivalencia(db, "depositos", "remoto-2", otro);
+  const e = await deleteDeposito(db, id);
+  const uuids = (await listEliminaciones(db, campanaUuid)).map((x) => [x.uuid, x.asignacionUuid]);
+  expect(uuids.sort()).toEqual([[d!.uuid, asignacionUuid], ["remoto-1", asignacionUuid]].sort());
   await restaurarDepositos(db, e);
   expect(await listEliminaciones(db, campanaUuid)).toEqual([]);
 });

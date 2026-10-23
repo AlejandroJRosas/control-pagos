@@ -90,6 +90,8 @@ export type PlanConsolidacion = {
   tasasNuevas: { fecha: string; valor: string }[];
   tasasDistintas: { fecha: string; local: string; archivo: string; usos: number }[];
   saldos: { asignacionId: number; gerenteNombre: string; local: string; archivo: string }[];
+  /** Depósitos del archivo reconocidos por sus `equivalentes`: al aplicar se recuerda su uuid. */
+  equivalencias: { remotoUuid: string; localId: number }[];
 };
 export type Eleccion = "mia" | "archivo";
 export type Decisiones = { tasas: Record<string, Eleccion | undefined>; saldos: Record<number, Eleccion>; conflictos: Record<string, Eleccion>; eliminar: Set<string> };
@@ -117,19 +119,47 @@ function compararCampos(remoto: DepositoPaquete, local: DepositoLocal, asignacio
 export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<string, GerenteEmparejado>): PlanConsolidacion {
   const plan: PlanConsolidacion = {
     campana: local.campana, nuevos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0, masNuevasAqui: [],
-    noIncluidos: [], tasasNuevas: [], tasasDistintas: [], saldos: [],
+    noIncluidos: [], tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [],
   };
   const campanaId = local.campana.id;
   const porId = new Map(local.depositos.map((d) => [d.id, d]));
   const porUuid = new Map(local.depositos.map((d) => [d.uuid, d]));
-  const resolver = (uuid: string): DepositoLocal | undefined => {
+  const porUuidOEquivalencia = (uuid: string): DepositoLocal | undefined => {
     const id = local.equivalenciasDepositos.get(uuid);
     return porUuid.get(uuid) ?? (id === undefined ? undefined : porId.get(id));
   };
+  /** Copia local de un depósito del archivo: por su uuid, por una equivalencia o por los uuids que la otra app tiene vinculados a él. */
+  const resolver = (d: DepositoPaquete): { local: DepositoLocal; porEquivalente: boolean } | undefined => {
+    const directo = porUuidOEquivalencia(d.uuid);
+    if (directo) return { local: directo, porEquivalente: false };
+    for (const e of d.equivalentes) {
+      const l = porUuidOEquivalencia(e);
+      if (l) return { local: l, porEquivalente: true };
+    }
+    return undefined;
+  };
+  /** Eliminado aquí: registrado como eliminado, o vinculado antes a un depósito que ya no está. */
+  const eliminadoAqui = (uuid: string): boolean => {
+    const equivalente = local.equivalenciasDepositos.get(uuid);
+    return local.eliminados.has(uuid) || (equivalente !== undefined && !porId.has(equivalente));
+  };
+
+  // Eliminaciones: solo las de gerentes emparejados y depósitos que existen en esta campaña.
+  const eliminadosPorArchivo = new Set<number>();
+  for (const e of p.eliminaciones) {
+    if (typeof gerentes[e.asignacionUuid]?.asignacionId !== "number") continue;
+    const l = porUuidOEquivalencia(e.uuid);
+    if (!l || l.campanaId !== campanaId || eliminadosPorArchivo.has(l.id)) continue;
+    eliminadosPorArchivo.add(l.id);
+    plan.eliminaciones.push({ remotoUuid: e.uuid, local: l });
+  }
+
+  // Los que el archivo elimina no cuentan como duplicados: su reemplazo (p. ej. el que se quedó en la pantalla de duplicados) entra como
+  // nuevo. Si se desmarca esa eliminación, aplicar falla por duplicado y no cambia nada (`motivoPendiente` lo avisa antes).
   const porClave = new Map<string, DepositoLocal[]>();
   for (const d of local.depositos) {
     const k = claveDuplicado(d.banco, d.referencia);
-    if (k) porClave.set(k, [...(porClave.get(k) ?? []), d]);
+    if (k && !eliminadosPorArchivo.has(d.id)) porClave.set(k, [...(porClave.get(k) ?? []), d]);
   }
   const asignacionesArchivo = new Map(p.asignaciones.map((a) => [a.uuid, a]));
   const asignacionesLocales = new Map(local.asignaciones.map((a) => [a.id, a]));
@@ -141,8 +171,8 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
   // Depósitos locales que ya son la copia de otro depósito del archivo: un duplicado de ellos es un repetido del archivo.
   const reclamados = new Set<number>();
   for (const d of p.depositos) {
-    const l = resolver(d.uuid);
-    if (l) reclamados.add(l.id);
+    const r = resolver(d);
+    if (r) reclamados.add(r.local.id);
   }
   const clavesArchivo = new Set<string>();
 
@@ -151,7 +181,8 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
     const rige = fechaDeTasa(d.fecha, local.feriados);
     const mia = local.tasas.get(rige);
     if (mia) {
-      const delArchivo = tasasArchivo.get(d.tasaFecha);
+      // La del archivo para el mismo día que rige aquí (con otros feriados, la del archivo puede ser de otra fecha).
+      const delArchivo = tasasArchivo.get(rige);
       if (delArchivo === undefined || new Decimal(mia.valor).eq(delArchivo)) return { fecha: rige, accion: "existente" };
       if (!fechasDistintas.has(rige)) {
         fechasDistintas.add(rige);
@@ -184,18 +215,18 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
       continue;
     }
 
-    // 2. Copia local por uuid o equivalencia
+    // 2. Copia local por uuid, equivalencia o equivalentes
     const clave = claveDuplicado(d.banco, d.referencia);
-    const l = resolver(d.uuid);
+    const resuelto = resolver(d);
+    const l = resuelto?.local;
     if (l && l.campanaId !== campanaId) {
       noIncluir(`Está en tu campaña ${l.campanaNombre}`);
       continue;
     }
+    if (l && resuelto.porEquivalente) plan.equivalencias.push({ remotoUuid: d.uuid, localId: l.id });
 
     if (!l) {
-      // Vinculado antes a un depósito que ya no está = lo eliminaste aquí.
-      const equivalente = local.equivalenciasDepositos.get(d.uuid);
-      if (local.eliminados.has(d.uuid) || (equivalente !== undefined && !porId.has(equivalente))) {
+      if ([d.uuid, ...d.equivalentes].some(eliminadoAqui)) {
         noIncluir("Lo eliminaste en tu app");
         continue;
       }
@@ -255,23 +286,11 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
       continue;
     }
     const correccion: Correccion = { remoto: d, local: l, asignacionId, tasa, cambios };
-    const a = asignacionesLocales.get(l.asignacionId);
-    const envio = a?.ultimoEnvio ?? null;
-    const recibo = a?.ultimoRecibo ?? null;
-    const ultimo = envio === null ? recibo : recibo === null ? envio : envio > recibo ? envio : recibo;
-    // >=: al quedarse con "mia" en un conflicto, aplicar deja actualizado_en = ahora, y el próximo archivo vuelve a ser conflicto.
-    if (ultimo === null || l.actualizadoEn >= ultimo) plan.conflictos.push({ ...correccion, tipo: "editadoEnAmbas" });
+    // Editado aquí desde el último archivo recibido (no cuenta el envío: la otra app pudo editar antes de recibirlo, y sería una edición cruzada).
+    // >=: al quedarse con "mia" en un conflicto, aplicar deja actualizado_en >= ahora = último recibo, y el próximo archivo vuelve a ser conflicto.
+    const recibo = asignacionesLocales.get(l.asignacionId)?.ultimoRecibo ?? null;
+    if (recibo === null || l.actualizadoEn >= recibo) plan.conflictos.push({ ...correccion, tipo: "editadoEnAmbas" });
     else plan.correcciones.push(correccion);
-  }
-
-  // Eliminaciones: solo las de gerentes emparejados y depósitos que existen en esta campaña.
-  const eliminados = new Set<number>();
-  for (const e of p.eliminaciones) {
-    if (typeof gerentes[e.asignacionUuid]?.asignacionId !== "number") continue;
-    const l = resolver(e.uuid);
-    if (!l || l.campanaId !== campanaId || eliminados.has(l.id)) continue;
-    eliminados.add(l.id);
-    plan.eliminaciones.push({ remotoUuid: e.uuid, local: l });
   }
 
   // Montos asignados distintos en gerentes emparejados.
@@ -312,6 +331,22 @@ export function motivoRepetidos([a, b]: [string, string], nombres: Record<string
     : "Dos gerentes del archivo no pueden ser el mismo de tu campaña";
 }
 
+/** Depósito del archivo que quedaría duplicado de uno local porque se desmarcó la eliminación de ese local (aplicar fallaría). */
+function reemplazoSinEliminar(plan: PlanConsolidacion, d: Decisiones): DepositoPaquete | null {
+  const sinEliminar = plan.eliminaciones.filter((e) => !d.eliminar.has(e.remotoUuid));
+  if (sinEliminar.length === 0) return null;
+  const entrantes = [
+    ...plan.nuevos.map((n) => ({ remoto: n.remoto, localId: null as number | null })),
+    ...plan.correcciones.map((c) => ({ remoto: c.remoto, localId: c.local.id })),
+    ...plan.conflictos.filter((c) => d.conflictos[c.remoto.uuid] === "archivo").map((c) => ({ remoto: c.remoto, localId: c.local.id })),
+  ];
+  for (const { remoto, localId } of entrantes) {
+    const clave = claveDuplicado(remoto.banco, remoto.referencia);
+    if (clave && sinEliminar.some((e) => e.local.id !== localId && claveDuplicado(e.local.banco, e.local.referencia) === clave)) return remoto;
+  }
+  return null;
+}
+
 /** Por qué todavía no se puede consolidar, o null si se puede. `nombres`: nombre de cada gerente del archivo por uuid de su asignación. */
 export function motivoPendiente(
   plan: PlanConsolidacion,
@@ -329,8 +364,11 @@ export function motivoPendiente(
   if (repetidos) return motivoRepetidos(repetidos, nombres);
   const tasa = plan.tasasDistintas.find((t) => d.tasas[t.fecha] === undefined);
   if (tasa) return `Elige la tasa del ${formatFecha(tasa.fecha)}`;
+  const reemplazo = reemplazoSinEliminar(plan, d);
+  if (reemplazo) return `${reemplazo.banco} ${reemplazo.referencia} del archivo reemplaza a uno que el archivo elimina: marca esa eliminación para consolidar`;
   const hayAlgo =
     plan.nuevos.length > 0 || plan.correcciones.length > 0 || plan.conflictos.length > 0 || plan.vinculos.length > 0 || plan.tasasNuevas.length > 0 ||
-    plan.eliminaciones.some((e) => d.eliminar.has(e.remotoUuid)) || plan.saldos.some((s) => d.saldos[s.asignacionId] === "archivo");
+    plan.eliminaciones.some((e) => d.eliminar.has(e.remotoUuid)) || plan.saldos.some((s) => d.saldos[s.asignacionId] === "archivo") ||
+    plan.tasasDistintas.some((t) => d.tasas[t.fecha] === "archivo");
   return hayAlgo ? null : "No hay nada nuevo para consolidar";
 }

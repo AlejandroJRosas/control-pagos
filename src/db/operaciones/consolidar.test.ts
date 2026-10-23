@@ -289,6 +289,31 @@ describe("aplicarConsolidacion", () => {
     expect(otra.plan.conflictos.length + otra.plan.masNuevasAqui.length).toBe(1);
   });
 
+  it('"mia" con el reloj de aquí atrasado queda más nueva que la del archivo', async () => {
+    const origen = await instalacion();
+    const destino = await instalacion();
+    const id = await createDeposito(origen.db, origen.s.asignacionId, depositoBase(origen.s.tasaId, { referencia: "111" }));
+    reloj("2026-03-05T12:00:00.000Z");
+    const { p: p1 } = await consolidar(origen, destino.db);
+    const uuid = p1.depositos[0].uuid;
+    const [{ id: idLocal }] = await destino.db.select<{ id: number }>("SELECT id FROM depositos WHERE uuid = ?", [uuid]);
+
+    reloj("2026-03-06T07:00:00.000Z");
+    await updateDeposito(destino.db, idLocal, depositoBase(destino.s.tasaId, { referencia: "111", observaciones: "mía" }));
+    reloj("2026-03-06T10:00:00.000Z");
+    await updateDeposito(origen.db, id, depositoBase(origen.s.tasaId, { referencia: "111", montoBs: "5000" }));
+
+    const p = await paqueteDe(origen, { soloCambios: true });
+    const { plan, gerentes, d } = await planificar(destino.db, p);
+    d.conflictos[uuid] = "mia";
+    await aplicarConsolidacion(destino.db, p, plan, gerentes, d, { importarImagen, ahora: "2026-03-06T08:00:00.000Z" });
+
+    expect(await getDeposito(destino.db, idLocal)).toMatchObject({ montoBs: "3650", observaciones: "mía", actualizadoEn: "2026-03-06T10:00:00.001Z" });
+    const otra = await planificar(destino.db, p);
+    expect(otra.plan.masNuevasAqui).toHaveLength(1);
+    expect([otra.plan.correcciones, otra.plan.conflictos]).toEqual([[], []]);
+  });
+
   it('conflicto con "archivo": toma los campos del archivo y su actualizadoEn', async () => {
     const origen = await instalacion();
     const destino = await instalacion();

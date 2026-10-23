@@ -8,6 +8,7 @@ function datos(ultimoA: string | null = null, ultimoB: string | null = null): Da
   const dep = (n: string, asig: number, asigUuid: string, actualizadoEn: string, imagenPath: string | null = null) => ({
     uuid: `d-${n}`, asignacionUuid: asigUuid, asignacionId: asig, fecha: "2026-09-30", banco: "Venezuela", referencia: n, cuentaDestino: "0102",
     montoBs: "1000.50", observaciones: null, tasaFecha: "2026-09-30", tasaValor: "36.5", creadoEn: "2026-09-30T08:00:00.000Z", actualizadoEn, imagenPath,
+    equivalentes: n === "1" ? ["r-1"] : [],
   });
   return {
     campana: { id: 1, uuid: "c-1", nombre: "Marzo 2026" },
@@ -80,6 +81,19 @@ describe("leerPaquete", () => {
   });
 
   const base = () => armarPaquete(datos(), { asignacionIds: [10, 20], soloCambios: false }, meta).paquete;
+
+  it("lleva los equivalentes de cada depósito; un archivo sin ellos se lee con []", () => {
+    const p = base();
+    expect(p.depositos.map((d) => d.equivalentes)).toEqual([["r-1"], [], []]);
+    const viejo = JSON.parse(JSON.stringify(p));
+    for (const d of viejo.depositos) delete d.equivalentes;
+    expect(leerPaquete(JSON.stringify(viejo)).depositos.map((d) => d.equivalentes)).toEqual([[], [], []]);
+    const malo = JSON.parse(JSON.stringify(p));
+    malo.depositos[0].equivalentes = [5];
+    expect(() => leerPaquete(JSON.stringify(malo))).toThrow(MSG_INVALIDO);
+    malo.depositos[0].equivalentes = "r-1";
+    expect(() => leerPaquete(JSON.stringify(malo))).toThrow(MSG_INVALIDO);
+  });
 
   it("rechaza texto que no es JSON", () => {
     expect(() => leerPaquete("hola")).toThrow(MSG_INVALIDO);

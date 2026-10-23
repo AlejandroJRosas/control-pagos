@@ -4,7 +4,7 @@ import { depositoBase, seedBasico } from "../testing/fixtures";
 import { createDeposito, deleteDeposito } from "../repos/depositos";
 import { createAsignacion } from "../repos/asignaciones";
 import { createCampana } from "../repos/campanas";
-import { marcarIntercambio } from "../repos/consolidacion";
+import { marcarIntercambio, setEquivalencia } from "../repos/consolidacion";
 import { cargarEnvio } from "./envioConsolidar";
 
 it("cargarEnvio arma asignaciones, depósitos con su tasa y eliminaciones de la campaña", async () => {
@@ -17,6 +17,8 @@ it("cargarEnvio arma asignaciones, depósitos con su tasa y eliminaciones de la 
   const asigAbril = await createAsignacion(db, { campanaId: abril, gerenteId: s.anaId, saldoUsd: "50" });
   await createDeposito(db, asigAbril, depositoBase(s.tasaId, { referencia: "333" }));
   await marcarIntercambio(db, [s.asignacionId], "envio", "2026-03-10T10:00:00.000Z");
+  await setEquivalencia(db, "depositos", "remoto-2", a);
+  await setEquivalencia(db, "depositos", "remoto-1", a);
 
   const d = await cargarEnvio(db, s.campanaId);
   expect(d.campana).toMatchObject({ id: s.campanaId, nombre: "Marzo" });
@@ -28,8 +30,12 @@ it("cargarEnvio arma asignaciones, depósitos con su tasa y eliminaciones de la 
   });
   expect(d.depositos[0].asignacionUuid).toBe(d.asignaciones[0].uuid);
   expect(Object.keys(d.depositos[0]).sort()).toEqual(
-    ["actualizadoEn", "asignacionId", "asignacionUuid", "banco", "creadoEn", "cuentaDestino", "fecha", "imagenPath", "montoBs", "observaciones", "referencia", "tasaFecha", "tasaValor", "uuid"],
+    [
+      "actualizadoEn", "asignacionId", "asignacionUuid", "banco", "creadoEn", "cuentaDestino", "equivalentes", "fecha", "imagenPath", "montoBs", "observaciones",
+      "referencia", "tasaFecha", "tasaValor", "uuid",
+    ],
   );
+  expect(d.depositos[0].equivalentes).toEqual(["remoto-1", "remoto-2"]);
   expect(a).toBeGreaterThan(0);
   expect(d.eliminaciones).toHaveLength(1);
   expect(d.eliminaciones[0].asignacionUuid).toBe(d.asignaciones[0].uuid);

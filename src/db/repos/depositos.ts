@@ -128,10 +128,14 @@ export async function deleteDepositos(db: SqlDriver, ids: number[]): Promise<Eli
     depositos.push(d);
   }
   const marcas = ids.map(() => "?").join(", ");
+  // También los uuids de la otra instalación vinculados a cada uno: así ella lo elimina aunque lo conozca por su propio uuid.
   const origen = await db.select<{ uuid: string; campanaUuid: string; asignacionUuid: string }>(
     `SELECT d.uuid, c.uuid AS campanaUuid, a.uuid AS asignacionUuid FROM depositos d
-     JOIN asignaciones a ON a.id = d.asignacion_id JOIN campanas c ON c.id = a.campana_id WHERE d.id IN (${marcas})`,
-    ids,
+     JOIN asignaciones a ON a.id = d.asignacion_id JOIN campanas c ON c.id = a.campana_id WHERE d.id IN (${marcas})
+     UNION ALL
+     SELECT e.uuid_remoto, c.uuid, a.uuid FROM equivalencias e JOIN depositos d ON d.id = e.id_local
+     JOIN asignaciones a ON a.id = d.asignacion_id JOIN campanas c ON c.id = a.campana_id WHERE e.tabla = 'depositos' AND d.id IN (${marcas})`,
+    [...ids, ...ids],
   );
   const cola = await db.select<{ id: number; depositoId: number }>(
     `SELECT id, deposito_id AS depositoId FROM cola_depositos WHERE deposito_id IN (${marcas})`,
@@ -169,7 +173,15 @@ export async function restaurarDepositos(db: SqlDriver, e: Eliminados): Promise<
     if (insertados.length > 0) await db.execute(`DELETE FROM depositos WHERE id IN (${insertados.map(() => "?").join(", ")})`, insertados);
     throw err;
   }
-  if (e.depositos.length > 0) await db.execute(`DELETE FROM eliminaciones WHERE uuid IN (${e.depositos.map(() => "?").join(", ")})`, e.depositos.map((d) => d.uuid));
+  if (e.depositos.length > 0) {
+    const ids = e.depositos.map((d) => d.id);
+    const marcas = ids.map(() => "?").join(", ");
+    await db.execute(
+      `DELETE FROM eliminaciones WHERE uuid IN (${marcas})
+         OR uuid IN (SELECT uuid_remoto FROM equivalencias WHERE tabla = 'depositos' AND id_local IN (${marcas}))`,
+      [...e.depositos.map((d) => d.uuid), ...ids],
+    );
+  }
   // El enlace de la cola es informativo: si el elemento ya no existe, no pasa nada.
   for (const c of e.cola) await db.execute("UPDATE cola_depositos SET deposito_id = ? WHERE id = ? AND deposito_id IS NULL", [c.depositoId, c.id]);
 }

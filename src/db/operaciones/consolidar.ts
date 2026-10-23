@@ -71,6 +71,12 @@ export type Resultado = { nuevos: number; corregidos: number; eliminados: number
 
 type FilaDeposito = NonNullable<Awaited<ReturnType<typeof getDeposito>>>;
 
+/** `ahora`, o 1 ms después de `remoto` si este es posterior (reloj de aquí atrasado). */
+function masNuevaQue(remoto: string, ahora: string): string {
+  const despues = Date.parse(remoto) + 1;
+  return Number.isNaN(despues) || despues <= Date.parse(ahora) ? ahora : new Date(despues).toISOString();
+}
+
 /**
  * Aplica el plan según las decisiones: todo o nada. El plugin SQL no da transacciones entre llamadas, así que cada paso apila cómo
  * deshacerse y, ante un error, se deshace al revés y se relanza.
@@ -182,7 +188,8 @@ export async function aplicarConsolidacion(
     }
     const eliminado = new Set(aEliminar);
 
-    // Correcciones y conflictos: el archivo conserva su actualizado_en; quedarse con la mía la marca como editada ahora.
+    // Correcciones y conflictos: el archivo conserva su actualizado_en; quedarse con la mía la marca como editada ahora, y siempre más nueva
+    // que la del archivo (aunque el reloj de aquí vaya atrasado) para que gane en la otra app.
     for (const c of [...plan.correcciones, ...plan.conflictos]) {
       if (eliminado.has(c.local.id)) continue;
       const previa = await filaDeposito(c.local.id);
@@ -194,7 +201,7 @@ export async function aplicarConsolidacion(
         deshacer.push(reponerDeposito(previa));
         r.corregidos++;
       } else {
-        await db.execute("UPDATE depositos SET actualizado_en = ? WHERE id = ?", [deps.ahora, c.local.id]);
+        await db.execute("UPDATE depositos SET actualizado_en = ? WHERE id = ?", [masNuevaQue(c.remoto.actualizadoEn, deps.ahora), c.local.id]);
         deshacer.push(reponerDeposito(previa));
       }
     }
@@ -222,6 +229,10 @@ export async function aplicarConsolidacion(
       if (eliminado.has(v.local.id) || v.remoto.uuid === v.local.uuid) continue;
       await equivaler("depositos", v.remoto.uuid, v.local.id);
       r.vinculados++;
+    }
+    // Reconocidos por sus equivalentes: el próximo archivo los reconoce por su propio uuid.
+    for (const e of plan.equivalencias) {
+      if (!eliminado.has(e.localId)) await equivaler("depositos", e.remotoUuid, e.localId);
     }
 
     // Último recibo de cada gerente emparejado.

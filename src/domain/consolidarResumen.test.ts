@@ -14,7 +14,7 @@ const dep = (id: number, o: Partial<DepositoData> = {}): DepositoData => ({
 });
 const rem = (o: Partial<DepositoPaquete> = {}): DepositoPaquete => ({
   uuid: "r1", asignacionUuid: "ra", fecha: "2026-03-02", banco: "Banesco", referencia: "9", cuentaDestino: "0134", montoBs: "7300",
-  observaciones: null, tasaFecha: "2026-03-02", creadoEn: "2026-03-02T11:00:00.000Z", actualizadoEn: "2026-03-02T11:00:00.000Z", imagen: null, ...o,
+  observaciones: null, tasaFecha: "2026-03-02", creadoEn: "2026-03-02T11:00:00.000Z", actualizadoEn: "2026-03-02T11:00:00.000Z", imagen: null, equivalentes: [], ...o,
 });
 const loc = (id: number, o: Partial<DepositoLocal> = {}): DepositoLocal => ({
   id, uuid: `u${id}`, asignacionId: 10, campanaId: 1, campanaNombre: "Marzo", fecha: "2026-03-02", banco: "Banesco", referencia: String(id),
@@ -23,7 +23,7 @@ const loc = (id: number, o: Partial<DepositoLocal> = {}): DepositoLocal => ({
 const plan = (o: Partial<PlanConsolidacion> = {}): PlanConsolidacion => ({
   campana: { id: 1, uuid: "c1", nombre: "Marzo", estado: "activa" },
   nuevos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0, masNuevasAqui: [], noIncluidos: [],
-  tasasNuevas: [], tasasDistintas: [], saldos: [], ...o,
+  tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], ...o,
 });
 const tasas = new Map([
   ["2026-03-02", { id: 1, valor: "36.5", usos: 2 }],
