@@ -73,7 +73,13 @@ async function assertNoDuplicado(db: SqlDriver, v: DepositoGuardar, excludeId?: 
   }
 }
 
-export async function createDeposito(db: SqlDriver, asignacionId: number, v: DepositoGuardar): Promise<number> {
+/** Al consolidar, el depósito conserva el uuid y las fechas que traía de la otra instalación. */
+export async function createDeposito(
+  db: SqlDriver,
+  asignacionId: number,
+  v: DepositoGuardar,
+  meta?: { uuid: string; creadoEn: string; actualizadoEn: string },
+): Promise<number> {
   await assertEditable(db, asignacionId);
   await assertTasaDeLaFecha(db, v);
   await assertNoDuplicado(db, v);
@@ -81,7 +87,8 @@ export async function createDeposito(db: SqlDriver, asignacionId: number, v: Dep
   const r = await db.execute(
     `INSERT INTO depositos (asignacion_id, tasa_id, fecha, banco, referencia, cuenta_destino, monto_bs, observaciones, imagen_path, creado_en, actualizado_en, uuid)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [asignacionId, v.tasaId, v.fecha, v.banco, v.referencia, v.cuentaDestino, v.montoBs, v.observaciones, v.imagenPath, now, now, crypto.randomUUID()],
+    [asignacionId, v.tasaId, v.fecha, v.banco, v.referencia, v.cuentaDestino, v.montoBs, v.observaciones, v.imagenPath,
+      meta?.creadoEn ?? now, meta?.actualizadoEn ?? now, meta?.uuid ?? crypto.randomUUID()],
   );
   return r.lastInsertId;
 }
@@ -92,16 +99,17 @@ async function requireDeposito(db: SqlDriver, id: number): Promise<Deposito> {
   return d;
 }
 
-export async function updateDeposito(db: SqlDriver, id: number, v: DepositoGuardar): Promise<void> {
+export async function updateDeposito(db: SqlDriver, id: number, v: DepositoGuardar, meta?: { actualizadoEn: string; asignacionId?: number }): Promise<void> {
   const actual = await requireDeposito(db, id);
   await assertEditable(db, actual.asignacionId);
+  if (meta?.asignacionId !== undefined) await assertEditable(db, meta.asignacionId);
   await assertTasaDeLaFecha(db, v);
   // Un duplicado que ya existía (de antes de esta regla) se puede seguir editando mientras no cambie su banco o referencia.
   if (claveDuplicado(v.banco, v.referencia) !== claveDuplicado(actual.banco, actual.referencia)) await assertNoDuplicado(db, v, id);
   await db.execute(
     `UPDATE depositos SET tasa_id = ?, fecha = ?, banco = ?, referencia = ?, cuenta_destino = ?, monto_bs = ?,
-       observaciones = ?, imagen_path = ?, actualizado_en = ? WHERE id = ?`,
-    [v.tasaId, v.fecha, v.banco, v.referencia, v.cuentaDestino, v.montoBs, v.observaciones, v.imagenPath, nowIso(), id],
+       observaciones = ?, imagen_path = ?, actualizado_en = ?, asignacion_id = ? WHERE id = ?`,
+    [v.tasaId, v.fecha, v.banco, v.referencia, v.cuentaDestino, v.montoBs, v.observaciones, v.imagenPath, meta?.actualizadoEn ?? nowIso(), meta?.asignacionId ?? actual.asignacionId, id],
   );
 }
 
@@ -120,11 +128,23 @@ export async function deleteDepositos(db: SqlDriver, ids: number[]): Promise<Eli
     depositos.push(d);
   }
   const marcas = ids.map(() => "?").join(", ");
+  const origen = await db.select<{ uuid: string; campanaUuid: string; asignacionUuid: string }>(
+    `SELECT d.uuid, c.uuid AS campanaUuid, a.uuid AS asignacionUuid FROM depositos d
+     JOIN asignaciones a ON a.id = d.asignacion_id JOIN campanas c ON c.id = a.campana_id WHERE d.id IN (${marcas})`,
+    ids,
+  );
   const cola = await db.select<{ id: number; depositoId: number }>(
     `SELECT id, deposito_id AS depositoId FROM cola_depositos WHERE deposito_id IN (${marcas})`,
     ids,
   );
   await db.execute(`DELETE FROM depositos WHERE id IN (${marcas})`, ids);
+  const en = nowIso();
+  for (const o of origen) {
+    await db.execute(
+      "INSERT OR REPLACE INTO eliminaciones (uuid, tabla, campana_uuid, asignacion_uuid, eliminado_en) VALUES (?, 'depositos', ?, ?, ?)",
+      [o.uuid, o.campanaUuid, o.asignacionUuid, en],
+    );
+  }
   return { depositos, cola };
 }
 
@@ -149,6 +169,7 @@ export async function restaurarDepositos(db: SqlDriver, e: Eliminados): Promise<
     if (insertados.length > 0) await db.execute(`DELETE FROM depositos WHERE id IN (${insertados.map(() => "?").join(", ")})`, insertados);
     throw err;
   }
+  if (e.depositos.length > 0) await db.execute(`DELETE FROM eliminaciones WHERE uuid IN (${e.depositos.map(() => "?").join(", ")})`, e.depositos.map((d) => d.uuid));
   // El enlace de la cola es informativo: si el elemento ya no existe, no pasa nada.
   for (const c of e.cola) await db.execute("UPDATE cola_depositos SET deposito_id = ? WHERE id = ? AND deposito_id IS NULL", [c.depositoId, c.id]);
 }

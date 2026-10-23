@@ -154,6 +154,16 @@ const MIGRATIONS: Migration[] = [
     version: 6,
     statements: ["ALTER TABLE gerentes ADD COLUMN nacimiento TEXT"],
   },
+  {
+    // Consolidar campañas entre instalaciones: depósitos eliminados, emparejamientos con la otra app y último envío/recibo por gerente.
+    version: 7,
+    statements: [
+      "CREATE TABLE IF NOT EXISTS eliminaciones (uuid TEXT PRIMARY KEY, tabla TEXT NOT NULL, campana_uuid TEXT NOT NULL, asignacion_uuid TEXT NOT NULL, eliminado_en TEXT NOT NULL)",
+      "CREATE INDEX IF NOT EXISTS idx_eliminaciones_campana ON eliminaciones(campana_uuid)",
+      "CREATE TABLE IF NOT EXISTS equivalencias (tabla TEXT NOT NULL, uuid_remoto TEXT NOT NULL, id_local INTEGER NOT NULL, PRIMARY KEY (tabla, uuid_remoto))",
+      "CREATE TABLE IF NOT EXISTS consolidaciones (asignacion_id INTEGER NOT NULL REFERENCES asignaciones(id) ON DELETE CASCADE, sentido TEXT NOT NULL, en TEXT NOT NULL, PRIMARY KEY (asignacion_id, sentido))",
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

@@ -3,8 +3,11 @@ import type { SqlDriver } from "../driver";
 import { createTestDb } from "../testing/sqljsDriver";
 import { crearDuplicado, depositoBase, seedBasico } from "../testing/fixtures";
 import { createTasa } from "./tasas";
-import { setEstadoCampana } from "./campanas";
+import { createCampana, setEstadoCampana } from "./campanas";
 import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, getDeposito, listBancosUsados, listCuentasDestinoUsadas, restaurarDepositos, updateDeposito } from "./depositos";
+import { createGerente } from "./gerentes";
+import { createAsignacion } from "./asignaciones";
+import { listEliminaciones, uuidsEliminados } from "./consolidacion";
 import { borradorDepositoVacio, encolarDeposito, getItemColaDeposito } from "./cola";
 
 let db: SqlDriver;
@@ -160,4 +163,43 @@ it("lista las cuentas destino usadas sin repetir", async () => {
   await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: " A ", referencia: "2" }));
   await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: "B", referencia: "3" }));
   expect(await listCuentasDestinoUsadas(db)).toEqual(["A", "B"]);
+});
+
+it("deleteDepositos registra la eliminación con su campaña y asignación", async () => {
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
+  const d = await getDeposito(db, id);
+  const [{ uuid: campanaUuid }] = await db.select<{ uuid: string }>("SELECT uuid FROM campanas WHERE id = ?", [s.campanaId]);
+  const [{ uuid: asignacionUuid }] = await db.select<{ uuid: string }>("SELECT uuid FROM asignaciones WHERE id = ?", [s.asignacionId]);
+  await deleteDeposito(db, id);
+  expect(await listEliminaciones(db, campanaUuid)).toEqual([{ uuid: d!.uuid, asignacionUuid, eliminadoEn: expect.any(String) }]);
+  expect((await uuidsEliminados(db)).has(d!.uuid)).toBe(true);
+});
+
+it("restaurarDepositos quita la eliminación", async () => {
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
+  const [{ uuid: campanaUuid }] = await db.select<{ uuid: string }>("SELECT uuid FROM campanas WHERE id = ?", [s.campanaId]);
+  const e = await deleteDeposito(db, id);
+  await restaurarDepositos(db, e);
+  expect(await listEliminaciones(db, campanaUuid)).toEqual([]);
+});
+
+it("createDeposito con meta conserva uuid y fechas", async () => {
+  const meta = { uuid: "11111111-1111-4111-8111-111111111111", creadoEn: "2026-03-02T10:00:00.000Z", actualizadoEn: "2026-03-03T10:00:00.000Z" };
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId), meta);
+  expect(await getDeposito(db, id)).toMatchObject(meta);
+  await expect(createDeposito(db, s.asignacionId, depositoBase(s.tasaId), { ...meta, uuid: crypto.randomUUID() })).rejects.toMatchObject({ code: "DUPLICADO" });
+});
+
+it("updateDeposito con meta pone actualizado_en y puede cambiar de asignación", async () => {
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId));
+  const bea = await createGerente(db, { nombre: "Bea", telefono: null });
+  const otra = await createAsignacion(db, { campanaId: s.campanaId, gerenteId: bea, saldoUsd: "50" });
+  await updateDeposito(db, id, depositoBase(s.tasaId), { actualizadoEn: "2026-03-05T00:00:00.000Z", asignacionId: otra });
+  expect(await getDeposito(db, id)).toMatchObject({ asignacionId: otra, actualizadoEn: "2026-03-05T00:00:00.000Z" });
+  const c2 = await createCampana(db, { nombre: "Abril", fechaInicio: "2026-04-01", fechaFin: null, notas: null });
+  const cerrada = await createAsignacion(db, { campanaId: c2, gerenteId: bea, saldoUsd: "50" });
+  await setEstadoCampana(db, c2, "cerrada");
+  await expect(updateDeposito(db, id, depositoBase(s.tasaId), { actualizadoEn: "2026-03-06T00:00:00.000Z", asignacionId: cerrada })).rejects.toMatchObject({
+    code: "CAMPANA_CERRADA",
+  });
 });
