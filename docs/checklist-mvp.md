@@ -138,3 +138,10 @@ Usar la instancia aislada de `CLAUDE.md` como segunda app (otros datos y puerto)
 - [ ] Campaña → Estructura con unos 40 gerentes en 4 niveles: el organigrama se lee, hay scroll horizontal y el arrastre funciona en la app real (soltar sobre otro lo pone debajo; la punta y «Sin estructura» quitan el jefe). Arrastrar a una rama propia no resalta ni se deja.
 - [ ] Soltar una imagen de comprobante sobre Estructura sigue abriendo el registro (el arrastre de archivos no se traga). Por gerente muestra el árbol, se pliega por rama. En Compartir para consolidar, marcar un jefe marca su rama (y si la rama está a medias avisa "(él no)" cuando el jefe no va).
 - [ ] Ida y vuelta real con dos instancias (la aislada de `CLAUDE.md`): compartir una rama, "Agregar a mi campaña" para los gerentes que faltan, "Jefe distinto" con «mía» por defecto y un ciclo bloqueado; luego B → A deja ambos árboles iguales.
+
+## Provincial, bancos, incidencias y selección múltiple
+
+- [ ] Importar un Excel real del Provincial con cédulas repetidas: no bloquea como duplicado; las filas con la misma cédula, fecha y monto salen con aviso de posible repetido (también contra lo ya registrado).
+- [ ] Importar con un banco que la app no conoce: pregunta a qué banco corresponde, recuerda la respuesta y en el siguiente archivo ya no pregunta; lo guardado queda con el nombre canónico.
+- [ ] Importar y revisión del lote: el filtro de incidencias muestra solo las filas con problemas y el ícono dice el motivo; no queda en la URL.
+- [ ] Campaña → Estructura con un organigrama grande: Ctrl/Shift+clic elige varios, soltarlos sobre un jefe los mueve juntos, Deshacer los devuelve; Esc suelta la selección sin volver atrás.
