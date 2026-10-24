@@ -37,10 +37,11 @@ import { CampanaFormDialog } from "@/features/campanas/CampanaFormDialog";
 import { AsignacionFormDialog, type AsignacionEditable } from "./AsignacionFormDialog";
 import { AgregarGerentesDialog } from "./AgregarGerentesDialog";
 import { EliminarCampanaDialog } from "./EliminarCampanaDialog";
+import { EstructuraTab } from "./EstructuraTab";
 import { PorGerenteTab } from "./PorGerenteTab";
 import { TodosDepositosTab } from "./TodosDepositosTab";
 
-const PESTANAS = ["depositos", "gerentes"] as const;
+const PESTANAS = ["depositos", "gerentes", "estructura"] as const;
 
 export function CampanaPage() {
   const campanaId = Number(useParams().campanaId);
@@ -282,6 +283,7 @@ export function CampanaPage() {
             <TabsList>
               <TabsTrigger value="depositos">Todos los depósitos ({view.depositos.length})</TabsTrigger>
               <TabsTrigger value="gerentes">Por gerente ({view.gerentes.length})</TabsTrigger>
+              <TabsTrigger value="estructura">Estructura</TabsTrigger>
             </TabsList>
             <TabsContent value="gerentes">
               <PorGerenteTab
@@ -293,6 +295,9 @@ export function CampanaPage() {
                 onQuitar={setQuitar}
                 onAgregar={() => setAgregar(true)}
               />
+            </TabsContent>
+            <TabsContent value="estructura">
+              <EstructuraTab campanaId={campanaId} gerentes={view.gerentes} jefes={jefes} cerrada={cerrada} />
             </TabsContent>
             <TabsContent value="depositos">
               <TodosDepositosTab campanaId={campanaId} campanaNombre={campana.nombre} view={view} cerrada={cerrada} />

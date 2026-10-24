@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createTestDb } from "@/db/testing/sqljsDriver";
-import { createCampana } from "@/db/repos/campanas";
+import { createCampana, setEstadoCampana } from "@/db/repos/campanas";
 import { createGerente } from "@/db/repos/gerentes";
 import { createAsignacion, setJefeAsignacion } from "@/db/repos/asignaciones";
 import { renderApp } from "@/testing/renderApp";
@@ -68,4 +68,66 @@ it("Por gerente muestra el árbol con sangría, pliega ramas y con búsqueda u o
   expect(await screen.findByText("Pedro")).toBeInTheDocument();
   expect((await fila("Pedro")).querySelector('[data-nivel="2"]')).toBeNull();
   expect(screen.queryByRole("button", { name: /Plegar a|Desplegar a/ })).not.toBeInTheDocument();
+});
+
+/** dataTransfer falso: jsdom no lo trae. */
+function arrastre() {
+  const datos = new Map<string, string>();
+  return {
+    types: [] as string[],
+    effectAllowed: "all",
+    dropEffect: "none",
+    setData: (k: string, v: string) => void datos.set(k, v),
+    getData: (k: string) => datos.get(k) ?? "",
+  };
+}
+
+async function campanaConArbol() {
+  const db = await createTestDb();
+  const campanaId = await createCampana(db, { nombre: "Octubre", fechaInicio: "2026-10-01", fechaFin: null, notas: null });
+  const nueva = async (nombre: string) => createAsignacion(db, { campanaId, gerenteId: await createGerente(db, { nombre, telefono: null }), saldoUsd: "100" });
+  const ids = { ana: await nueva("Ana"), luis: await nueva("Luis"), jose: await nueva("José"), rosa: await nueva("Rosa") };
+  await setJefeAsignacion(db, ids.luis, ids.ana);
+  const jefeDe = async (id: number) =>
+    (await db.select<{ jefeId: number | null }>("SELECT jefe_id AS jefeId FROM asignaciones WHERE id = ?", [id]))[0].jefeId;
+  return { db, campanaId, ids, jefeDe };
+}
+
+it("Estructura dibuja la pirámide, arrastra para cambiar el jefe y deshace", async () => {
+  const { db, campanaId, ids, jefeDe } = await campanaConArbol();
+  const { user } = await renderApp(`/campanas/${campanaId}?tab=estructura`, { db, hoy: "2026-10-19" });
+
+  const sueltos = await screen.findByRole("region", { name: "Sin estructura" });
+  expect(within(sueltos).getByRole("button", { name: "José" })).toBeInTheDocument();
+  expect(within(sueltos).getByRole("button", { name: "Rosa" })).toBeInTheDocument();
+  expect(within(screen.getByRole("group", { name: "Rama de Ana" })).getByRole("button", { name: "Luis" })).toBeInTheDocument();
+
+  let dt = arrastre();
+  fireEvent.dragStart(screen.getByRole("button", { name: "José" }), { dataTransfer: dt });
+  fireEvent.dragOver(screen.getByRole("button", { name: "Ana" }), { dataTransfer: dt });
+  fireEvent.drop(screen.getByRole("button", { name: "Ana" }), { dataTransfer: dt });
+  expect(await screen.findByText("José ahora está bajo Ana")).toBeInTheDocument();
+  expect(await jefeDe(ids.jose)).toBe(ids.ana);
+  expect(await within(screen.getByRole("group", { name: "Rama de Ana" })).findByRole("button", { name: "José" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Deshacer" }));
+  await waitFor(async () => expect(await jefeDe(ids.jose)).toBeNull());
+  expect(await within(screen.getByRole("region", { name: "Sin estructura" })).findByRole("button", { name: "José" })).toBeInTheDocument();
+
+  dt = arrastre();
+  fireEvent.dragStart(screen.getByRole("button", { name: "Ana" }), { dataTransfer: dt });
+  fireEvent.drop(screen.getByRole("button", { name: "Luis" }), { dataTransfer: dt });
+  fireEvent.dragEnd(screen.getByRole("button", { name: "Ana" }), { dataTransfer: dt });
+  expect(await jefeDe(ids.ana)).toBeNull();
+  expect(await jefeDe(ids.luis)).toBe(ids.ana);
+  expect(screen.queryByText(/Ana ahora está bajo/)).not.toBeInTheDocument();
+});
+
+it("Estructura con la campaña cerrada no deja arrastrar", async () => {
+  const { db, campanaId } = await campanaConArbol();
+  await setEstadoCampana(db, campanaId, "cerrada");
+  await renderApp(`/campanas/${campanaId}?tab=estructura`, { db, hoy: "2026-10-19" });
+
+  expect(await screen.findByRole("button", { name: "Ana" })).toHaveAttribute("draggable", "false");
+  expect(screen.getByRole("button", { name: "José" })).toHaveAttribute("draggable", "false");
 });
