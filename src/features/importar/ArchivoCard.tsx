@@ -315,7 +315,7 @@ function Revision({ f }: { f: FilaPlan }) {
   if (motivos.length === 0 && infos.length === 0) return <Badge variant="secondary">OK</Badge>;
   return (
     <div className="flex items-start gap-2">
-      <IconoIncidencias motivos={[...motivos, ...detalle]} />
+      <IconoIncidencias motivos={[...motivos, ...detalle]} tono={f.importable ? "aviso" : "bloqueo"} />
       <ul className="space-y-0.5 text-xs">
         {infos.map((t) => (
           <li key={t}>{t}</li>

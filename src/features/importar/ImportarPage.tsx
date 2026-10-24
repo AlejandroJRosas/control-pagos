@@ -38,6 +38,9 @@ export function ImportarPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   /** Última revisión pedida por archivo: una respuesta más vieja no pisa a una más nueva. */
   const versiones = useRef(new Map<string, number>());
+  /** Los archivos de este render, para volver a revisarlos tras una espera sin usar los de un render viejo. */
+  const archivosActuales = useRef(archivos);
+  archivosActuales.current = archivos;
 
   if (!data) return <Cargando error={error} />;
   const { campana } = data.campana;
@@ -104,14 +107,16 @@ export function ImportarPage() {
     try {
       const db = await getDb();
       await guardarAliasBanco(db, nombre, banco);
-      const planes = new Map<string, PlanImportacion>();
-      for (const a of archivos) planes.set(a.key, await planificarImportacion(db, campanaId, a.plan.cuadro, a.ediciones));
-      setArchivos((prev) =>
-        prev.map((a) => {
-          const plan = planes.get(a.key);
-          return plan ? { ...a, plan, marcadas: ajustarMarcadas(a.plan, plan, a.marcadas) } : a;
-        }),
-      );
+      for (const key of archivosActuales.current.map((x) => x.key)) {
+        const a = archivosActuales.current.find((x) => x.key === key);
+        if (!a) continue; // se quitó o se importó mientras tanto
+        // Como en `editar`: si mientras tanto se pidió otra revisión del archivo (una edición), esta no la pisa.
+        const version = (versiones.current.get(a.key) ?? 0) + 1;
+        versiones.current.set(a.key, version);
+        const plan = await planificarImportacion(db, campanaId, a.plan.cuadro, a.ediciones);
+        if (versiones.current.get(a.key) !== version) continue;
+        setArchivos((prev) => prev.map((x) => (x.key === a.key ? { ...x, plan, marcadas: ajustarMarcadas(x.plan, plan, x.marcadas) } : x)));
+      }
     } catch (e) {
       reportError(e);
     }
