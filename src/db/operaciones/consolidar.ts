@@ -319,15 +319,12 @@ export async function aplicarConsolidacion(
       await equivaler("depositos", v.remoto.uuid, v.local.id);
       r.vinculados++;
     }
-    // Posibles repetidos que no entran: el mismo pago que uno de aquí. Se vinculan al primero que no se vinculó ya a otro de este archivo,
-    // para que el próximo intercambio no vuelva a preguntar.
-    const vinculadosRepetido = new Set<number>();
+    // Posibles repetidos que no entran: el mismo pago que el de aquí que `clasificar` le asignó (cada local, a uno solo del archivo).
+    // Se vinculan para que el próximo intercambio no vuelva a preguntar.
     for (const x of plan.posiblesRepetidos) {
       if (d.entranRepetidos.has(x.remoto.uuid)) continue;
-      const vivos = x.locales.filter((l) => !eliminado.has(l.id));
-      const local = vivos.find((l) => !vinculadosRepetido.has(l.id)) ?? vivos[0];
+      const local = x.locales.find((l) => !eliminado.has(l.id));
       if (!local) continue;
-      vinculadosRepetido.add(local.id);
       await equivaler("depositos", x.remoto.uuid, local.id);
       r.vinculados++;
     }

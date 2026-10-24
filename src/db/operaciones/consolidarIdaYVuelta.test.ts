@@ -574,6 +574,28 @@ describe("consolidar ida y vuelta entre dos instalaciones", () => {
       expect([await cuantos(a.db), await cuantos(b.db)]).toEqual([1, 1]);
     });
 
+    it("dos de A contra uno igual en B, con las decisiones iniciales: las dos quedan con 2", async () => {
+      const a = await instalacion("A");
+      const b = await instalacion("B");
+      await registrar(a, pago);
+      await registrar(a, pago);
+      await registrar(b, pago);
+      reloj("2026-03-05T11:00:00.000Z");
+      const ida = await recibir(b, await enviar(a));
+      expect(ida.plan.posiblesRepetidos).toHaveLength(1);
+      expect(ida.resultado).toMatchObject({ nuevos: 1, vinculados: 1 });
+      expect(await cuantos(b.db)).toBe(2);
+      reloj("2026-03-05T12:00:00.000Z");
+      const vuelta = await recibir(a, await enviar(b));
+      expect(vuelta.plan.posiblesRepetidos).toEqual([]);
+      expect(vuelta.plan.nuevos).toEqual([]);
+      expect([await cuantos(a.db), await cuantos(b.db)]).toEqual([2, 2]);
+      reloj("2026-03-05T13:00:00.000Z");
+      const otra = await recibir(b, await enviar(a));
+      expect(otra.motivo).toBe("No hay nada nuevo para consolidar");
+      expect([await cuantos(a.db), await cuantos(b.db)]).toEqual([2, 2]);
+    });
+
     it("Es otro pago: los marcados entran y un nuevo envío no vuelve a preguntar", async () => {
       const a = await instalacion("A");
       const b = await instalacion("B");
@@ -582,7 +604,8 @@ describe("consolidar ida y vuelta entre dos instalaciones", () => {
       await registrar(b, pago);
       reloj("2026-03-05T11:00:00.000Z");
       const ida = await recibir(b, await enviar(a), (d, plan) => plan.posiblesRepetidos.forEach((x) => d.entranRepetidos.add(x.remoto.uuid)));
-      expect(ida.plan.posiblesRepetidos).toHaveLength(2);
+      expect(ida.plan.posiblesRepetidos).toHaveLength(1); // Q es a lo sumo uno de los dos: el otro ya es nuevo
+      expect(ida.plan.nuevos).toHaveLength(1);
       expect(ida.resultado).toMatchObject({ nuevos: 2, vinculados: 0 });
       expect(await cuantos(b.db)).toBe(3);
       reloj("2026-03-05T12:00:00.000Z");

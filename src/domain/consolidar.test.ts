@@ -631,6 +631,13 @@ describe("posibles repetidos del Provincial", () => {
     expect(plan.nuevos.map((n) => n.remoto.uuid)).toEqual(["p1"]);
   });
 
+  it("cada local es el mismo pago que a lo sumo uno del archivo: el que sobra es nuevo", () => {
+    const depositos = [provLocal(), provLocal({ id: 6, uuid: "q2" })];
+    const plan = clasificar(paq([prov(), prov({ uuid: "p2" }), prov({ uuid: "p3" })]), base({ depositos }), GER);
+    expect(plan.posiblesRepetidos.map((x) => [x.remoto.uuid, x.locales.map((l) => l.id)])).toEqual([["p1", [5]], ["p2", [6]]]);
+    expect(plan.nuevos.map((n) => n.remoto.uuid)).toEqual(["p3"]);
+  });
+
   it("uno de Banesco igual en todo menos la uuid y la referencia no se ve afectado", () => {
     const plan = clasificar(paq([rem({ uuid: "r2", referencia: "222" })]), base({ depositos: [loc()] }), GER);
     expect(plan.posiblesRepetidos).toEqual([]);

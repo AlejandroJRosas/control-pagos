@@ -137,7 +137,10 @@ export type Correccion = { remoto: DepositoPaquete; local: DepositoLocal; asigna
 export type Conflicto = Correccion & { tipo: "editadoEnAmbas" | "duplicado" };
 export type Eliminacion = { remotoUuid: string; local: DepositoLocal };
 export type Vinculo = { remoto: DepositoPaquete; local: DepositoLocal };
-/** Del Provincial, igual (cédula, fecha y monto) a depósitos de aquí: por defecto es el mismo pago y no entra (`Decisiones.entranRepetidos`). */
+/**
+ * Del Provincial, igual (cédula, fecha y monto) a un depósito de aquí que no es ya el de otro del archivo: por defecto es el mismo pago y no
+ * entra (`Decisiones.entranRepetidos`).
+ */
 export type PosibleRepetido = { remoto: DepositoPaquete; locales: DepositoLocal[]; asignacionId: number; tasa: TasaUsada };
 export type NoIncluido = { remoto: DepositoPaquete; gerenteNombre: string; motivo: string };
 export type PlanConsolidacion = {
@@ -266,6 +269,7 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
   }
   const clavesArchivo = new Set<string>();
   // Del Provincial (sin referencia única), por cédula, fecha y monto: los locales que no son ya la copia de otro del archivo ni se eliminan.
+  // Cada local es el mismo pago que a lo sumo uno del archivo: se reparten de a uno, en el orden del archivo.
   const porRepetido = new Map<string, DepositoLocal[]>();
   for (const d of local.depositos) {
     const k = clavePosibleRepetido(d.banco, d.referencia, d.fecha, d.montoBs);
@@ -352,9 +356,9 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
       }
       // 4. Nuevo, o posible repetido de uno de aquí (solo contra los locales: dos iguales del archivo entran los dos)
       const tasa = tasaDe(d);
-      const repetidos = porRepetido.get(clavePosibleRepetido(d.banco, d.referencia, d.fecha, d.montoBs)) ?? [];
+      const libres = porRepetido.get(clavePosibleRepetido(d.banco, d.referencia, d.fecha, d.montoBs)) ?? [];
       if (!tasa) faltaTasa();
-      else if (repetidos.length > 0) plan.posiblesRepetidos.push({ remoto: d, locales: repetidos, asignacionId, tasa });
+      else if (libres.length > 0) plan.posiblesRepetidos.push({ remoto: d, locales: [libres.shift()!], asignacionId, tasa });
       else plan.nuevos.push({ remoto: d, asignacionId, tasa });
       continue;
     }
