@@ -61,7 +61,12 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
     arrastrando.some((id) => (jefes.get(id) ?? null) !== destino) &&
     !arrastrando.some((id) => creaCiclo(jefes, id, destino));
 
-  async function mover(ids: number[], jefe: number | null) {
+  async function mover(arrastrados: number[], jefe: number | null) {
+    // Solo cuentan (y se tocan) los que de verdad cambian de jefe.
+    const ids = arrastrados.filter((id) => (jefes.get(id) ?? null) !== jefe);
+    if (ids.length === 0) return;
+    // Arrastrar una cajita que no estaba elegida no suelta la selección.
+    const deLaSeleccion = arrastrados.some((id) => seleccion.marcados.has(id));
     const destino = jefe === null ? null : (nombres.get(jefe) ?? "");
     const texto =
       ids.length === 1
@@ -73,7 +78,7 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
           : `${ids.length} gerentes ahora están bajo ${destino}`;
     try {
       const anteriores = await moverAJefe(await getDb(), ids, jefe);
-      setSeleccion(SIN_SELECCION);
+      if (deLaSeleccion) setSeleccion(SIN_SELECCION);
       invalidate();
       toast.success(texto, {
         duration: 10_000,

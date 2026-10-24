@@ -246,3 +246,30 @@ it("Estructura con la campaña cerrada no elige con Ctrl+clic", async () => {
   await user.keyboard("{/Control}");
   expect(screen.queryByText(/elegido/)).not.toBeInTheDocument();
 });
+
+it("Estructura: el aviso cuenta solo a los que cambian de jefe y arrastrar uno no elegido no suelta la selección", async () => {
+  const { db, campanaId, ids, jefeDe } = await campanaConArbol();
+  const { user } = await renderApp(`/campanas/${campanaId}?tab=estructura`, { db, hoy: "2026-10-19" });
+  const ctrlClic = (n: string) => user.keyboard("{Control>}").then(() => user.click(screen.getByRole("button", { name: n }))).then(() => user.keyboard("{/Control}"));
+  await screen.findByRole("button", { name: "Ana" });
+
+  // Luis ya está bajo Ana: solo cambia José.
+  await ctrlClic("Luis");
+  await ctrlClic("José");
+  let dt = arrastre();
+  fireEvent.dragStart(screen.getByRole("button", { name: "José" }), { dataTransfer: dt });
+  fireEvent.dragOver(screen.getByRole("button", { name: "Ana" }), { dataTransfer: dt });
+  fireEvent.drop(screen.getByRole("button", { name: "Ana" }), { dataTransfer: dt });
+  expect(await screen.findByText("José ahora está bajo Ana")).toBeInTheDocument();
+  expect(await jefeDe(ids.jose)).toBe(ids.ana);
+
+  await ctrlClic("Rosa");
+  expect(await screen.findByText("1 elegido · Esc para soltar")).toBeInTheDocument();
+  dt = arrastre();
+  fireEvent.dragStart(screen.getByRole("button", { name: "Luis" }), { dataTransfer: dt });
+  fireEvent.dragOver(screen.getByRole("region", { name: "Organigrama" }), { dataTransfer: dt });
+  fireEvent.drop(screen.getByRole("region", { name: "Organigrama" }), { dataTransfer: dt });
+  expect(await screen.findByText("Luis ya no tiene jefe")).toBeInTheDocument();
+  expect(screen.getByText("1 elegido · Esc para soltar")).toBeInTheDocument();
+  expect(await jefeDe(ids.rosa)).toBeNull();
+});
