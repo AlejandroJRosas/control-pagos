@@ -13,8 +13,8 @@ function datos(ultimoA: string | null = null, ultimoB: string | null = null): Da
   return {
     campana: { id: 1, uuid: "c-1", nombre: "Marzo 2026" },
     asignaciones: [
-      { id: 10, uuid: "a-A", gerenteId: 1, gerenteUuid: "g-A", gerenteNombre: "Ana", saldoUsd: "500", ultimoEnvio: ultimoA },
-      { id: 20, uuid: "a-B", gerenteId: 2, gerenteUuid: "g-B", gerenteNombre: "Beto", saldoUsd: "300.25", ultimoEnvio: ultimoB },
+      { id: 10, uuid: "a-A", gerenteId: 1, gerenteUuid: "g-A", gerenteNombre: "Ana", saldoUsd: "500", ultimoEnvio: ultimoA, jefeId: null },
+      { id: 20, uuid: "a-B", gerenteId: 2, gerenteUuid: "g-B", gerenteNombre: "Beto", saldoUsd: "300.25", ultimoEnvio: ultimoB, jefeId: 10 },
     ],
     depositos: [
       dep("1", 10, "a-A", "2026-10-01T00:00:00.000Z", "imagenes/ab.jpg"),
@@ -71,6 +71,29 @@ describe("armarPaquete", () => {
     const { porAsignacion } = armarPaquete(datos("2026-10-05T00:00:00.000Z"), { asignacionIds: [10, 20], soloCambios: true }, meta);
     expect(porAsignacion.get(10)).toBe(1);
     expect(porAsignacion.get(20)).toBe(1);
+  });
+});
+
+describe("el jefe en el paquete", () => {
+  it("el jefe viaja aunque no vaya en la selección", () => {
+    const { paquete } = armarPaquete(datos(), { asignacionIds: [20], soloCambios: false }, meta);
+    expect(paquete.asignaciones[0].jefe).toEqual({ asignacionUuid: "a-A", gerente: { uuid: "g-A", nombre: "Ana" } });
+  });
+  it("sin jefe escribe null", () => {
+    const { paquete } = armarPaquete(datos(), { asignacionIds: [10], soloCambios: false }, meta);
+    expect(paquete.asignaciones[0].jefe).toBeNull();
+  });
+  it("leerPaquete distingue archivo viejo (sin jefe) de sin jefe", () => {
+    const json = (jefe: unknown) => {
+      const p = JSON.parse(JSON.stringify(armarPaquete(datos(), { asignacionIds: [10], soloCambios: false }, meta).paquete));
+      p.asignaciones[0].jefe = jefe;
+      if (jefe === undefined) delete p.asignaciones[0].jefe;
+      return JSON.stringify(p);
+    };
+    expect(leerPaquete(json(undefined)).asignaciones[0].jefe).toBeUndefined();
+    expect(leerPaquete(json(null)).asignaciones[0].jefe).toBeNull();
+    expect(() => leerPaquete(json(3))).toThrow(MSG_INVALIDO);
+    expect(() => leerPaquete(json({ asignacionUuid: "", gerente: { uuid: "g", nombre: "x" } }))).toThrow(MSG_INVALIDO);
   });
 });
 

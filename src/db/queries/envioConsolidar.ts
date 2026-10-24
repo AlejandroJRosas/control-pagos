@@ -6,7 +6,7 @@ import { getIntercambios, listEliminaciones } from "../repos/consolidacion";
 export async function cargarEnvio(db: SqlDriver, campanaId: number): Promise<DatosEnvio> {
   const [campana] = await db.select<{ id: number; uuid: string; nombre: string }>("SELECT id, uuid, nombre FROM campanas WHERE id = ?", [campanaId]);
   const asignaciones = await db.select<Omit<DatosEnvio["asignaciones"][number], "ultimoEnvio">>(
-    `SELECT a.id, a.uuid, a.gerente_id AS gerenteId, g.uuid AS gerenteUuid, g.nombre AS gerenteNombre, a.saldo_usd AS saldoUsd
+    `SELECT a.id, a.uuid, a.gerente_id AS gerenteId, g.uuid AS gerenteUuid, g.nombre AS gerenteNombre, a.saldo_usd AS saldoUsd, a.jefe_id AS jefeId
      FROM asignaciones a JOIN gerentes g ON g.id = a.gerente_id WHERE a.campana_id = ? ORDER BY g.nombre, a.id`,
     [campanaId],
   );

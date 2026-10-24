@@ -15,6 +15,7 @@ import { cargarEnvio } from "@/db/queries/envioConsolidar";
 import { marcarIntercambio } from "@/db/repos/consolidacion";
 import { listEtiquetas } from "@/db/repos/etiquetas";
 import { listGerentesConCampanas } from "@/db/repos/gerentes";
+import { alternarRama, aplanarArbol, armarArbol, estadoRama } from "@/domain/arbol";
 import { formatFechaHora, todayIso } from "@/domain/dates";
 import { formatNumberVE } from "@/domain/money";
 import { armarPaquete, nombreArchivoPaquete } from "@/domain/paquete";
@@ -57,6 +58,8 @@ export function CompartirConsolidarDialog({ campanaId, open, onOpenChange }: Pro
   }, [open, data, marcados]);
 
   const asignaciones = data?.datos.asignaciones ?? [];
+  const jefes = useMemo(() => new Map(asignaciones.map((a) => [a.id, a.jefeId])), [asignaciones]);
+  const filas = useMemo(() => aplanarArbol(armarArbol(asignaciones, (a) => a.id, jefes), (a) => a.id), [asignaciones, jefes]);
   const ids = useMemo(() => asignaciones.filter((a) => marcados?.has(a.id)).map((a) => a.id), [asignaciones, marcados]);
   const ultimo = asignaciones.filter((a) => marcados?.has(a.id) && a.ultimoEnvio).map((a) => a.ultimoEnvio as string).sort().pop() ?? null;
   const hayEnvio = asignaciones.some((a) => a.ultimoEnvio);
@@ -92,6 +95,12 @@ export function CompartirConsolidarDialog({ campanaId, open, onOpenChange }: Pro
       else n.add(id);
       return n;
     });
+  }
+
+  /** Con gente debajo marca o desmarca la rama entera; si no, solo a él. */
+  function alternarFila(id: number, tieneHijos: boolean) {
+    if (tieneHijos) setMarcados((m) => alternarRama(m ?? new Set(), jefes, id));
+    else alternar(id);
   }
 
   function porEtiqueta(valor: string) {
@@ -157,12 +166,20 @@ export function CompartirConsolidarDialog({ campanaId, open, onOpenChange }: Pro
                 />
                 <span className="flex-1">Todos</span>
               </label>
-              {asignaciones.map((a) => {
+              {filas.map(({ item: a, nivel, debajo, tieneHijos }) => {
                 const n = armado?.porAsignacion.get(a.id) ?? 0;
+                const estado = tieneHijos ? estadoRama(marcados, jefes, a.id) : marcados.has(a.id) ? "todo" : "nada";
                 return (
-                  <label key={a.id} className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-fila-hover">
-                    <Casilla className="size-4" checked={marcados.has(a.id)} onChange={() => alternar(a.id)} />
-                    <span className="flex-1">{a.gerenteNombre}</span>
+                  <label
+                    key={a.id}
+                    className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-fila-hover"
+                    style={{ paddingLeft: `calc(0.5rem + ${nivel * 1.25}rem)` }}
+                  >
+                    <Casilla className="size-4" checked={estado === "todo"} indeterminado={estado === "parte"} onChange={() => alternarFila(a.id, tieneHijos)} />
+                    <span className="flex-1">
+                      {a.gerenteNombre}
+                      {tieneHijos && <span className="ml-2 text-muted-foreground">· {debajo} debajo</span>}
+                    </span>
                     <span className="text-muted-foreground tabular-nums">{n === 1 ? "1 depósito" : `${n} depósitos`}</span>
                   </label>
                 );

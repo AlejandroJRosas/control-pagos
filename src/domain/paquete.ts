@@ -4,7 +4,13 @@ import { archivoBase } from "./texto";
 
 export const FORMATO_PAQUETE = 1;
 
-export type AsignacionPaquete = { uuid: string; gerente: { uuid: string; nombre: string }; saldoUsd: string; desde: string | null };
+/** La asignación (y su gerente) que es jefe de otra, para que quien recibe pueda reconocerla o crearla. */
+export type JefePaquete = { asignacionUuid: string; gerente: { uuid: string; nombre: string } };
+export type AsignacionPaquete = {
+  uuid: string; gerente: { uuid: string; nombre: string }; saldoUsd: string; desde: string | null;
+  /** `undefined` = archivo anterior al árbol (no se toca nada); `null` = quien envía no le pone jefe. */
+  jefe?: JefePaquete | null;
+};
 export type DepositoPaquete = {
   uuid: string; asignacionUuid: string; fecha: string; banco: string; referencia: string; cuentaDestino: string; montoBs: string;
   observaciones: string | null; tasaFecha: string; creadoEn: string; actualizadoEn: string; imagen: string | null; // nombre dentro de imagenes/
@@ -19,7 +25,7 @@ export type Paquete = {
 };
 export type DatosEnvio = {
   campana: { id: number; uuid: string; nombre: string };
-  asignaciones: { id: number; uuid: string; gerenteId: number; gerenteUuid: string; gerenteNombre: string; saldoUsd: string; ultimoEnvio: string | null }[];
+  asignaciones: { id: number; uuid: string; gerenteId: number; gerenteUuid: string; gerenteNombre: string; saldoUsd: string; ultimoEnvio: string | null; jefeId: number | null }[];
   depositos: (Omit<DepositoPaquete, "imagen"> & { asignacionId: number; tasaValor: string; imagenPath: string | null })[];
   eliminaciones: EliminacionPaquete[];
 };
@@ -54,6 +60,11 @@ export function armarPaquete(
   for (const x of depositos) porAsignacion.set(x.asignacionId, (porAsignacion.get(x.asignacionId) ?? 0) + 1);
   const imagenes = [...new Set(depositos.flatMap((x) => (x.imagenPath ? [x.imagenPath] : [])))];
 
+  const jefeDe = (jefeId: number | null): JefePaquete | null => {
+    const j = jefeId === null ? undefined : d.asignaciones.find((x) => x.id === jefeId);
+    return j ? { asignacionUuid: j.uuid, gerente: { uuid: j.gerenteUuid, nombre: j.gerenteNombre } } : null;
+  };
+
   const paquete: Paquete = {
     formato: FORMATO_PAQUETE,
     appVersion: meta.appVersion,
@@ -65,6 +76,7 @@ export function armarPaquete(
       gerente: { uuid: a.gerenteUuid, nombre: a.gerenteNombre },
       saldoUsd: a.saldoUsd,
       desde: desdeDe.get(a.id) ?? null,
+      jefe: jefeDe(a.jefeId),
     })),
     depositos: depositos.map(({ asignacionId: _a, tasaValor: _t, imagenPath, ...resto }) => ({
       ...resto,
@@ -91,6 +103,11 @@ const uuids = (v: unknown): string[] => (Array.isArray(v) ? v.map(uuid) : invali
 const lista = (v: unknown): Obj[] => (Array.isArray(v) && v.every(esObj) ? (v as Obj[]) : invalido());
 const imagen = (v: unknown): string => (typeof v === "string" && /^[A-Za-z0-9_-]+\.(png|jpe?g|webp)$/i.test(v) ? v : invalido());
 
+const jefe = (v: unknown): JefePaquete => {
+  if (!esObj(v) || !esObj(v.gerente)) return invalido();
+  return { asignacionUuid: uuid(v.asignacionUuid), gerente: { uuid: uuid(v.gerente.uuid), nombre: texto(v.gerente.nombre) } };
+};
+
 export function leerPaquete(texto_: string): Paquete {
   let raw: unknown;
   try {
@@ -115,6 +132,7 @@ export function leerPaquete(texto_: string): Paquete {
         gerente: { uuid: uuid(a.gerente.uuid), nombre: texto(a.gerente.nombre) },
         saldoUsd: monto(a.saldoUsd),
         desde: nullable(a.desde, texto),
+        ...(a.jefe === undefined ? {} : { jefe: nullable(a.jefe, jefe) }), // los archivos anteriores no lo traen
       };
     }),
     depositos: lista(raw.depositos).map((x) => ({
