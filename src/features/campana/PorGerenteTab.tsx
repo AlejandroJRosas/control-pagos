@@ -203,7 +203,7 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
                 <TableCell className="space-x-2 text-right" onClick={(e) => e.stopPropagation()}>
                   <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
                     <Button size="sm" variant="outline" disabled={cerrada} onClick={() => onEditarSaldo(g)}>
-                      Editar saldo
+                      Editar
                     </Button>
                   </BotonConMotivo>
                   {g.cantidad === 0 && (

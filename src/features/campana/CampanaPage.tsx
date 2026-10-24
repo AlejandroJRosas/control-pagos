@@ -85,6 +85,7 @@ export function CampanaPage() {
 
   if (!data) return <Cargando error={error} />;
   const { campana, view, asignaciones } = data;
+  const jefes = new Map(asignaciones.map((a) => [a.id, a.jefeId]));
   const cerrada = campana.estado === "cerrada";
 
   async function cambiarEstado() {
@@ -287,7 +288,7 @@ export function CampanaPage() {
                 campanaId={campanaId}
                 gerentes={view.gerentes}
                 cerrada={cerrada}
-                onEditarSaldo={(g) => setAsig({ id: g.asignacionId, gerenteNombre: g.gerenteNombre, saldoUsd: g.asignado })}
+                onEditarSaldo={(g) => setAsig({ id: g.asignacionId, gerenteNombre: g.gerenteNombre, saldoUsd: g.asignado, jefeId: jefes.get(g.asignacionId) ?? null })}
                 onQuitar={setQuitar}
                 onAgregar={() => setAgregar(true)}
               />
@@ -307,7 +308,11 @@ export function CampanaPage() {
         open={agregar}
         onOpenChange={setAgregar}
       />
-      <AsignacionFormDialog asignacion={asig} onOpenChange={(open) => !open && setAsig(null)} />
+      <AsignacionFormDialog
+        asignacion={asig}
+        companeros={asignaciones.map((a) => ({ id: a.id, gerenteNombre: a.gerenteNombre }))}
+        jefes={jefes}
+        onOpenChange={(open) => !open && setAsig(null)} />
       <ConfirmDialog
         open={confirmEstado}
         onOpenChange={setConfirmEstado}

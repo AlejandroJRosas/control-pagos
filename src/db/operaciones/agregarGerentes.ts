@@ -1,13 +1,16 @@
 import type { SqlDriver } from "../driver";
 import { assertCampanaActiva } from "../repos/campanas";
-import { createAsignacion } from "../repos/asignaciones";
+import { createAsignacion, jefesDeCampana, setJefeAsignacion } from "../repos/asignaciones";
+import { jefesAnteriores } from "../queries/jefesAnteriores";
 import { DomainError } from "@/domain/errors";
+import { creaCiclo } from "@/domain/arbol";
 
 export type GerenteAAgregar = { gerenteId: number; saldoUsd: string };
 
 /**
  * Agrega varios gerentes a la campaña de una vez. Todo o nada: si una asignación falla, borra las
- * ya creadas (no hay transacciones entre llamadas del plugin SQL). Devuelve las asignaciones creadas.
+ * ya creadas (no hay transacciones entre llamadas del plugin SQL). Cada nueva queda bajo el jefe que tenía en su campaña
+ * anterior, si ese gerente está en esta campaña. Devuelve las asignaciones creadas.
  */
 export async function agregarGerentes(db: SqlDriver, campanaId: number, items: GerenteAAgregar[]): Promise<number[]> {
   if (items.length === 0) throw new DomainError("VALIDACION", "Elige al menos un gerente");
@@ -16,6 +19,13 @@ export async function agregarGerentes(db: SqlDriver, campanaId: number, items: G
   const creadas: number[] = [];
   try {
     for (const i of items) creadas.push(await createAsignacion(db, { campanaId, gerenteId: i.gerenteId, saldoUsd: i.saldoUsd }));
+    const propuestos = await jefesAnteriores(db, campanaId, items.map((i) => i.gerenteId));
+    const enCampana = new Map((await db.select<{ id: number; gerenteId: number }>("SELECT id, gerente_id AS gerenteId FROM asignaciones WHERE campana_id = ?", [campanaId])).map((r) => [r.gerenteId, r.id]));
+    for (const [i, id] of items.map((it, k) => [it, creadas[k]] as const)) {
+      const jefe = enCampana.get(propuestos.get(i.gerenteId) ?? -1);
+      // si dos se proponían mutuamente (venían de campañas distintas), el segundo queda sin jefe en vez de fallar todo
+      if (jefe !== undefined && !creaCiclo(await jefesDeCampana(db, campanaId), id, jefe)) await setJefeAsignacion(db, id, jefe);
+    }
   } catch (e) {
     for (const id of creadas) await db.execute("DELETE FROM asignaciones WHERE id = ?", [id]);
     throw e;
