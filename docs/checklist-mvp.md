@@ -132,3 +132,9 @@ Usar la instancia aislada de `CLAUDE.md` como segunda app (otros datos y puerto)
 - [ ] Mismo depósito registrado en las dos (vinculado): editarlo, cambiarle la referencia o eliminarlo en B y enviar a A: A lo corrige o lo ofrece eliminar (no agrega otro ni lo trata como duplicado); al volver A → B la edición de B no se revierte.
 - [ ] Duplicado limpiado en A (pantalla de duplicados, quedarse con el nuevo) y enviado a B, que tenía el viejo: B elimina el viejo y agrega el que quedó; desmarcando esa eliminación no deja consolidar.
 - [ ] Tras aplicar: antes de aplicar, resumen antes → después por gerente; al aplicar se crea un respaldo `antes-de-consolidar-*` y sale un aviso con lo consolidado; si algo falla a mitad, se revierte todo.
+
+## Árbol de gerentes
+
+- [ ] Campaña → Estructura con unos 40 gerentes en 4 niveles: el organigrama se lee, hay scroll horizontal y el arrastre funciona en la app real (soltar sobre otro lo pone debajo; la punta y «Sin estructura» quitan el jefe). Arrastrar a una rama propia no resalta ni se deja.
+- [ ] Soltar una imagen de comprobante sobre Estructura sigue abriendo el registro (el arrastre de archivos no se traga). Por gerente muestra el árbol, se pliega por rama y marcar un jefe marca su rama.
+- [ ] Ida y vuelta real con dos instancias (la aislada de `CLAUDE.md`): compartir una rama, "Agregar a mi campaña" para los gerentes que faltan, "Jefe distinto" con «mía» por defecto y un ciclo bloqueado; luego B → A deja ambos árboles iguales.
