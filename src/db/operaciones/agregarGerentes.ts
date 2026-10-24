@@ -20,14 +20,25 @@ export async function agregarGerentes(db: SqlDriver, campanaId: number, items: G
   try {
     for (const i of items) creadas.push(await createAsignacion(db, { campanaId, gerenteId: i.gerenteId, saldoUsd: i.saldoUsd }));
     const propuestos = await jefesAnteriores(db, campanaId, items.map((i) => i.gerenteId));
-    const enCampana = new Map((await db.select<{ id: number; gerenteId: number }>("SELECT id, gerente_id AS gerenteId FROM asignaciones WHERE campana_id = ?", [campanaId])).map((r) => [r.gerenteId, r.id]));
-    for (const [i, id] of items.map((it, k) => [it, creadas[k]] as const)) {
-      const jefe = enCampana.get(propuestos.get(i.gerenteId) ?? -1);
+    const enCampana = new Map(creadas.map((id, k) => [items[k].gerenteId, id]));
+    const previas = await db.select<{ id: number; gerenteId: number }>("SELECT id, gerente_id AS gerenteId FROM asignaciones WHERE campana_id = ?", [campanaId]);
+    for (const r of previas) enCampana.set(r.gerenteId, r.id);
+    const jefes = await jefesDeCampana(db, campanaId);
+    for (const [k, id] of creadas.entries()) {
+      const jefe = enCampana.get(propuestos.get(items[k].gerenteId) ?? -1);
       // si dos se proponían mutuamente (venían de campañas distintas), el segundo queda sin jefe en vez de fallar todo
-      if (jefe !== undefined && !creaCiclo(await jefesDeCampana(db, campanaId), id, jefe)) await setJefeAsignacion(db, id, jefe);
+      if (jefe === undefined || creaCiclo(jefes, id, jefe)) continue;
+      await setJefeAsignacion(db, id, jefe);
+      jefes.set(id, jefe);
     }
   } catch (e) {
-    for (const id of creadas) await db.execute("DELETE FROM asignaciones WHERE id = ?", [id]);
+    // primero se sueltan los vínculos entre las nuevas (jefe_id referencia asignaciones) y luego se borran; si la limpieza falla, se conserva el error original
+    try {
+      for (const id of creadas) await db.execute("UPDATE asignaciones SET jefe_id = NULL WHERE id = ?", [id]);
+      for (const id of [...creadas].reverse()) await db.execute("DELETE FROM asignaciones WHERE id = ?", [id]);
+    } catch {
+      /* se relanza el error original */
+    }
     throw e;
   }
   return creadas;

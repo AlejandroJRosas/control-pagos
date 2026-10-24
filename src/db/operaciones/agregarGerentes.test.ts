@@ -89,22 +89,41 @@ it("propone el jefe de la campaña anterior si ese jefe está en la campaña", a
 });
 
 it("el jefe puede llegar en la misma tanda", async () => {
-  const marzo2 = await createCampana(db, { nombre: "Abril", fechaInicio: "2026-04-01", fechaFin: null, notas: null });
+  const abril = await createCampana(db, { nombre: "Abril", fechaInicio: "2026-04-01", fechaFin: null, notas: null });
   const { luis } = await febrero();
-  const [anaA, luisA] = await agregarGerentes(db, marzo2, [
+  const [anaA, luisA] = await agregarGerentes(db, abril, [
     { gerenteId: s.anaId, saldoUsd: "1" },
     { gerenteId: luis, saldoUsd: "1" },
   ]);
-  expect((await jefesDeCampana(db, marzo2)).get(luisA)).toBe(anaA);
+  expect((await jefesDeCampana(db, abril)).get(luisA)).toBe(anaA);
 });
 
 it("jefesAnteriores usa la campaña más reciente donde estuvo el gerente, sin contar la actual", async () => {
   const { luis } = await febrero();
   const [{ id: jefeMarzo }] = await db.select<{ id: number }>("SELECT id FROM asignaciones WHERE campana_id = ?", [s.campanaId]);
-  const luisM = await createAsignacion(db, { campanaId: s.campanaId, gerenteId: luis, saldoUsd: "1", jefeId: jefeMarzo });
-  expect(luisM).toBeGreaterThan(0);
+  await createAsignacion(db, { campanaId: s.campanaId, gerenteId: luis, saldoUsd: "1", jefeId: jefeMarzo });
   const abril = await createCampana(db, { nombre: "Abril", fechaInicio: "2026-04-01", fechaFin: null, notas: null });
   expect((await jefesAnteriores(db, abril, [luis])).get(luis)).toBe(s.anaId);
   expect((await jefesAnteriores(db, s.campanaId, [luis])).get(luis)).toBe(s.anaId); // la de febrero; marzo no cuenta
   expect((await jefesAnteriores(db, abril, [])).size).toBe(0);
+});
+
+it("si falla después de vincular jefes, no queda ninguna asignación nueva y se relanza el error original", async () => {
+  const { luis, pedro } = await febrero();
+  const [{ id: anaF }] = await db.select<{ id: number }>("SELECT a.id FROM asignaciones a JOIN campanas c ON c.id = a.campana_id WHERE c.nombre = 'Febrero' AND a.gerente_id = ?", [s.anaId]);
+  await db.execute("UPDATE asignaciones SET jefe_id = ? WHERE gerente_id = ? AND campana_id <> ?", [anaF, pedro, s.campanaId]); // Pedro también bajo Ana
+  const abril = await createCampana(db, { nombre: "Abril", fechaInicio: "2026-04-01", fechaFin: null, notas: null });
+  await db.execute(
+    `CREATE TRIGGER falla_pedro BEFORE UPDATE OF jefe_id ON asignaciones WHEN NEW.jefe_id IS NOT NULL AND NEW.gerente_id = ${pedro}
+     BEGIN SELECT RAISE(ABORT, 'falla simulada'); END`,
+  );
+  await expect(
+    agregarGerentes(db, abril, [
+      { gerenteId: s.anaId, saldoUsd: "1" },
+      { gerenteId: luis, saldoUsd: "1" },
+      { gerenteId: pedro, saldoUsd: "1" },
+    ]),
+  ).rejects.toThrow(/falla simulada/);
+  const [{ n }] = await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM asignaciones WHERE campana_id = ?", [abril]);
+  expect(n).toBe(0);
 });
