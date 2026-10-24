@@ -276,3 +276,28 @@ describe("importarPagos con feriados", () => {
     expect((await listTasas(db)).map((t) => t.fecha)).toContain("2026-03-17");
   });
 });
+
+describe("posible repetido del Provincial", () => {
+  const prov = (o: Partial<FilaCuadro> = {}) => fila({ banco: "BANCO PROVINCIAL", referencia: "V-12.345.678", ...o });
+
+  it("no usa la clave de duplicado: marca solo lo igual en cédula, fecha y monto", async () => {
+    const p = await planificarImportacion(
+      db,
+      s.campanaId,
+      cuadro({ filas: [prov({ fila: 10 }), prov({ fila: 11, montoBs: "800" }), prov({ fila: 12, referencia: "12345678" })] }),
+    );
+    const [a, b, c] = p.filas;
+    expect([a.importable, a.marcada, a.repetidaEnArchivo, a.repetidaPosibleEnArchivo]).toEqual([true, true, null, null]);
+    expect([b.importable, b.marcada, b.repetidaEnArchivo, b.repetidaPosibleEnArchivo]).toEqual([true, true, null, null]);
+    expect([c.importable, c.marcada, c.repetidaEnArchivo, c.repetidaPosibleEnArchivo]).toEqual([true, false, null, 10]);
+  });
+
+  it("uno ya registrado avisa pero no impide importar, y al importar no lanza DUPLICADO", async () => {
+    await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Provincial", referencia: "12345678", montoBs: "730" }));
+    const p = await planificarImportacion(db, s.campanaId, cuadro({ filas: [prov()] }));
+    expect(p.filas[0].posiblesRepetidos).toHaveLength(1);
+    expect([p.filas[0].importable, p.filas[0].marcada]).toEqual([true, false]);
+    await importarPagos(db, s.campanaId, { destino: { kind: "asignacion", asignacionId: s.asignacionId }, saldoUsd: null, filas: [prov()] });
+    expect(await contar("depositos")).toBe(2);
+  });
+});

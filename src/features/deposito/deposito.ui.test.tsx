@@ -84,3 +84,19 @@ it("guardar con errores lleva al primer campo con error y lo resalta", async () 
   await waitFor(() => expect(banco).toHaveFocus());
   expect(banco.closest("[data-error]")).toHaveClass("resaltar-error");
 });
+
+it("un posible repetido del Provincial avisa pero deja guardar", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Provincial", referencia: "12345678", montoBs: "3650" }));
+  const { user } = await renderApp(`/asignaciones/${s.asignacionId}/depositos/nuevo`, { db, hoy: "2026-03-02" });
+  await screen.findByText(/36,50 Bs\/USD/);
+  await user.type(screen.getByLabelText("Banco de origen"), "Provincial");
+  await user.type(screen.getByLabelText("Referencia bancaria"), "V-12.345.678");
+  await user.type(screen.getByLabelText("Monto en Bs"), "3650");
+  await user.type(screen.getByLabelText("Cuenta destino"), "0102");
+  expect(await screen.findByText(/Posible repetido: ya hay un pago del Provincial de esta cédula con la misma fecha y monto/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Guardar" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Guardar" }));
+  await waitFor(async () => expect((await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM depositos"))[0].n).toBe(2));
+});

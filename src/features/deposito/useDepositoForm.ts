@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Decimal from "decimal.js";
 import { getDb } from "@/db";
 import type { AsignacionDetalle } from "@/db/repos/asignaciones";
-import { findDuplicados, type Duplicado } from "@/db/repos/depositos";
+import { findDuplicados, findPosiblesRepetidos, type Duplicado } from "@/db/repos/depositos";
 import { getTasaParaFecha, type Tasa } from "@/db/repos/tasas";
 import type { CampanaData } from "@/db/queries/campanaData";
 import { buildCampanaView } from "@/domain/campanaView";
@@ -52,6 +52,7 @@ export function useDepositoForm({ inicial, data, asignacion, depositoId }: Opcio
   const [errors, setErrors] = useState<Partial<Record<keyof DepositoDraft, string>>>({});
   const [destinoErrors, setDestinoErrors] = useState<Partial<Record<keyof DestinoDraft, string>>>({});
   const [duplicados, setDuplicados] = useState<Duplicado[]>([]);
+  const [posiblesRepetidos, setPosiblesRepetidos] = useState<Duplicado[]>([]);
   // Cuenta los intentos de guardar con errores: cada uno lleva la vista al primer campo con error.
   const [intentosFallidos, setIntentosFallidos] = useState(0);
   const draft = form.draft;
@@ -100,6 +101,30 @@ export function useDepositoForm({ inicial, data, asignacion, depositoId }: Opcio
       clearTimeout(t);
     };
   }, [draft.banco, draft.referencia, depositoId]);
+
+  // Aviso de posible repetido (Provincial: misma cédula, fecha y monto). No bloquea.
+  useEffect(() => {
+    const banco = draft.banco.trim();
+    const referencia = draft.referencia.trim();
+    const montoBs = parseMonto(draft.montoBs);
+    if (!banco || !referencia || !draft.fecha || !montoBs) {
+      setPosiblesRepetidos([]);
+      return;
+    }
+    let alive = true;
+    const t = setTimeout(() => {
+      getDb()
+        .then((db) => findPosiblesRepetidos(db, { banco, referencia, fecha: draft.fecha, montoBs }, depositoId))
+        .then((r) => {
+          if (alive) setPosiblesRepetidos(r);
+        })
+        .catch(reportError);
+    }, 300);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [draft.banco, draft.referencia, draft.fecha, draft.montoBs, depositoId]);
 
   // Cálculos en vivo, excluyendo este mismo depósito si se está editando.
   const view = useMemo(() => buildCampanaView(data.asignaciones, data.depositos.filter((d) => d.id !== depositoId)), [data, depositoId]);
@@ -150,6 +175,7 @@ export function useDepositoForm({ inicial, data, asignacion, depositoId }: Opcio
   function reiniciar(f: DepositoFormState) {
     setForm(f);
     setDuplicados([]);
+    setPosiblesRepetidos([]);
   }
 
   return {
@@ -162,6 +188,7 @@ export function useDepositoForm({ inicial, data, asignacion, depositoId }: Opcio
     errors,
     destinoErrors,
     duplicados,
+    posiblesRepetidos,
     intentosFallidos,
     validar,
     reiniciar,

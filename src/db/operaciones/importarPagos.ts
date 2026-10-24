@@ -6,14 +6,14 @@ import { getAsignacion, updateSaldoAsignacion } from "../repos/asignaciones";
 import { listGerentes } from "../repos/gerentes";
 import { createTasa, getTasaParaFecha } from "../repos/tasas";
 import { feriadosSet } from "../repos/feriados";
-import { claveComparacion, createDeposito, findDuplicados, type Duplicado } from "../repos/depositos";
+import { claveComparacion, createDeposito, findDuplicados, findPosiblesRepetidos, type Duplicado } from "../repos/depositos";
 import { resolverDestino } from "./destino";
 import { aplicarEdicion, camposFaltantes, type CampoEditable, type CuadroPagos, type EdicionFila, type FilaCuadro } from "@/import/cuadroPagos";
 import type { Destino, DestinoDraft } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
 import { toInputVE, toUsd } from "@/domain/money";
 import { fechaDeTasa, formatFecha } from "@/domain/dates";
-import { claveDuplicado } from "@/domain/bancos";
+import { claveDuplicado, clavePosibleRepetido } from "@/domain/bancos";
 
 /**
  * existente: ya hay tasa ese día y coincide · nueva: se registrará · distinta: se usará la ya registrada (o la de una fila anterior)
@@ -28,6 +28,10 @@ export type FilaPlan = FilaCuadro & {
   duplicados: Duplicado[];
   /** Fila anterior del mismo archivo con el mismo banco y referencia. */
   repetidaEnArchivo: number | null;
+  /** Provincial: ya registrados con la misma cédula, fecha y monto. No impide importar, pero la fila no queda marcada. */
+  posiblesRepetidos: Duplicado[];
+  /** Fila anterior del mismo archivo con la misma cédula, fecha y monto (Provincial). */
+  repetidaPosibleEnArchivo: number | null;
   importable: boolean;
   /** Sugerencia inicial: se desmarca lo que pide revisión. */
   marcada: boolean;
@@ -61,6 +65,7 @@ export async function planificarImportacion(
   const feriados = await feriadosSet(db);
   const tasas = new Map<string, { valor: string; registrada: boolean }>();
   const vistas = new Map<string, number>();
+  const posibles = new Map<string, number>();
   const filas: FilaPlan[] = [];
 
   for (const original of cuadro.filas) {
@@ -94,7 +99,18 @@ export async function planificarImportacion(
       duplicados = await findDuplicados(db, f.banco, f.referencia);
       const clave = claveDuplicado(f.banco, f.referencia);
       repetidaEnArchivo = vistas.get(clave) ?? null;
-      if (repetidaEnArchivo === null) vistas.set(clave, f.fila);
+      // El Provincial no tiene clave de duplicado (""): no se registra para no marcar todas sus filas como repetidas.
+      if (clave && repetidaEnArchivo === null) vistas.set(clave, f.fila);
+    }
+    let posiblesRepetidos: Duplicado[] = [];
+    let repetidaPosibleEnArchivo: number | null = null;
+    if (f.banco && f.referencia && f.fecha && f.montoBs) {
+      posiblesRepetidos = await findPosiblesRepetidos(db, { banco: f.banco, referencia: f.referencia, fecha: f.fecha, montoBs: f.montoBs });
+      const clave = clavePosibleRepetido(f.banco, f.referencia, f.fecha, f.montoBs);
+      if (clave) {
+        repetidaPosibleEnArchivo = posibles.get(clave) ?? null;
+        if (repetidaPosibleEnArchivo === null) posibles.set(clave, f.fila);
+      }
     }
 
     const problemas = tasaAplicada ? f.problemas.filter((p) => !PROBLEMAS_TASA.includes(p)) : f.problemas;
@@ -108,8 +124,10 @@ export async function planificarImportacion(
       usd: f.montoBs && tasaAplicada ? toUsd(f.montoBs, tasaAplicada) : null,
       duplicados,
       repetidaEnArchivo,
+      posiblesRepetidos,
+      repetidaPosibleEnArchivo,
       importable,
-      marcada: importable && estadoTasa !== "distinta",
+      marcada: importable && estadoTasa !== "distinta" && posiblesRepetidos.length === 0 && repetidaPosibleEnArchivo === null,
       editada: edicion !== undefined && Object.keys(edicion).length > 0,
       editables: camposFaltantes(original).filter((c) => c !== "tasa" || !tasaEnApp),
     });

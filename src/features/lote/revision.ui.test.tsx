@@ -50,3 +50,21 @@ it("un comprobante duplicado no se da por Hecho y Ctrl+D lo descarta de una vez"
   expect(await contar(db)).toBe(1);
   expect((await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM cola_depositos"))[0].n).toBe(0);
 });
+
+it("un borrador del Provincial igual a uno registrado avisa y Hecho lo guarda", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Provincial", referencia: "12345678", montoBs: "3650" }));
+  const b = borradorDepositoVacio(`a:${s.asignacionId}`);
+  await encolarDeposito(db, s.campanaId, {
+    imagenPath: "imagenes/x.png",
+    nombreArchivo: "x.png",
+    borrador: { ...b, draft: { ...b.draft, fecha: "2026-03-02", banco: "Provincial", referencia: "12345678", cuentaDestino: "0102", montoBs: "3.650" } },
+  });
+  const { user } = await renderApp(`/campanas/${s.campanaId}/revision`, { db, hoy: "2026-03-02" });
+  expect(await screen.findByText(/Posible repetido: ya hay un pago del Provincial/)).toBeInTheDocument();
+  const hecho = screen.getByRole("button", { name: "Hecho" });
+  expect(hecho).toBeEnabled();
+  await user.click(hecho);
+  await waitFor(async () => expect(await contar(db)).toBe(2));
+});

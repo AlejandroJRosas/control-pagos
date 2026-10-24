@@ -44,7 +44,7 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
     setTasaDialogState(open);
     onTasaDialog?.(open);
   };
-  const { form, set, tasa, errors, duplicados } = f;
+  const { form, set, tasa, errors, duplicados, posiblesRepetidos } = f;
   const draft = form.draft;
   const { usd, restanteGerente, restanteGeneral } = f.calculo;
   const fechaValida = isValidIsoDate(draft.fecha);
@@ -167,6 +167,18 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
             Ya existe un depósito con este banco y esta referencia:
             <ul className="mt-1 list-disc pl-4">
               {duplicados.map((d) => (
+                <li key={d.id}>
+                  {formatFecha(d.fecha)} · {d.gerenteNombre} · {d.campanaNombre} · {formatBs(d.montoBs)}
+                </li>
+              ))}
+            </ul>
+          </Aviso>
+        )}
+        {posiblesRepetidos.length > 0 && (
+          <Aviso tono="warning">
+            Posible repetido: ya hay un pago del Provincial de esta cédula con la misma fecha y monto
+            <ul className="mt-1 list-disc pl-4">
+              {posiblesRepetidos.map((d) => (
                 <li key={d.id}>
                   {formatFecha(d.fecha)} · {d.gerenteNombre} · {d.campanaNombre} · {formatBs(d.montoBs)}
                 </li>

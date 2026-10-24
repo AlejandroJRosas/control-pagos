@@ -274,6 +274,10 @@ function Revision({ f }: { f: FilaPlan }) {
     notas.push({ texto: `Ya registrado (no se importa): ${formatFecha(d.fecha)} · ${d.gerenteNombre} · ${d.campanaNombre}`, tono: "error" }),
   );
   if (f.repetidaEnArchivo !== null) notas.push({ texto: `Repetida en el archivo (fila ${f.repetidaEnArchivo}): no se importa`, tono: "error" });
+  f.posiblesRepetidos.forEach((d) =>
+    notas.push({ texto: `Posible repetido: ${formatFecha(d.fecha)} · ${d.gerenteNombre} · ${d.campanaNombre}`, tono: "aviso" }),
+  );
+  if (f.repetidaPosibleEnArchivo !== null) notas.push({ texto: `Posible repetido (fila ${f.repetidaPosibleEnArchivo} del archivo)`, tono: "aviso" });
   if (notas.length === 0) return <Badge variant="secondary">OK</Badge>;
   return (
     <ul className="space-y-0.5 text-xs">
