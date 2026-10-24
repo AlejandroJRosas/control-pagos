@@ -172,6 +172,11 @@ const MIGRATIONS: Migration[] = [
       "CREATE INDEX IF NOT EXISTS idx_asignaciones_jefe ON asignaciones(jefe_id)",
     ],
   },
+  {
+    // Nombres de banco que el usuario enseñó (alias escrito → banco), para guardar siempre el nombre canónico.
+    version: 9,
+    statements: ["CREATE TABLE IF NOT EXISTS bancos_alias (alias TEXT PRIMARY KEY, banco TEXT NOT NULL)"],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

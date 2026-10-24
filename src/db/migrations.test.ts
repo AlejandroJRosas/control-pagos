@@ -10,7 +10,7 @@ it("crea el esquema y fija user_version", async () => {
   const tablas = await db.select<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite%' ORDER BY name",
   );
-  expect(tablas.map((t) => t.name)).toEqual(["ajustes", "asignaciones", "campanas", "cola_depositos", "cola_tasas", "consolidaciones", "depositos", "eliminaciones", "equivalencias", "etiquetas", "feriados", "gerente_etiquetas", "gerentes", "tasas"]);
+  expect(tablas.map((t) => t.name)).toEqual(["ajustes", "asignaciones", "bancos_alias", "campanas", "cola_depositos", "cola_tasas", "consolidaciones", "depositos", "eliminaciones", "equivalencias", "etiquetas", "feriados", "gerente_etiquetas", "gerentes", "tasas"]);
 });
 
 it("es idempotente", async () => {
@@ -106,4 +106,12 @@ it("v5 renombra Banco de Venezuela (y sus variantes) a Venezuela en depósitos y
   expect(deps[4].actualizado_en).toBe(t);
   const cola = await db.select<{ borrador: string }>("SELECT borrador FROM cola_depositos ORDER BY id");
   expect(cola.map((c) => JSON.parse(c.borrador).draft.banco)).toEqual(["Venezuela", "Mercantil"]);
+});
+
+it("la v9 crea bancos_alias también sobre una base en la v8", async () => {
+  const db = await createMemoryDriver();
+  await migrate(db, 8);
+  await migrate(db);
+  await db.execute("INSERT INTO bancos_alias (alias, banco) VALUES ('bancoxyz', 'Bancamiga')");
+  expect(await db.select("SELECT alias, banco FROM bancos_alias")).toEqual([{ alias: "bancoxyz", banco: "Bancamiga" }]);
 });

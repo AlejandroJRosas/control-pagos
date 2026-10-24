@@ -4,7 +4,8 @@ import { createTestDb } from "../testing/sqljsDriver";
 import { crearDuplicado, depositoBase, seedBasico } from "../testing/fixtures";
 import { createTasa } from "./tasas";
 import { createCampana, setEstadoCampana } from "./campanas";
-import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, getDeposito, listBancosUsados, listCuentasDestinoUsadas, restaurarDepositos, updateDeposito } from "./depositos";
+import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, findPosiblesRepetidos, getDeposito, listBancosUsados, listCuentasDestinoUsadas, restaurarDepositos, updateDeposito } from "./depositos";
+import { guardarAliasBanco } from "./bancosAlias";
 import { createGerente } from "./gerentes";
 import { createAsignacion } from "./asignaciones";
 import { listEliminaciones, setEquivalencia, uuidsEliminados } from "./consolidacion";
@@ -41,7 +42,7 @@ it("detecta duplicados sin distinguir mayúsculas ni espacios, excluyendo el pro
       id,
       asignacionId: s.asignacionId,
       fecha: "2026-03-02",
-      banco: "Banesco ",
+      banco: "Banesco",
       referencia: " 123 ",
       montoBs: "3650",
       observaciones: null,
@@ -217,4 +218,37 @@ it("updateDeposito con meta pone actualizado_en y puede cambiar de asignación",
   await expect(updateDeposito(db, id, depositoBase(s.tasaId), { actualizadoEn: "2026-03-06T00:00:00.000Z", asignacionId: cerrada })).rejects.toMatchObject({
     code: "CAMPANA_CERRADA",
   });
+});
+
+it("guarda el nombre canónico del banco, el alias recordado o el nombre tal cual", async () => {
+  const a = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "BBVA PROVINCIAL", referencia: "V-1" }));
+  expect((await getDeposito(db, a))?.banco).toBe("Provincial");
+  await guardarAliasBanco(db, "BANCO XYZ", "Bancamiga");
+  const b = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "BANCO XYZ", referencia: "2" }));
+  expect((await getDeposito(db, b))?.banco).toBe("Bancamiga");
+  const c = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Banco Desconocido", referencia: "3" }));
+  expect((await getDeposito(db, c))?.banco).toBe("Banco Desconocido");
+  await updateDeposito(db, c, depositoBase(s.tasaId, { banco: "Banco Mercantil", referencia: "3" }));
+  expect((await getDeposito(db, c))?.banco).toBe("Mercantil");
+});
+
+it("dos depósitos del Provincial con la misma cédula no son duplicados", async () => {
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Provincial", referencia: "12345678" }));
+  await expect(createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "BBVA Provincial", referencia: "12345678" }))).resolves.toBeTypeOf("number");
+});
+
+it("findPosiblesRepetidos: misma cédula, fecha y monto en cualquier campaña; no con otro monto; excluye el indicado", async () => {
+  const otra = await createCampana(db, { nombre: "Abril", fechaInicio: "2026-03-01", fechaFin: null, notas: null });
+  const asig2 = await createAsignacion(db, { campanaId: otra, gerenteId: s.anaId, saldoUsd: "50" });
+  const id = await createDeposito(db, asig2, depositoBase(s.tasaId, { banco: "Provincial", referencia: "V-12.345.678", montoBs: "3650" }));
+  const d = { banco: "Provincial", referencia: "12345678", fecha: "2026-03-02", montoBs: "3650.00" };
+  expect((await findPosiblesRepetidos(db, d)).map((r) => r.id)).toEqual([id]);
+  expect(await findPosiblesRepetidos(db, { ...d, montoBs: "3651" })).toEqual([]);
+  expect(await findPosiblesRepetidos(db, d, id)).toEqual([]);
+  expect(await findPosiblesRepetidos(db, { ...d, banco: "Banesco" })).toEqual([]);
+});
+
+it("findDuplicados encuentra lo guardado como Venezuela al buscar con BDV", async () => {
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Banco de Venezuela", referencia: "777" }));
+  expect((await findDuplicados(db, "BDV", "777")).map((r) => r.id)).toEqual([id]);
 });

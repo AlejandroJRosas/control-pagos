@@ -8,7 +8,8 @@ import type { DepositoValido } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
 import { fechaDeTasa, formatFecha } from "@/domain/dates";
 import { claveComparacion } from "@/domain/texto";
-import { claveDuplicado } from "@/domain/bancos";
+import { bancoCanonico, claveDuplicado, clavePosibleRepetido } from "@/domain/bancos";
+import { bancosConocidos } from "./bancosAlias";
 
 export type Deposito = {
   id: number;
@@ -62,6 +63,11 @@ async function assertTasaDeLaFecha(db: SqlDriver, v: DepositoGuardar): Promise<v
   }
 }
 
+/** Lo que se guarda es el nombre canónico del banco (o el escrito, si no se reconoce). */
+async function conBancoCanonico(db: SqlDriver, v: DepositoGuardar): Promise<DepositoGuardar> {
+  return { ...v, banco: bancoCanonico(v.banco, await bancosConocidos(db)) ?? v.banco };
+}
+
 /** No puede haber dos depósitos con el mismo banco y referencia (`claveDuplicado`). */
 async function assertNoDuplicado(db: SqlDriver, v: DepositoGuardar, excludeId?: number): Promise<void> {
   const [d] = await findDuplicados(db, v.banco, v.referencia, excludeId);
@@ -82,6 +88,7 @@ export async function createDeposito(
 ): Promise<number> {
   await assertEditable(db, asignacionId);
   await assertTasaDeLaFecha(db, v);
+  v = await conBancoCanonico(db, v);
   await assertNoDuplicado(db, v);
   const now = nowIso();
   const r = await db.execute(
@@ -104,6 +111,7 @@ export async function updateDeposito(db: SqlDriver, id: number, v: DepositoGuard
   await assertEditable(db, actual.asignacionId);
   if (meta?.asignacionId !== undefined) await assertEditable(db, meta.asignacionId);
   await assertTasaDeLaFecha(db, v);
+  v = await conBancoCanonico(db, v);
   // Un duplicado que ya existía (de antes de esta regla) se puede seguir editando mientras no cambie su banco o referencia.
   if (claveDuplicado(v.banco, v.referencia) !== claveDuplicado(actual.banco, actual.referencia)) await assertNoDuplicado(db, v, id);
   await db.execute(
@@ -189,14 +197,33 @@ export async function restaurarDepositos(db: SqlDriver, e: Eliminados): Promise<
 /** Clave de comparación: sin mayúsculas, acentos ni espacios (SQLite `lower` solo pliega ASCII). */
 export { claveComparacion };
 
-export async function findDuplicados(db: SqlDriver, banco: string, referencia: string, excludeId?: number): Promise<Duplicado[]> {
-  const rows = await db.select<Duplicado>(
-    `SELECT d.id, d.asignacion_id AS asignacionId, d.fecha, d.banco, d.referencia, d.monto_bs AS montoBs, d.observaciones,
+const SELECT_DUPLICADO = `SELECT d.id, d.asignacion_id AS asignacionId, d.fecha, d.banco, d.referencia, d.monto_bs AS montoBs, d.observaciones,
             d.imagen_path AS imagenPath, g.nombre AS gerenteNombre, c.nombre AS campanaNombre, c.estado AS campanaEstado
      FROM depositos d
      JOIN asignaciones a ON a.id = d.asignacion_id
      JOIN gerentes g ON g.id = a.gerente_id
-     JOIN campanas c ON c.id = a.campana_id
+     JOIN campanas c ON c.id = a.campana_id`;
+
+/**
+ * Depósitos del mismo día (de cualquier campaña) que parecen el mismo pago cuando el banco no da una referencia única
+ * (Provincial): misma cédula y mismo monto. Solo es un aviso, no bloquea.
+ */
+export async function findPosiblesRepetidos(
+  db: SqlDriver,
+  d: { banco: string; referencia: string; fecha: string; montoBs: string },
+  excludeId?: number,
+): Promise<Duplicado[]> {
+  const banco = bancoCanonico(d.banco, await bancosConocidos(db)) ?? d.banco;
+  const clave = clavePosibleRepetido(banco, d.referencia, d.fecha, d.montoBs);
+  if (!clave) return [];
+  const rows = await db.select<Duplicado>(`${SELECT_DUPLICADO} WHERE d.fecha = ? AND d.id != ? ORDER BY d.id`, [d.fecha, excludeId ?? -1]);
+  return rows.filter((r) => clavePosibleRepetido(r.banco, r.referencia, r.fecha, r.montoBs) === clave);
+}
+
+export async function findDuplicados(db: SqlDriver, banco: string, referencia: string, excludeId?: number): Promise<Duplicado[]> {
+  banco = bancoCanonico(banco, await bancosConocidos(db)) ?? banco;
+  const rows = await db.select<Duplicado>(
+    `${SELECT_DUPLICADO}
      WHERE d.id != ?
      ORDER BY d.fecha`,
     [excludeId ?? -1],

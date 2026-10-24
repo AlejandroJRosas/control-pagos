@@ -7,6 +7,8 @@ import { imagenesUsadas } from "@/db/queries/imagenesUsadas";
 import { precargarFeriados } from "@/db/repos/feriados";
 import { copiarAlEspejo } from "./espejo";
 import { huboEscrituras, reiniciarEscrituras } from "@/db/tauriDriver";
+import { unificarBancos } from "@/db/operaciones/unificarBancos";
+import { reportError } from "@/lib/reportError";
 import { getAjuste, setAjuste } from "@/db/repos/ajustes";
 
 /** Error del último respaldo al cerrar (JSON `{ fecha, mensaje, respaldadoAlAbrir? }`); se avisa una vez al abrir. */
@@ -76,6 +78,11 @@ export async function mantenimientoAlIniciar(db: SqlDriver): Promise<void> {
   await runAutoBackup(db, { reemplazar: errorCierre !== null });
   if (errorCierre) await setAjuste(db, AJUSTE_ERROR_CIERRE, JSON.stringify({ ...(JSON.parse(errorCierre) as ErrorCierre), respaldadoAlAbrir: true }));
   await precargarFeriados(db, todayIso());
+  try {
+    await unificarBancos(db);
+  } catch (e) {
+    reportError(e, "No se pudieron unificar los nombres de banco");
+  }
   await invoke("prune_safety_backups");
   await invoke("clean_orphan_images", { usadas: await imagenesUsadas(db) });
 }
