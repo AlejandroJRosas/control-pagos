@@ -3,6 +3,7 @@ import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 import { PageHeader, type Miga } from "@/components/PageHeader";
 import { Vacio } from "@/components/Feedback";
 import { Casilla } from "@/components/Casilla";
+import { IconoIncidencias } from "@/components/IconoIncidencias";
 import { ZoomableImage } from "@/components/ZoomableImage";
 import type { EstadoCola } from "@/db/repos/cola";
 import { clicSeleccion, seleccionarTodos, type Seleccion } from "@/domain/seleccion";
@@ -92,8 +93,9 @@ export function TeclaAtajo({ children }: { children: ReactNode }) {
   );
 }
 
-export type Filtro = "pendientes" | "hechos" | "todos";
-export type ElementoLista = { id: number; estado: EstadoCola; titulo: string; detalle: string };
+export type Filtro = "pendientes" | "hechos" | "todos" | "incidencias";
+/** `motivos`: por qué merece una mirada (el ícono va en la fila); solo los pendientes de depósitos los traen. */
+export type ElementoLista = { id: number; estado: EstadoCola; titulo: string; detalle: string; motivos?: string[] };
 
 type ListaProps = {
   items: ElementoLista[];
@@ -105,6 +107,8 @@ type ListaProps = {
   seleccion?: Seleccion;
   onSeleccion?: (s: Seleccion) => void;
   pie?: ReactNode;
+  /** Muestra el filtro "Con incidencias" (los elementos traen `motivos`). */
+  conIncidencias?: boolean;
 };
 
 const FILTROS: { id: Filtro; label: string }[] = [
@@ -113,10 +117,26 @@ const FILTROS: { id: Filtro; label: string }[] = [
   { id: "todos", label: "Todos" },
 ];
 
-export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, seleccion, onSeleccion, pie }: ListaProps) {
-  const visibles = items.filter((i) => filtro === "todos" || (filtro === "hechos" ? i.estado === "hecho" : i.estado === "pendiente"));
+const tieneIncidencias = (i: ElementoLista) => i.estado === "pendiente" && !!i.motivos?.length;
+
+/** Lo que muestra cada filtro; el que se está revisando se queda en "incidencias" aunque ya no las tenga, hasta pasar a otro. */
+export function visiblesDe(items: ElementoLista[], filtro: Filtro, retenidoId: number | null = null): ElementoLista[] {
+  if (filtro === "todos") return items;
+  if (filtro === "hechos") return items.filter((i) => i.estado === "hecho");
+  if (filtro === "incidencias") return items.filter((i) => tieneIncidencias(i) || (i.estado === "pendiente" && i.id === retenidoId));
+  return items.filter((i) => i.estado === "pendiente");
+}
+
+export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, seleccion, onSeleccion, pie, conIncidencias }: ListaProps) {
+  // Se retiene al abierto que tuvo incidencias mientras sigue abierto: al corregirlas no desaparece de la lista.
+  const retenido = useRef<number | null>(null);
+  if (actualId !== null && items.some((i) => i.id === actualId && tieneIncidencias(i))) retenido.current = actualId;
+  else if (retenido.current !== actualId) retenido.current = null;
+  const visibles = visiblesDe(items, filtro, retenido.current);
   const nHechos = items.filter((i) => i.estado === "hecho").length;
-  const cuentas: Record<Filtro, number> = { pendientes: items.length - nHechos, hechos: nHechos, todos: items.length };
+  const nIncidencias = items.filter(tieneIncidencias).length;
+  const cuentas: Record<Filtro, number> = { pendientes: items.length - nHechos, hechos: nHechos, todos: items.length, incidencias: nIncidencias };
+  const filtros = conIncidencias ? [...FILTROS, { id: "incidencias" as const, label: "Con incidencias" }] : FILTROS;
   const marcables = visibles.filter((i) => i.estado === "pendiente").map((i) => i.id);
   const conSeleccion = !!(seleccion && onSeleccion);
   const marcados = seleccion?.marcados ?? new Set<number>();
@@ -144,8 +164,8 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
   }
   return (
     <>
-      <div className="flex gap-1 rounded-lg border bg-muted p-1 text-sm">
-        {FILTROS.map((f) => (
+      <div className="flex flex-wrap gap-1 rounded-lg border bg-muted p-1 text-sm">
+        {filtros.map((f) => (
           <button
             key={f.id}
             type="button"
@@ -157,10 +177,16 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
             )}
             onClick={() => onFiltro(f.id)}
           >
-            {f.label}
-            <span aria-hidden className="text-xs tabular-nums opacity-70">
-              {cuentas[f.id]}
-            </span>
+            {f.id === "incidencias" ? (
+              `${f.label} (${cuentas[f.id]})`
+            ) : (
+              <>
+                {f.label}
+                <span aria-hidden className="text-xs tabular-nums opacity-70">
+                  {cuentas[f.id]}
+                </span>
+              </>
+            )}
           </button>
         ))}
       </div>
@@ -209,6 +235,7 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
                   <span className="block truncate text-xs text-muted-foreground">{i.detalle}</span>
                 </span>
               </button>
+              {i.estado === "pendiente" && <IconoIncidencias motivos={i.motivos ?? []} />}
             </li>
           );
         })}

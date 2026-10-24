@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { createTestDb } from "@/db/testing/sqljsDriver";
 import { depositoBase, seedBasico } from "@/db/testing/fixtures";
 import { createDeposito } from "@/db/repos/depositos";
@@ -67,4 +67,44 @@ it("un borrador del Provincial igual a uno registrado avisa y Hecho lo guarda", 
   expect(hecho).toBeEnabled();
   await user.click(hecho);
   await waitFor(async () => expect(await contar(db)).toBe(2));
+});
+
+const filas = () => Array.from(document.querySelectorAll<HTMLElement>("li[data-id]"));
+
+it("el filtro de incidencias deja solo lo dudoso, ↓ no sale de lo visible y lo corregido se queda hasta pasar a otro", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  const completo = async (banco: string, referencia: string, montoBs: string) => {
+    const b = borradorDepositoVacio(`a:${s.asignacionId}`);
+    const id = await encolarDeposito(db, s.campanaId, {
+      imagenPath: "imagenes/x.png",
+      nombreArchivo: `${banco}.png`,
+      borrador: { ...b, draft: { ...b.draft, fecha: "2026-03-02", banco, referencia, cuentaDestino: "0102", montoBs } },
+    });
+    await db.execute("UPDATE cola_depositos SET formato = 'bdv' WHERE id = ?", [id]);
+  };
+  await completo("Banesco", "11", "1.000");
+  await completo("Mercantil", "", "2.000"); // le falta la referencia
+  await completo("BNC", "33", "3.000");
+  const { user } = await renderApp(`/campanas/${s.campanaId}/revision`, { db, hoy: "2026-03-02" });
+  await screen.findByRole("button", { name: "Con incidencias (1)" });
+  await user.click(screen.getByRole("button", { name: "Con incidencias (1)" }));
+  const lista = filas();
+  expect(lista).toHaveLength(1);
+  expect(lista[0]).toHaveTextContent("Mercantil");
+  expect(within(lista[0]).getByLabelText(/Incidencias: Falta la referencia/)).toBeInTheDocument();
+
+  await user.click(within(lista[0]).getByRole("button", { name: /Mercantil/ }));
+  await user.keyboard("{ArrowDown}");
+  expect(filas()).toHaveLength(1);
+
+  await user.type(await screen.findByLabelText("Referencia bancaria"), "22");
+  await screen.findByRole("button", { name: "Con incidencias (0)" }, { timeout: 3000 });
+  expect(filas()).toHaveLength(1);
+  expect(filas()[0]).toHaveTextContent("Mercantil");
+  await user.click(screen.getByRole("button", { name: "Pendientes" }));
+  expect(filas()).toHaveLength(3);
+  await user.click(within(filas()[0]).getByRole("button", { name: /Banesco/ }));
+  await user.click(screen.getByRole("button", { name: "Con incidencias (0)" }));
+  expect(filas()).toHaveLength(0);
 });

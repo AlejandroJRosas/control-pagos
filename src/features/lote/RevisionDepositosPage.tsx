@@ -15,28 +15,36 @@ import { SIN_SELECCION, type Seleccion } from "@/domain/seleccion";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { sugerenciasBancos } from "@/domain/bancos";
-import { ListaCola, RevisionLayout, type Filtro } from "./RevisionLayout";
+import { contextoIncidencias } from "@/db/queries/incidenciasCola";
+import { ListaCola, RevisionLayout, visiblesDe, type ElementoLista, type Filtro } from "./RevisionLayout";
+import { motivosBorrador, type ContextoIncidencia } from "./incidencias";
 import { EditorDeposito, type Editor } from "./EditorDeposito";
 import { nombreDestino } from "./destino";
 
-type Ctx = { data: CampanaData; items: ItemColaDeposito[]; gerentes: Gerente[]; bancos: string[] };
+type Ctx = { data: CampanaData; items: ItemColaDeposito[]; gerentes: Gerente[]; bancos: string[]; contexto: Map<number, ContextoIncidencia> };
+
+const LIMPIO: ContextoIncidencia = { duplicado: false, posibleRepetido: false, faltaTasa: false };
 
 export function RevisionDepositosPage() {
   const campanaId = Number(useParams().campanaId);
   const { data: ctx, error } = useData<Ctx>(
-    async (db) => ({
-      data: await loadCampanaData(db, campanaId),
-      items: await listColaDepositos(db, campanaId),
-      gerentes: await listGerentes(db),
-      bancos: sugerenciasBancos(await listBancosUsados(db)),
-    }),
+    async (db) => {
+      const items = await listColaDepositos(db, campanaId);
+      return {
+        data: await loadCampanaData(db, campanaId),
+        items,
+        gerentes: await listGerentes(db),
+        bancos: sugerenciasBancos(await listBancosUsados(db)),
+        contexto: await contextoIncidencias(db, items),
+      };
+    },
     [campanaId],
   );
   if (!ctx) return <Cargando error={error} />;
   return <Revision key={campanaId} {...ctx} />;
 }
 
-function Revision({ data, items, gerentes, bancos }: Ctx) {
+function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
   const campana = data.campana;
   const cerrada = campana.estado === "cerrada";
   const [actualId, setActualId] = useState<number | null>(() => siguientePendiente(items, null) ?? items[0]?.id ?? null);
@@ -49,7 +57,16 @@ function Revision({ data, items, gerentes, bancos }: Ctx) {
   const hechos = items.filter((i) => i.estado === "hecho").length;
   // Lo que pasó a hecho deja de contar como marcado.
   const marcados = items.filter((i) => i.estado === "pendiente" && seleccion.marcados.has(i.id)).map((i) => i.id);
-  const irAlSiguiente = (desde: number | null) => setActualId(siguientePendiente(items, desde));
+  const elementos: ElementoLista[] = items.map((i) => ({
+    id: i.id,
+    estado: i.estado,
+    titulo: [i.borrador.draft.banco || "Sin banco", i.borrador.draft.montoBs].filter(Boolean).join(" · "),
+    detalle: `${nombreDestino(i.borrador.destino, data, gerentes)} · ${i.nombreArchivo ?? `#${i.orden}`}`,
+    motivos: i.estado === "pendiente" ? motivosBorrador(i.formato, i.borrador, contexto.get(i.id) ?? LIMPIO) : undefined,
+  }));
+  // "Siguiente" recorre lo que se ve: con el filtro de incidencias, solo los pendientes con incidencias.
+  const recorrido = filtro === "incidencias" ? visiblesDe(elementos, filtro, actualId) : elementos;
+  const irAlSiguiente = (desde: number | null) => setActualId(siguientePendiente(recorrido, desde));
 
   async function asignar() {
     if (!gerenteMasivo || marcados.length === 0) return;
@@ -86,12 +103,8 @@ function Revision({ data, items, gerentes, bancos }: Ctx) {
 
   const lista = (
     <ListaCola
-      items={items.map((i) => ({
-        id: i.id,
-        estado: i.estado,
-        titulo: [i.borrador.draft.banco || "Sin banco", i.borrador.draft.montoBs].filter(Boolean).join(" · "),
-        detalle: `${nombreDestino(i.borrador.destino, data, gerentes)} · ${i.nombreArchivo ?? `#${i.orden}`}`,
-      }))}
+      items={elementos}
+      conIncidencias
       actualId={actualId}
       onElegir={setActualId}
       filtro={filtro}
@@ -150,7 +163,7 @@ function Revision({ data, items, gerentes, bancos }: Ctx) {
           cerrada={cerrada}
           editor={editor}
           onSiguiente={() => irAlSiguiente(actual.id)}
-          onSaltar={() => setActualId(siguientePendiente(items, actual.id) ?? actual.id)}
+          onSaltar={() => setActualId(siguientePendiente(recorrido, actual.id) ?? actual.id)}
         />
       ) : (
         <Vacio texto="No quedan comprobantes por revisar.">
