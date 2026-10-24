@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Casilla } from "@/components/Casilla";
 import { ComprobanteIcono } from "@/components/ComprobanteIcono";
-import type { Campo, Cambio, Conflicto, Decisiones, Eleccion, PlanConsolidacion } from "@/domain/consolidar";
+import { BotonConMotivo } from "@/components/BotonConMotivo";
+import type { Campo, Cambio, Conflicto, Decisiones, Eleccion, GrupoJefe, PlanConsolidacion } from "@/domain/consolidar";
 import type { DepositoPaquete } from "@/domain/paquete";
 import { formatFecha } from "@/domain/dates";
 import { formatBs, formatTasa, formatUsd, toUsd } from "@/domain/money";
@@ -191,16 +192,36 @@ export function Eliminaciones({
   );
 }
 
-/** Dos botones excluyentes: lo mío o lo del archivo. */
-function Elegir({ valor, onElegir, mia, archivo }: { valor: Eleccion | undefined; onElegir: (e: Eleccion) => void; mia: ReactNode; archivo: ReactNode }) {
+/** Dos botones excluyentes: lo mío o lo del archivo. Con `motivoArchivo`, lo del archivo no se puede elegir. */
+function Elegir({
+  valor,
+  onElegir,
+  mia,
+  archivo,
+  motivoArchivo,
+}: {
+  valor: Eleccion | undefined;
+  onElegir: (e: Eleccion) => void;
+  mia: ReactNode;
+  archivo: ReactNode;
+  motivoArchivo?: string;
+}) {
   return (
     <div className="flex flex-wrap gap-2">
       <Button size="sm" variant={valor === "mia" ? "default" : "outline"} aria-pressed={valor === "mia"} onClick={() => onElegir("mia")}>
         {mia}
       </Button>
-      <Button size="sm" variant={valor === "archivo" ? "default" : "outline"} aria-pressed={valor === "archivo"} onClick={() => onElegir("archivo")}>
-        {archivo}
-      </Button>
+      <BotonConMotivo motivo={motivoArchivo}>
+        <Button
+          size="sm"
+          variant={valor === "archivo" ? "default" : "outline"}
+          aria-pressed={valor === "archivo"}
+          disabled={!!motivoArchivo}
+          onClick={() => onElegir("archivo")}
+        >
+          {archivo}
+        </Button>
+      </BotonConMotivo>
     </div>
   );
 }
@@ -282,6 +303,59 @@ export function Diferencias({
         {plan.conflictos.map((c) => (
           <ConflictoFila key={c.remoto.uuid} c={c} valor={d.conflictos[c.remoto.uuid]} nombreDe={nombreDe} onElegir={(e) => onConflicto(c.remoto.uuid, e)} />
         ))}
+      </ul>
+    </Seccion>
+  );
+}
+
+/** Gerentes con un jefe aquí y otro en el archivo, agrupados por (mi jefe → el del archivo) para elegir de una vez. */
+export function JefesDistintos({ grupos, d, onElegir }: { grupos: GrupoJefe[]; d: Decisiones; onElegir: (ids: number[], e: Eleccion) => void }) {
+  const n = grupos.reduce((s, g) => s + g.filas.length, 0);
+  return (
+    <Seccion titulo="Jefe distinto" cantidad={n} descripcion="Tu app y el archivo ponen a estos gerentes bajo jefes distintos: elige cuál queda">
+      <ul className="space-y-4">
+        {grupos.map((g) => {
+          const elegibles = g.filas.filter((f) => !f.bloqueo);
+          const mezcladas = new Set(g.filas.map((f) => d.jefes[f.asignacionId])).size > 1;
+          const mia = g.desde === "sin jefe" ? "Sin jefe, como en mi app" : `Mi jefe: ${g.desde}`;
+          const archivo = g.hacia === "sin jefe" ? "Sin jefe, como en el archivo" : `El del archivo: ${g.hacia}`;
+          return (
+            <li key={JSON.stringify([g.desde, g.hacia])} className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{`${g.desde} → ${g.hacia} · ${g.filas.length} ${g.filas.length === 1 ? "gerente" : "gerentes"}`}</span>
+                <Button size="sm" variant="outline" onClick={() => onElegir(g.filas.map((f) => f.asignacionId), "mia")}>
+                  Todos: el mío
+                </Button>
+                <BotonConMotivo motivo={elegibles.length === 0 ? (g.filas[0]?.bloqueo ?? undefined) : undefined}>
+                  <Button size="sm" variant="outline" disabled={elegibles.length === 0} onClick={() => onElegir(elegibles.map((f) => f.asignacionId), "archivo")}>
+                    Todos: el del archivo
+                  </Button>
+                </BotonConMotivo>
+                {mezcladas && <span className="text-sm text-muted-foreground">Elecciones mezcladas</span>}
+              </div>
+              <details open={g.filas.length <= 3}>
+                <summary className="cursor-pointer text-sm text-muted-foreground">Ver los gerentes</summary>
+                <ul className="mt-1.5 space-y-1.5">
+                  {g.filas.map((f) => (
+                    <li key={f.asignacionId} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="font-medium">
+                        {f.gerenteNombre}
+                        {f.debajo > 0 && <span className="font-normal text-muted-foreground"> · {f.debajo} debajo</span>}
+                      </span>
+                      <Elegir
+                        valor={d.jefes[f.asignacionId]}
+                        onElegir={(e) => onElegir([f.asignacionId], e)}
+                        mia={mia}
+                        archivo={archivo}
+                        motivoArchivo={f.bloqueo ?? undefined}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </li>
+          );
+        })}
       </ul>
     </Seccion>
   );

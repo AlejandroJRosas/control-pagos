@@ -5,7 +5,7 @@ import { crearDuplicado, depositoBase, seedBasico } from "../testing/fixtures";
 import { createDeposito, deleteDeposito, updateDeposito } from "../repos/depositos";
 import { getEquivalencias, marcarIntercambio } from "../repos/consolidacion";
 import { createGerente } from "../repos/gerentes";
-import { createAsignacion } from "../repos/asignaciones";
+import { createAsignacion, setJefeAsignacion } from "../repos/asignaciones";
 import { cargarEnvio } from "../queries/envioConsolidar";
 import { armarPaquete, leerPaquete, type Paquete } from "@/domain/paquete";
 import { clasificar, decisionesIniciales, motivoPendiente, type Decisiones, type PlanConsolidacion } from "@/domain/consolidar";
@@ -29,14 +29,19 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-/** Arma el archivo de toda la campaña (o solo lo que cambió) y lo marca como enviado, como "Compartir para consolidar". */
-async function enviar(o: Instalacion, soloCambios = false): Promise<Paquete> {
+/**
+ * Arma el archivo de toda la campaña (o solo lo que cambió) y lo marca como enviado, como "Compartir para consolidar". `nombres`: solo esos
+ * gerentes; `sinJefe`: como un archivo anterior al árbol.
+ */
+async function enviar(o: Instalacion, soloCambios = false, op: { nombres?: string[]; sinJefe?: boolean } = {}): Promise<Paquete> {
   const datos = await cargarEnvio(o.db, o.s.campanaId);
-  const ids = datos.asignaciones.map((a) => a.id);
+  const ids = datos.asignaciones.filter((a) => !op.nombres || op.nombres.includes(a.gerenteNombre)).map((a) => a.id);
   const creadoEn = new Date().toISOString();
   const { paquete } = armarPaquete(datos, { asignacionIds: ids, soloCambios }, { appVersion: "1.0.0", creadoEn, origen: o.nombre });
   await marcarIntercambio(o.db, ids, "envio", creadoEn);
-  return leerPaquete(JSON.stringify(paquete));
+  const json = JSON.parse(JSON.stringify(paquete)) as { asignaciones: { jefe?: unknown }[] };
+  if (op.sinJefe) for (const a of json.asignaciones) delete a.jefe;
+  return leerPaquete(JSON.stringify(json));
 }
 
 type Recibo = { plan: PlanConsolidacion; d: Decisiones; motivo: string | null; resultado: Resultado | null };
@@ -342,6 +347,144 @@ describe("consolidar ida y vuelta entre dos instalaciones", () => {
       const r = await aplicarConsolidacion(b.db, p, plan, gerentes, decisionesIniciales(plan), { importarImagen, ahora: new Date().toISOString() });
       expect(r).toMatchObject({ gerentesAgregados: 0, nuevos: 1 });
       expect(await gerenteYAsignacion(b.db, "Luis")).toEqual([]);
+    });
+  });
+
+  describe("el árbol de la campaña", () => {
+    const asignacionDe = async (db: SqlDriver, nombre: string) =>
+      (await db.select<{ id: number }>("SELECT a.id FROM asignaciones a JOIN gerentes g ON g.id = a.gerente_id WHERE g.nombre = ?", [nombre]))[0].id;
+    /** Cada gerente de la campaña con el nombre de su jefe. */
+    const arbol = (db: SqlDriver) =>
+      db.select<{ nombre: string; jefe: string | null }>(
+        `SELECT g.nombre, jg.nombre AS jefe FROM asignaciones a JOIN gerentes g ON g.id = a.gerente_id
+         LEFT JOIN asignaciones j ON j.id = a.jefe_id LEFT JOIN gerentes jg ON jg.id = j.gerente_id ORDER BY g.nombre`,
+      );
+    const sumar = async (o: Instalacion, nombre: string, jefe?: string) => {
+      const gerenteId = await createGerente(o.db, { nombre, telefono: null });
+      const jefeId = jefe ? await asignacionDe(o.db, jefe) : null;
+      return createAsignacion(o.db, { campanaId: o.s.campanaId, gerenteId, saldoUsd: "0", jefeId });
+    };
+    const ponerJefe = async (o: Instalacion, nombre: string, jefe: string | null) =>
+      setJefeAsignacion(o.db, await asignacionDe(o.db, nombre), jefe === null ? null : await asignacionDe(o.db, jefe));
+
+    it("la rama de Luis enviada desde A queda armada en B con gerentes agregados", async () => {
+      const a = await instalacion("A");
+      const b = await instalacion("B");
+      await registrar(a, { referencia: "111" });
+      reloj("2026-03-05T11:00:00.000Z");
+      await recibir(b, await enviar(a)); // B recuerda a la Ana de A
+      await sumar(a, "Luis", "Ana");
+      await sumar(a, "Pedro", "Luis");
+      await sumar(a, "María", "Luis");
+
+      reloj("2026-03-05T12:00:00.000Z");
+      const p = await enviar(a, false, { nombres: ["Luis", "Pedro", "María"] });
+      expect(p.asignaciones.map((x) => x.gerente.nombre)).not.toContain("Ana");
+      const r = await recibir(b, p);
+      expect(r.plan.jefes.map((f) => [f.gerenteNombre, f.automatico])).toEqual([["Luis", true], ["María", true], ["Pedro", true]]);
+      expect(r.resultado).toMatchObject({ gerentesAgregados: 3, jefesCambiados: 3 });
+      expect(await arbol(b.db)).toEqual([
+        { nombre: "Ana", jefe: null }, { nombre: "Luis", jefe: "Ana" }, { nombre: "María", jefe: "Luis" }, { nombre: "Pedro", jefe: "Luis" },
+      ]);
+      expect(await arbol(b.db)).toEqual(await arbol(a.db));
+    });
+
+    /** A y B con Ana, Karla y Luis; en A Luis está bajo Ana y en B bajo Karla. */
+    async function jefeDistinto() {
+      const a = await instalacion("A");
+      const b = await instalacion("B");
+      await sumar(a, "Karla");
+      await sumar(a, "Luis");
+      reloj("2026-03-05T11:00:00.000Z");
+      expect((await recibir(b, await enviar(a))).resultado).toMatchObject({ gerentesAgregados: 2, jefesCambiados: 0 });
+      reloj("2026-03-05T11:30:00.000Z");
+      await ponerJefe(a, "Luis", "Ana");
+      await ponerJefe(b, "Luis", "Karla");
+      return { a, b };
+    }
+    const luisBajoArchivo = (d: Decisiones, plan: PlanConsolidacion) => {
+      for (const f of plan.jefes) d.jefes[f.asignacionId] = "archivo";
+    };
+
+    it("jefe distinto en ambos lados: con 'mía' no cambia y con 'archivo' cambia", async () => {
+      const { a, b } = await jefeDistinto();
+      reloj("2026-03-05T12:00:00.000Z");
+      const p = await enviar(a, true);
+      const mia = await recibir(b, p);
+      expect(mia.plan.jefes.map((f) => [f.gerenteNombre, f.automatico, f.bloqueo])).toEqual([["Luis", false, null]]);
+      expect(mia.d.jefes).toEqual({ [mia.plan.jefes[0].asignacionId]: "mia" });
+      expect(mia.motivo).toBe("No hay nada nuevo para consolidar");
+      expect((await arbol(b.db)).find((x) => x.nombre === "Luis")?.jefe).toBe("Karla");
+
+      const archivo = await recibir(b, p, luisBajoArchivo);
+      expect(archivo.resultado).toMatchObject({ jefesCambiados: 1 });
+      expect(await arbol(b.db)).toEqual(await arbol(a.db));
+      expect((await arbol(b.db)).find((x) => x.nombre === "Luis")?.jefe).toBe("Ana");
+    });
+
+    it("si aplicar falla, los jefes quedan como estaban", async () => {
+      const { a, b } = await jefeDistinto();
+      await registrar(a, { referencia: "999", imagenPath: "imagenes/x.png" });
+      reloj("2026-03-05T12:00:00.000Z");
+      const p = await enviar(a, true);
+      const volcado = () => b.db.select("SELECT * FROM asignaciones ORDER BY id");
+      const antes = await volcado();
+      const e = await emparejamientoInicial(b.db, p, null);
+      const plan = clasificar(p, await cargarLocal(b.db, e.campanaId as number), e.gerentes);
+      const d = decisionesIniciales(plan);
+      luisBajoArchivo(d, plan);
+      reloj("2026-03-05T13:00:00.000Z");
+      const falla = async () => {
+        throw new Error("disco lleno");
+      };
+      await expect(aplicarConsolidacion(b.db, p, plan, e.gerentes, d, { importarImagen: falla, ahora: new Date().toISOString() })).rejects.toThrow("disco lleno");
+      expect(await volcado()).toEqual(antes);
+    });
+
+    it("un jefe del archivo que cerraría un ciclo con los de aquí queda bloqueado", async () => {
+      const { a, b } = await jefeDistinto();
+      // En B Karla queda bajo Luis: tomar a Luis bajo Karla del archivo lo dejaría debajo de sí mismo.
+      await ponerJefe(a, "Luis", "Karla");
+      await ponerJefe(b, "Luis", null);
+      await ponerJefe(b, "Karla", "Luis");
+      await registrar(a, { referencia: "999" });
+      reloj("2026-03-05T12:00:00.000Z");
+      const r = await recibir(b, await enviar(a, true), luisBajoArchivo);
+      expect(r.plan.jefes.map((f) => [f.gerenteNombre, f.automatico, f.bloqueo])).toEqual([
+        ["Karla", false, null], ["Luis", false, "Quedaría debajo de sí mismo"],
+      ]);
+      // Karla pasa a sin jefe (archivo) y Luis no puede tomar a Karla: no hay ciclo y no se toca a Luis.
+      expect(r.resultado).toMatchObject({ jefesCambiados: 1, nuevos: 1 });
+      expect((await arbol(b.db)).filter((x) => x.jefe !== null)).toEqual([]);
+    });
+
+    it("aplicar rechaza jefes elegidos que juntos forman un ciclo, sin cambiar nada", async () => {
+      const { a, b } = await jefeDistinto();
+      reloj("2026-03-05T12:00:00.000Z");
+      const p = await enviar(a, true);
+      const e = await emparejamientoInicial(b.db, p, null);
+      const plan = clasificar(p, await cargarLocal(b.db, e.campanaId as number), e.gerentes);
+      const [luis] = plan.jefes;
+      const karla = await asignacionDe(b.db, "Karla");
+      // Luis bajo Karla y Karla bajo Luis (como si cada una sola fuera válida)
+      const enCiclo = { ...plan, jefes: [{ ...luis, archivo: karla }, { ...luis, asignacionId: karla, gerenteNombre: "Karla", local: null, archivo: luis.asignacionId }] };
+      const d = { ...decisionesIniciales(enCiclo), jefes: { [luis.asignacionId]: "archivo" as const, [karla]: "archivo" as const } };
+      const antes = await arbol(b.db);
+      await expect(aplicarConsolidacion(b.db, p, enCiclo, e.gerentes, d, { importarImagen, ahora: new Date().toISOString() })).rejects.toThrow(
+        "Luis y Karla quedarían uno debajo del otro: cambia la elección de su jefe",
+      );
+      expect(await arbol(b.db)).toEqual(antes);
+    });
+
+    it("archivo viejo sin jefe no toca el árbol", async () => {
+      const { a, b } = await jefeDistinto();
+      await ponerJefe(b, "Luis", null); // en B, Luis sin jefe: con jefe en el archivo sería automático
+      await registrar(a, { referencia: "999" });
+      reloj("2026-03-05T12:00:00.000Z");
+      const r = await recibir(b, await enviar(a, true, { sinJefe: true }));
+      expect(r.plan.jefes).toEqual([]);
+      expect(r.resultado).toMatchObject({ nuevos: 1, jefesCambiados: 0 });
+      expect((await arbol(b.db)).filter((x) => x.jefe !== null)).toEqual([]);
     });
   });
 

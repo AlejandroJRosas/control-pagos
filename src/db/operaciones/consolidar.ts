@@ -1,6 +1,6 @@
 import type { SqlDriver } from "../driver";
 import { assertCampanaActiva } from "../repos/campanas";
-import { createAsignacion, updateSaldoAsignacion } from "../repos/asignaciones";
+import { createAsignacion, jefesDeCampana, updateSaldoAsignacion } from "../repos/asignaciones";
 import { createGerente } from "../repos/gerentes";
 import { createTasa, deleteTasa, getTasaParaFecha, listTasas, updateTasa } from "../repos/tasas";
 import { feriadosSet } from "../repos/feriados";
@@ -9,9 +9,11 @@ import {
   deleteEquivalencia, getEquivalencias, getIntercambios, marcarIntercambio, setEquivalencia, uuidsEliminados, type TablaEquivalencia,
 } from "../repos/consolidacion";
 import {
-  emparejarCampana, emparejarGerentes, gerentesFuera, gerentesRecordados, gerentesRepetidos, motivoRepetidos, type AsignacionLocal, type Decisiones,
-  type DepositoLocal, type EstadoEmparejamiento, type GerenteEmparejado, type GerenteLocal, type LocalConsolidar, type PlanConsolidacion,
+  emparejarCampana, emparejarGerentes, gerentesFuera, gerentesRecordados, gerentesRepetidos, jefesAplicados, jefesFinales, motivoCiclo, motivoRepetidos,
+  type AsignacionLocal, type Decisiones, type DepositoLocal, type EstadoEmparejamiento, type GerenteEmparejado, type GerenteLocal, type LocalConsolidar,
+  type PlanConsolidacion,
 } from "@/domain/consolidar";
+import { cicloEn } from "@/domain/arbol";
 import type { DepositoPaquete, Paquete } from "@/domain/paquete";
 import { DomainError } from "@/domain/errors";
 import { formatFecha } from "@/domain/dates";
@@ -22,7 +24,7 @@ export async function cargarLocal(db: SqlDriver, campanaId: number): Promise<Loc
   if (!campana) throw new DomainError("NO_ENCONTRADO", "La campaña no existe");
   const intercambios = await getIntercambios(db, campanaId);
   const asignaciones = await db.select<Omit<AsignacionLocal, "ultimoEnvio" | "ultimoRecibo">>(
-    `SELECT a.id, a.uuid, a.gerente_id AS gerenteId, g.nombre AS gerenteNombre, a.saldo_usd AS saldoUsd
+    `SELECT a.id, a.uuid, a.gerente_id AS gerenteId, g.uuid AS gerenteUuid, g.nombre AS gerenteNombre, a.saldo_usd AS saldoUsd, a.jefe_id AS jefeId
      FROM asignaciones a JOIN gerentes g ON g.id = a.gerente_id WHERE a.campana_id = ? ORDER BY g.nombre, a.id`,
     [campanaId],
   );
@@ -75,7 +77,7 @@ export async function emparejamientoInicial(
 
 export type Resultado = {
   nuevos: number; corregidos: number; eliminados: number; vinculados: number; tasasCreadas: number; tasasCambiadas: number; saldosCambiados: number;
-  gerentesAgregados: number;
+  gerentesAgregados: number; jefesCambiados: number;
 };
 
 type FilaDeposito = NonNullable<Awaited<ReturnType<typeof getDeposito>>>;
@@ -107,6 +109,8 @@ export async function aplicarConsolidacion(
   if (repetidos) throw new DomainError("VALIDACION", motivoRepetidos(repetidos, Object.fromEntries(p.asignaciones.map((a) => [a.uuid, a.gerente.nombre]))));
   const sinElegir = plan.tasasDistintas.find((t) => d.tasas[t.fecha] === undefined);
   if (sinElegir) throw new DomainError("VALIDACION", `Elige la tasa del ${formatFecha(sinElegir.fecha)}`);
+  const ciclo = cicloEn(jefesFinales(plan, d));
+  if (ciclo) throw new DomainError("VALIDACION", motivoCiclo(plan, ciclo));
 
   const asignaciones = await db.select<{ id: number; gerenteId: number; gerenteUuid: string }>(
     "SELECT a.id, a.gerente_id AS gerenteId, g.uuid AS gerenteUuid FROM asignaciones a JOIN gerentes g ON g.id = a.gerente_id WHERE a.campana_id = ?",
@@ -133,6 +137,7 @@ export async function aplicarConsolidacion(
 
   const r: Resultado = {
     nuevos: 0, corregidos: 0, eliminados: 0, vinculados: 0, tasasCreadas: 0, tasasCambiadas: 0, saldosCambiados: 0, gerentesAgregados: 0,
+    jefesCambiados: 0,
   };
   const deshacer: (() => Promise<void>)[] = [];
   /** Id provisional de una asignación agregada → id real (se llena al crearlas, antes que todo lo demás). */
@@ -197,6 +202,31 @@ export async function aplicarConsolidacion(
       provisionales.set(a.asignacionId, id);
       asignacionPorId.set(id, { id, gerenteId, gerenteUuid });
       r.gerentesAgregados++;
+    }
+
+    // Jefes: directo (sin `setJefeAsignacion`), porque un paso intermedio puede tener un ciclo; al final se comprueba que no quede ninguno.
+    const cambios = jefesAplicados(plan, d);
+    for (const j of cambios) {
+      const id = real(j.asignacionId);
+      const jefeId = j.archivo === null ? null : real(j.archivo);
+      if (!asignacionPorId.has(id) || (jefeId !== null && !asignacionPorId.has(jefeId))) {
+        throw new DomainError("VALIDACION", "El plan no corresponde a los gerentes de la campaña");
+      }
+      const [previo] = await db.select<{ jefeId: number | null; actualizadoEn: string }>(
+        "SELECT jefe_id AS jefeId, actualizado_en AS actualizadoEn FROM asignaciones WHERE id = ?",
+        [id],
+      );
+      await db.execute("UPDATE asignaciones SET jefe_id = ?, actualizado_en = ? WHERE id = ?", [jefeId, deps.ahora, id]);
+      deshacer.push(async () => {
+        await db.execute("UPDATE asignaciones SET jefe_id = ?, actualizado_en = ? WHERE id = ?", [previo.jefeId, previo.actualizadoEn, id]);
+      });
+      r.jefesCambiados++;
+    }
+    if (cambios.length > 0) {
+      // El plan pudo quedar viejo: el ciclo se busca en la base, con los ids del plan para nombrar a los gerentes.
+      const plano = new Map([...provisionales].map(([provisional, id]) => [id, provisional]));
+      const enBase = cicloEn(await jefesDeCampana(db, campanaId));
+      if (enBase) throw new DomainError("VALIDACION", motivoCiclo(plan, enBase.map((id) => plano.get(id) ?? id)));
     }
 
     // Tasas nuevas.

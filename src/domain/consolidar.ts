@@ -1,9 +1,10 @@
 import Decimal from "decimal.js";
+import { cicloEn, creaCiclo, descendientes } from "./arbol";
 import { claveDuplicado } from "./bancos";
 import type { EstadoCampana } from "./campana";
 import { fechaDeTasa, formatFecha } from "./dates";
 import { MOTIVO_CERRADA } from "./motivos";
-import type { AsignacionPaquete, DepositoPaquete, Paquete } from "./paquete";
+import type { AsignacionPaquete, DepositoPaquete, JefePaquete, Paquete } from "./paquete";
 import { claveComparacion } from "./texto";
 
 // ---------- Emparejamiento ----------
@@ -24,7 +25,8 @@ export function emparejarCampana(
 }
 
 export type AsignacionLocal = {
-  id: number; uuid: string; gerenteId: number; gerenteNombre: string; saldoUsd: string; ultimoEnvio: string | null; ultimoRecibo: string | null;
+  id: number; uuid: string; gerenteId: number; gerenteUuid: string; gerenteNombre: string; saldoUsd: string; ultimoEnvio: string | null;
+  ultimoRecibo: string | null; jefeId: number | null;
 };
 export type GerenteLocal = { id: number; uuid: string; nombre: string };
 /**
@@ -141,11 +143,25 @@ export type PlanConsolidacion = {
   equivalencias: { remotoUuid: string; localId: number }[];
   /** Gerentes del archivo que se agregan a la campaña. */
   agregadas: Agregada[];
+  /** Jefes del archivo distintos de los de aquí (los automáticos se aplican sin preguntar). */
+  jefes: JefeCambio[];
+  /** Jefes de la campaña aquí (las agregadas, sin jefe): base de `jefesFinales`. */
+  jefesLocales: Map<number, number | null>;
+};
+/**
+ * Jefe de una asignación aquí (`local`) y en el archivo (`archivo`), como ids de asignaciones de la campaña (las agregadas, provisionales).
+ * `automatico`: aquí no tiene jefe y toma el del archivo. `bloqueo`: el del archivo lo dejaría debajo de sí mismo. `debajo`: cuántos tiene debajo.
+ */
+export type JefeCambio = {
+  asignacionId: number; gerenteNombre: string; local: number | null; archivo: number | null; automatico: boolean; bloqueo: string | null; debajo: number;
 };
 /** `gerenteId` null = gerente nuevo. Nombre: el del gerente local si ya existe; si no, el del archivo. */
 export type Agregada = { remotaUuid: string; asignacionId: number; gerenteId: number | null; gerenteNombre: string; saldoUsd: string };
 export type Eleccion = "mia" | "archivo";
-export type Decisiones = { tasas: Record<string, Eleccion | undefined>; saldos: Record<number, Eleccion>; conflictos: Record<string, Eleccion>; eliminar: Set<string> };
+export type Decisiones = {
+  tasas: Record<string, Eleccion | undefined>; saldos: Record<number, Eleccion>; conflictos: Record<string, Eleccion>; eliminar: Set<string>;
+  jefes: Record<number, Eleccion>;
+};
 
 /** Diferencias de campos entre la copia local y la del archivo (montos por valor; observaciones vacías = sin observaciones). */
 function compararCampos(remoto: DepositoPaquete, local: DepositoLocal, asignacionId: number, nombreDe: (id: number) => string): Cambio[] {
@@ -170,7 +186,7 @@ function compararCampos(remoto: DepositoPaquete, local: DepositoLocal, asignacio
 export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<string, GerenteEmparejado>): PlanConsolidacion {
   const plan: PlanConsolidacion = {
     campana: local.campana, nuevos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0, masNuevasAqui: [],
-    noIncluidos: [], tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], agregadas: [],
+    noIncluidos: [], tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], agregadas: [], jefes: [], jefesLocales: new Map(),
   };
   const campanaId = local.campana.id;
   const porId = new Map(local.depositos.map((d) => [d.id, d]));
@@ -222,7 +238,8 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
     const gerenteNombre = (gerenteId === null ? undefined : local.gerentes.find((x) => x.id === gerenteId)?.nombre) ?? a.gerente.nombre;
     plan.agregadas.push({ remotaUuid: a.uuid, asignacionId: g.asignacionId, gerenteId, gerenteNombre, saldoUsd: a.saldoUsd });
     asignacionesLocales.set(g.asignacionId, {
-      id: g.asignacionId, uuid: a.uuid, gerenteId: gerenteId ?? g.asignacionId, gerenteNombre, saldoUsd: a.saldoUsd, ultimoEnvio: null, ultimoRecibo: null,
+      id: g.asignacionId, uuid: a.uuid, gerenteId: gerenteId ?? g.asignacionId, gerenteUuid: a.gerente.uuid, gerenteNombre, saldoUsd: a.saldoUsd,
+      ultimoEnvio: null, ultimoRecibo: null, jefeId: null,
     });
   }
   const nombreLocal = (id: number) => asignacionesLocales.get(id)?.gerenteNombre ?? "";
@@ -361,16 +378,121 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
     const la = typeof id === "number" ? asignacionesLocales.get(id) : undefined;
     if (la && !new Decimal(la.saldoUsd).eq(a.saldoUsd)) plan.saldos.push({ asignacionId: la.id, gerenteNombre: la.gerenteNombre, local: la.saldoUsd, archivo: a.saldoUsd });
   }
+
+  plan.jefesLocales = new Map([...asignacionesLocales.values()].map((a) => [a.id, a.jefeId]));
+  plan.jefes = jefesDelArchivo(p, local, gerentes, asignacionesLocales, plan.jefesLocales);
   return plan;
 }
 
-/** Montos asignados: el mío. Conflictos: la más reciente (el archivo si editaron las dos; el mío si es un duplicado). Eliminaciones: todas. Tasas: sin decidir. */
+/**
+ * Jefe del archivo como id de una asignación de la campaña (o undefined si no se encuentra): el emparejamiento de su asignación si viene en el
+ * archivo; si no, la asignación de aquí con ese uuid; si no, la de su gerente (por uuid o recordado).
+ */
+function resolverJefe(
+  j: JefePaquete,
+  local: LocalConsolidar,
+  gerentes: Record<string, GerenteEmparejado>,
+  asignaciones: Map<number, AsignacionLocal>,
+): number | undefined {
+  const emparejada = gerentes[j.asignacionUuid]?.asignacionId;
+  if (typeof emparejada === "number") return emparejada;
+  const todas = [...asignaciones.values()];
+  const mismoUuid = todas.find((a) => a.uuid === j.asignacionUuid);
+  if (mismoUuid) return mismoUuid.id;
+  const gerenteId = gerentesRecordados(local).get(j.gerente.uuid);
+  return gerenteId === undefined ? undefined : todas.find((a) => a.gerenteId === gerenteId)?.id;
+}
+
+const BLOQUEO_CICLO = "Quedaría debajo de sí mismo";
+
+function jefesDelArchivo(
+  p: Paquete,
+  local: LocalConsolidar,
+  gerentes: Record<string, GerenteEmparejado>,
+  asignaciones: Map<number, AsignacionLocal>,
+  jefesLocales: Map<number, number | null>,
+): JefeCambio[] {
+  const filas: JefeCambio[] = [];
+  for (const a of p.asignaciones) {
+    const id = gerentes[a.uuid]?.asignacionId;
+    // Un archivo anterior al árbol (jefe undefined) no toca nada.
+    if (typeof id !== "number" || a.jefe === undefined || !asignaciones.has(id)) continue;
+    const archivo = a.jefe === null ? null : resolverJefe(a.jefe, local, gerentes, asignaciones);
+    if (archivo === undefined) continue;
+    const mio = jefesLocales.get(id) ?? null;
+    if (mio === archivo) continue;
+    const gerenteNombre = asignaciones.get(id)?.gerenteNombre ?? a.gerente.nombre;
+    filas.push({ asignacionId: id, gerenteNombre, local: mio, archivo, automatico: mio === null, bloqueo: null, debajo: 0 });
+  }
+  // Los automáticos que cierran un ciclo pasan a preguntarse, bloqueados.
+  const conAutomaticos = new Map(jefesLocales);
+  for (const f of filas) if (f.automatico) conAutomaticos.set(f.asignacionId, f.archivo);
+  for (let ciclo = cicloEn(conAutomaticos); ciclo; ciclo = cicloEn(conAutomaticos)) {
+    const ids = ciclo;
+    const enCiclo = filas.filter((f) => f.automatico && ids.includes(f.asignacionId));
+    if (enCiclo.length === 0) break; // un ciclo que ya estaba aquí: no lo arregla el archivo
+    for (const f of enCiclo) {
+      f.automatico = false;
+      f.bloqueo = BLOQUEO_CICLO;
+      conAutomaticos.set(f.asignacionId, f.local);
+    }
+  }
+  for (const f of filas) {
+    if (!f.automatico && !f.bloqueo && creaCiclo(conAutomaticos, f.asignacionId, f.archivo)) f.bloqueo = BLOQUEO_CICLO;
+    f.debajo = descendientes(conAutomaticos, f.asignacionId).length;
+  }
+  return filas;
+}
+
+/** Los cambios de jefe que se aplican con las decisiones: los automáticos y los del archivo elegidos (sin bloqueo). */
+export function jefesAplicados(plan: PlanConsolidacion, d: Decisiones): JefeCambio[] {
+  return plan.jefes.filter((f) => f.automatico || (d.jefes[f.asignacionId] === "archivo" && !f.bloqueo));
+}
+
+/** Los jefes de la campaña tras consolidar: los de aquí con `jefesAplicados`. */
+export function jefesFinales(plan: PlanConsolidacion, d: Decisiones): Map<number, number | null> {
+  const jefes = new Map(plan.jefesLocales);
+  for (const f of jefesAplicados(plan, d)) jefes.set(f.asignacionId, f.archivo);
+  return jefes;
+}
+
+/** Mensaje de un ciclo de jefes (ids de `plan.jefes`), con los nombres de los gerentes que lo forman. */
+export function motivoCiclo(plan: PlanConsolidacion, ciclo: number[]): string {
+  const nombres = plan.jefes.filter((f) => ciclo.includes(f.asignacionId)).map((f) => f.gerenteNombre);
+  return nombres.length > 0
+    ? `${nombres.join(" y ")} quedarían uno debajo del otro: cambia la elección de su jefe`
+    : "Dos gerentes quedarían uno debajo del otro: cambia la elección de su jefe";
+}
+
+export type GrupoJefe = { desde: string; hacia: string; filas: JefeCambio[] };
+
+/** Los jefes distintos (no automáticos) agrupados por el par (mi jefe → el del archivo), en el orden en que aparecen. */
+export function agruparJefes(plan: PlanConsolidacion, nombreDe: (id: number) => string): GrupoJefe[] {
+  const nombre = (id: number | null) => (id === null ? "sin jefe" : nombreDe(id));
+  const grupos = new Map<string, GrupoJefe>();
+  for (const f of plan.jefes) {
+    if (f.automatico) continue;
+    const desde = nombre(f.local);
+    const hacia = nombre(f.archivo);
+    const clave = JSON.stringify([desde, hacia]);
+    const grupo = grupos.get(clave);
+    if (grupo) grupo.filas.push(f);
+    else grupos.set(clave, { desde, hacia, filas: [f] });
+  }
+  return [...grupos.values()];
+}
+
+/**
+ * Montos asignados: el mío. Conflictos: la más reciente (el archivo si editaron las dos; el mío si es un duplicado). Eliminaciones: todas.
+ * Tasas: sin decidir. Jefes distintos: el mío.
+ */
 export function decisionesIniciales(plan: PlanConsolidacion): Decisiones {
   return {
     tasas: {},
     saldos: Object.fromEntries(plan.saldos.map((s) => [s.asignacionId, "mia" as const])),
     conflictos: Object.fromEntries(plan.conflictos.map((c) => [c.remoto.uuid, c.tipo === "editadoEnAmbas" ? ("archivo" as const) : ("mia" as const)])),
     eliminar: new Set(plan.eliminaciones.map((e) => e.remotoUuid)),
+    jefes: Object.fromEntries(plan.jefes.filter((f) => !f.automatico).map((f) => [f.asignacionId, "mia" as const])),
   };
 }
 
@@ -431,8 +553,10 @@ export function motivoPendiente(
   if (tasa) return `Elige la tasa del ${formatFecha(tasa.fecha)}`;
   const reemplazo = reemplazoSinEliminar(plan, d);
   if (reemplazo) return `${reemplazo.banco} ${reemplazo.referencia} del archivo reemplaza a uno que el archivo elimina: marca esa eliminación para consolidar`;
+  const ciclo = cicloEn(jefesFinales(plan, d));
+  if (ciclo) return motivoCiclo(plan, ciclo);
   const hayAlgo =
-    plan.agregadas.length > 0 || plan.nuevos.length > 0 || plan.correcciones.length > 0 || plan.conflictos.length > 0 || plan.vinculos.length > 0 ||
+    plan.agregadas.length > 0 || jefesAplicados(plan, d).length > 0 || plan.nuevos.length > 0 || plan.correcciones.length > 0 || plan.conflictos.length > 0 || plan.vinculos.length > 0 ||
     plan.tasasNuevas.length > 0 ||
     plan.eliminaciones.some((e) => d.eliminar.has(e.remotoUuid)) || plan.saldos.some((s) => d.saldos[s.asignacionId] === "archivo") ||
     plan.tasasDistintas.some((t) => d.tasas[t.fecha] === "archivo");

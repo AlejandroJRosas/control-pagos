@@ -178,3 +178,38 @@ it("no ofrece a un gerente que ya tiene otro del archivo", async () => {
   const opciones = (await screen.findAllByRole("option")).map((o) => o.textContent);
   expect(opciones).toEqual(["Agregar a mi campaña", "No incluir"]);
 });
+
+it("Jefe distinto agrupado por jefe: 'Todos: el del archivo' cambia el grupo", async () => {
+  /** Karla y Juan, con P1 y P2 bajo `jefe`. */
+  const arbol = async (db: Awaited<ReturnType<typeof createTestDb>>, campanaId: number, jefe: "Karla" | "Juan") => {
+    const ids: Record<string, number> = {};
+    for (const nombre of ["Karla", "Juan", "P1", "P2"]) {
+      const gerenteId = await createGerente(db, { nombre, telefono: null });
+      ids[nombre] = await createAsignacion(db, { campanaId, gerenteId, saldoUsd: "0", jefeId: nombre.startsWith("P") ? ids[jefe] : null });
+    }
+    return ids;
+  };
+  await paqueteDeOrigen(async (db, s) => void (await arbol(db, s.campanaId, "Juan")));
+  const { db, s } = await destino();
+  const ids = await arbol(db, s.campanaId, "Karla");
+  const { user, router } = await renderApp(`/consolidar?carpeta=recibidos/p1&campana=${s.campanaId}`, { db, hoy: "2026-03-06" });
+
+  const jefes = await seccion(/Jefe distinto \(2\)/);
+  expect(within(jefes).getByText("Tu app y el archivo ponen a estos gerentes bajo jefes distintos: elige cuál queda")).toBeInTheDocument();
+  expect(within(jefes).getByText("Karla → Juan · 2 gerentes")).toBeInTheDocument();
+  const delArchivo = () => within(jefes).getAllByRole("button", { name: "El del archivo: Juan" });
+  expect(within(jefes).getAllByRole("button", { name: "Mi jefe: Karla", pressed: true })).toHaveLength(2);
+  await user.click(delArchivo()[0]);
+  expect(within(jefes).getByText("Elecciones mezcladas")).toBeInTheDocument();
+  await user.click(within(jefes).getByRole("button", { name: "Todos: el del archivo" }));
+  expect(delArchivo().map((b) => b.getAttribute("aria-pressed"))).toEqual(["true", "true"]);
+  expect(within(jefes).queryByText("Elecciones mezcladas")).not.toBeInTheDocument();
+  expect(screen.getByText("Jefes: P1 → Juan, P2 → Juan")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Consolidar" }));
+  await waitFor(() => expect(router.state.location.pathname).toBe(`/campanas/${s.campanaId}`));
+  const filas = await db.select<{ id: number; jefeId: number | null }>("SELECT id, jefe_id AS jefeId FROM asignaciones WHERE id IN (?, ?) ORDER BY id", [
+    ids.P1, ids.P2,
+  ]);
+  expect(filas).toEqual([{ id: ids.P1, jefeId: ids.Juan }, { id: ids.P2, jefeId: ids.Juan }]);
+});

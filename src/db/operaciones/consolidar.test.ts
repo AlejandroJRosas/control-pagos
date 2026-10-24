@@ -79,6 +79,7 @@ describe("aplicarConsolidacion", () => {
 
     expect(resultado).toEqual({
       nuevos: 2, corregidos: 0, eliminados: 0, vinculados: 0, tasasCreadas: 0, tasasCambiadas: 0, saldosCambiados: 0, gerentesAgregados: 0,
+      jefesCambiados: 0,
     });
     const filas = await destino.db.select<{ uuid: string; creadoEn: string; actualizadoEn: string; imagenPath: string | null; asignacionId: number }>(
       "SELECT uuid, creado_en AS creadoEn, actualizado_en AS actualizadoEn, imagen_path AS imagenPath, asignacion_id AS asignacionId FROM depositos ORDER BY id",

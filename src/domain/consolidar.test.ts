@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  clasificar, decisionesIniciales, emparejarCampana, emparejarGerentes, gerentesRepetidos, idProvisional, motivoPendiente,
+  agruparJefes, clasificar, decisionesIniciales, emparejarCampana, emparejarGerentes, gerentesRepetidos, idProvisional, jefesFinales, motivoPendiente,
   type AsignacionLocal, type DepositoLocal, type GerenteEmparejado, type LocalConsolidar, type PlanConsolidacion,
 } from "./consolidar";
 import { MOTIVO_CERRADA } from "./motivos";
-import type { AsignacionPaquete, DepositoPaquete, Paquete } from "./paquete";
+import type { AsignacionPaquete, DepositoPaquete, JefePaquete, Paquete } from "./paquete";
 
 const remota = (uuid: string, gerenteUuid: string, nombre: string): AsignacionPaquete => ({ uuid, gerente: { uuid: gerenteUuid, nombre }, saldoUsd: "0", desde: null });
 const local = (id: number, gerenteId: number, gerenteNombre: string): AsignacionLocal => ({
-  id, uuid: `l${id}`, gerenteId, gerenteNombre, saldoUsd: "0", ultimoEnvio: null, ultimoRecibo: null,
+  id, uuid: `l${id}`, gerenteId, gerenteUuid: `g${gerenteId}`, gerenteNombre, saldoUsd: "0", ultimoEnvio: null, ultimoRecibo: null, jefeId: null,
 });
 
 describe("emparejarCampana", () => {
@@ -79,7 +79,7 @@ describe("emparejarGerentes", () => {
 
 const ULTIMO = "2026-03-01T00:00:00.000Z";
 const asigLocal = (id: number, gerenteNombre: string, saldoUsd: string): AsignacionLocal => ({
-  id, uuid: `l${id}`, gerenteId: id, gerenteNombre, saldoUsd, ultimoEnvio: null, ultimoRecibo: ULTIMO,
+  id, uuid: `l${id}`, gerenteId: id, gerenteUuid: `g${id}`, gerenteNombre, saldoUsd, ultimoEnvio: null, ultimoRecibo: ULTIMO, jefeId: null,
 });
 const rem = (o: Partial<DepositoPaquete> = {}): DepositoPaquete => ({
   uuid: "r1", asignacionUuid: "ra", fecha: "2026-03-04", banco: "Banesco", referencia: "111", cuentaDestino: "0134", montoBs: "1000",
@@ -457,7 +457,7 @@ describe("decisiones y motivoPendiente", () => {
     const plan = conPendientes();
     expect(plan.conflictos.map((c) => c.tipo).sort()).toEqual(["duplicado", "editadoEnAmbas"]);
     const d = decisionesIniciales(plan);
-    expect(d).toEqual({ tasas: {}, saldos: { 10: "mia" }, conflictos: { r9: "mia", r2: "archivo" }, eliminar: new Set(["r7"]) });
+    expect(d).toEqual({ tasas: {}, saldos: { 10: "mia" }, conflictos: { r9: "mia", r2: "archivo" }, eliminar: new Set(["r7"]), jefes: {} });
   });
 
   it("motivoPendiente en orden", () => {
@@ -503,5 +503,96 @@ describe("decisiones y motivoPendiente", () => {
     expect(motivoPendiente(plan, GER, { ...d, eliminar: new Set() })).toBe(
       "Banesco 111 del archivo reemplaza a uno que el archivo elimina: marca esa eliminación para consolidar",
     );
+  });
+});
+
+describe("jefes del archivo", () => {
+  const asig = (id: number, nombre: string, jefeId: number | null = null): AsignacionLocal => ({ ...asigLocal(id, nombre, "0"), jefeId });
+  const jefe = (asignacionUuid: string, gerenteUuid = `x-${asignacionUuid}`): JefePaquete => ({ asignacionUuid, gerente: { uuid: gerenteUuid, nombre: "?" } });
+  const remA = (uuid: string, nombre: string, j?: JefePaquete | null): AsignacionPaquete => ({
+    uuid, gerente: { uuid: `r-${uuid}`, nombre }, saldoUsd: "0", desde: null, ...(j === undefined ? {} : { jefe: j }),
+  });
+  const ger = (pares: [string, number][]): Record<string, GerenteEmparejado> =>
+    Object.fromEntries(pares.map(([uuid, asignacionId]) => [uuid, { asignacionId, estado: "recordado" as const }]));
+  const planDe = (remotas: AsignacionPaquete[], locales: AsignacionLocal[], g: Record<string, GerenteEmparejado>, o: Partial<LocalConsolidar> = {}) =>
+    clasificar(paq([], { asignaciones: remotas }), base({ asignaciones: locales, ...o }), g);
+  const fila = (asignacionId: number, gerenteNombre: string, local: number | null, archivo: number | null, automatico: boolean, o = {}) => ({
+    asignacionId, gerenteNombre, local, archivo, automatico, bloqueo: null, debajo: 0, ...o,
+  });
+
+  it("sin jefe aquí toma el del archivo en automático; distinto va a Jefe distinto con 'mía' por defecto", () => {
+    const locales = [asig(20, "Karla"), asig(21, "Juan"), asig(22, "Pedro"), asig(23, "María", 20)];
+    const remotas = [remA("rK", "Karla", null), remA("rJ", "Juan", null), remA("rP", "Pedro", jefe("rJ")), remA("rM", "María", jefe("rJ"))];
+    const g = ger([["rK", 20], ["rJ", 21], ["rP", 22], ["rM", 23]]);
+    const plan = planDe(remotas, locales, g);
+    expect(plan.jefes).toEqual([fila(22, "Pedro", null, 21, true), fila(23, "María", 20, 21, false)]);
+    const d = decisionesIniciales(plan);
+    expect(d.jefes).toEqual({ 23: "mia" });
+    expect([...jefesFinales(plan, d)]).toEqual([[20, null], [21, null], [22, 21], [23, 20]]);
+    expect(jefesFinales(plan, { ...d, jefes: { 23: "archivo" } }).get(23)).toBe(21);
+    expect(motivoPendiente(plan, g, d)).toBeNull();
+    // solo el distinto con "mía" no es nada que consolidar; con "archivo", sí
+    const soloDistinto = planDe([remA("rM", "María", jefe("rJ")), remA("rJ", "Juan", null)], locales, g);
+    expect(motivoPendiente(soloDistinto, g, decisionesIniciales(soloDistinto))).toBe("No hay nada nuevo para consolidar");
+    expect(motivoPendiente(soloDistinto, g, { ...decisionesIniciales(soloDistinto), jefes: { 23: "archivo" } })).toBeNull();
+  });
+
+  it("archivo viejo (jefe undefined) no genera filas; archivo con jefe null y local con jefe sí", () => {
+    const locales = [asig(20, "Karla"), asig(22, "Pedro", 20)];
+    const g = ger([["rP", 22]]);
+    expect(planDe([remA("rP", "Pedro")], locales, g).jefes).toEqual([]);
+    expect(planDe([remA("rP", "Pedro", null)], locales, g).jefes).toEqual([fila(22, "Pedro", 20, null, false)]);
+  });
+
+  it("jefe fuera del archivo se resuelve por el gerente (uuid o equivalencia); si no se encuentra, no hay fila", () => {
+    const locales = [asig(21, "Juan"), asig(22, "Pedro")];
+    const g = ger([["rP", 22]]);
+    const gerentes = [{ id: 21, uuid: "g21", nombre: "Juan" }, { id: 22, uuid: "g22", nombre: "Pedro" }, { id: 30, uuid: "g30", nombre: "Fuera" }];
+    const o = { gerentes, equivalenciasGerentes: new Map([["remJ", 21]]) };
+    const archivo = (j: JefePaquete) => planDe([remA("rP", "Pedro", j)], locales, g, o).jefes.map((f) => f.archivo);
+    expect(archivo(jefe("l21"))).toEqual([21]); // la asignación local con ese uuid
+    expect(archivo(jefe("zz", "g21"))).toEqual([21]); // el gerente con ese uuid
+    expect(archivo(jefe("zz", "remJ"))).toEqual([21]); // el gerente recordado
+    expect(archivo(jefe("zz", "nadie"))).toEqual([]);
+    expect(archivo(jefe("zz", "g30"))).toEqual([]); // conocido, pero sin asignación en la campaña
+  });
+
+  it("un automático que cierra un ciclo pasa a Jefe distinto bloqueado", () => {
+    // local: B bajo A; archivo: A bajo B
+    const locales = [asig(30, "A"), asig(31, "B", 30)];
+    const g = ger([["rA", 30], ["rB", 31]]);
+    const plan = planDe([remA("rA", "A", jefe("rB")), remA("rB", "B", null)], locales, g);
+    expect(plan.jefes).toEqual([
+      fila(30, "A", null, 31, false, { bloqueo: "Quedaría debajo de sí mismo", debajo: 1 }),
+      fila(31, "B", 30, null, false),
+    ]);
+    const d = decisionesIniciales(plan);
+    expect(d.jefes).toEqual({ 30: "mia", 31: "mia" });
+    expect(jefesFinales(plan, { ...d, jefes: { 30: "archivo" } }).get(30)).toBeNull();
+    expect(motivoPendiente(plan, g, { ...d, jefes: { 30: "archivo", 31: "archivo" } })).toBeNull();
+  });
+
+  it("dos elecciones archivo que juntas forman ciclo bloquean con motivo", () => {
+    // local: A bajo X, B bajo Y; archivo: A bajo B, B bajo A. Cada una sola es válida; las dos → motivoPendiente
+    const locales = [asig(40, "X"), asig(41, "Y"), asig(42, "A", 40), asig(43, "B", 41)];
+    const g = ger([["rA", 42], ["rB", 43]]);
+    const plan = planDe([remA("rA", "A", jefe("rB")), remA("rB", "B", jefe("rA"))], locales, g);
+    expect(plan.jefes.map((f) => [f.asignacionId, f.automatico, f.bloqueo])).toEqual([[42, false, null], [43, false, null]]);
+    const d = decisionesIniciales(plan);
+    expect(motivoPendiente(plan, g, { ...d, jefes: { 42: "archivo" } })).toBeNull();
+    expect(motivoPendiente(plan, g, { ...d, jefes: { 43: "archivo" } })).toBeNull();
+    expect(motivoPendiente(plan, g, { ...d, jefes: { 42: "archivo", 43: "archivo" } })).toMatch(/quedarían uno debajo del otro/);
+    expect(motivoPendiente(plan, g, { ...d, jefes: { 42: "archivo", 43: "archivo" } })).toBe(
+      "A y B quedarían uno debajo del otro: cambia la elección de su jefe",
+    );
+  });
+
+  it("agruparJefes agrupa por (mío → archivo)", () => {
+    const locales = [asig(20, "Karla"), asig(21, "Juan"), asig(22, "P1", 20), asig(23, "P2", 20), asig(24, "P3", 21)];
+    const g = ger([["rJ", 21], ["rP1", 22], ["rP2", 23], ["rP3", 24]]);
+    const remotas = [remA("rJ", "Juan", null), remA("rP1", "P1", jefe("rJ")), remA("rP3", "P3", null), remA("rP2", "P2", jefe("rJ"))];
+    const plan = planDe(remotas, locales, g);
+    const nombreDe = (id: number) => locales.find((a) => a.id === id)?.gerenteNombre ?? "";
+    expect(agruparJefes(plan, nombreDe).map((x) => [x.desde, x.hacia, x.filas.length])).toEqual([["Karla", "Juan", 2], ["Juan", "sin jefe", 1]]);
   });
 });

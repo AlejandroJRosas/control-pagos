@@ -23,7 +23,7 @@ const loc = (id: number, o: Partial<DepositoLocal> = {}): DepositoLocal => ({
 const plan = (o: Partial<PlanConsolidacion> = {}): PlanConsolidacion => ({
   campana: { id: 1, uuid: "c1", nombre: "Marzo", estado: "activa" },
   nuevos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0, masNuevasAqui: [], noIncluidos: [],
-  tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], agregadas: [], ...o,
+  tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], agregadas: [], jefes: [], jefesLocales: new Map(), ...o,
 });
 const tasas = new Map([
   ["2026-03-02", { id: 1, valor: "36.5", usos: 2 }],

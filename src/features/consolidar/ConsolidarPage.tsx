@@ -14,8 +14,8 @@ import { listCampanas, type Campana } from "@/db/repos/campanas";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { aplicarConsolidacion, cargarLocal, emparejamientoInicial, emparejarGerentesDe } from "@/db/operaciones/consolidar";
 import {
-  clasificar, decisionesIniciales, gerentesFuera, gerentesMismoNombre, gerentesRecordados, idProvisional, motivoPendiente, type Agregada, type Decisiones,
-  type Eleccion, type EstadoEmparejamiento, type GerenteEmparejado,
+  agruparJefes, clasificar, decisionesIniciales, gerentesFuera, gerentesMismoNombre, gerentesRecordados, idProvisional, jefesAplicados, motivoPendiente,
+  type Agregada, type Decisiones, type Eleccion, type EstadoEmparejamiento, type GerenteEmparejado,
 } from "@/domain/consolidar";
 import { mensajeConsolidado, resumenConsolidacion, tasaParaFecha, type CambioGerente } from "@/domain/consolidarResumen";
 import { formatFecha, formatFechaHora } from "@/domain/dates";
@@ -26,13 +26,16 @@ import { errorMessage, reportError } from "@/lib/reportError";
 import { rutaConsolidar } from "@/lib/rutaConsolidar";
 import { abrirPaqueteDeDialogo, importarImagenRecibida, leerPaqueteDeCarpeta } from "@/platform/paquete";
 import { respaldoAntesDe } from "@/platform/backup";
-import { Correcciones, Diferencias, Eliminaciones, Nuevos, NoIncluidos } from "./Secciones";
+import { Correcciones, Diferencias, Eliminaciones, JefesDistintos, Nuevos, NoIncluidos } from "./Secciones";
 
 type Inicial = { campanaId: number | null; estadoCampana: EstadoEmparejamiento; gerentes: Record<string, GerenteEmparejado> };
 
 /** Lo que eligió el usuario sobre las decisiones por defecto del plan (se conserva al volver a clasificar). */
-type Elecciones = { tasas: Record<string, Eleccion>; saldos: Record<number, Eleccion>; conflictos: Record<string, Eleccion>; noEliminar: ReadonlySet<string> };
-const SIN_ELECCIONES: Elecciones = { tasas: {}, saldos: {}, conflictos: {}, noEliminar: new Set() };
+type Elecciones = {
+  tasas: Record<string, Eleccion>; saldos: Record<number, Eleccion>; conflictos: Record<string, Eleccion>; noEliminar: ReadonlySet<string>;
+  jefes: Record<number, Eleccion>;
+};
+const SIN_ELECCIONES: Elecciones = { tasas: {}, saldos: {}, conflictos: {}, noEliminar: new Set(), jefes: {} };
 
 const NO_INCLUIR = "no";
 /** "agregar" = con un gerente nuevo; "agregar:<id>" = con ese gerente local. */
@@ -99,6 +102,7 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
       saldos: { ...ini.saldos, ...elecciones.saldos },
       conflictos: { ...ini.conflictos, ...elecciones.conflictos },
       eliminar: new Set([...ini.eliminar].filter((u) => !elecciones.noEliminar.has(u))),
+      jefes: { ...ini.jefes, ...elecciones.jefes },
     };
   }, [plan, elecciones]);
 
@@ -109,6 +113,9 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
   const resumen = useMemo(() => (datos && plan && d ? resumenConsolidacion(datos.base, plan, d, datos.local.tasas) : []), [datos, plan, d]);
   const nombres = useMemo(() => Object.fromEntries(paquete.asignaciones.map((a) => [a.uuid, a.gerente.nombre])), [paquete]);
   const motivo = !plan || !d ? "Elige en qué campaña consolidar el archivo" : motivoPendiente(plan, gerentes, d, nombres);
+  const gruposJefes = plan ? agruparJefes(plan, nombreDe) : [];
+  const jefesNuevos =
+    plan && d ? jefesAplicados(plan, d).map((f) => `${f.gerenteNombre} → ${f.archivo === null ? "sin jefe" : nombreDe(f.archivo)}`) : [];
 
   async function elegirCampana(valor: string) {
     const id = Number(valor) || null;
@@ -129,12 +136,15 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
         ? { asignacionId: idProvisional(paquete, uuid), estado: "elegido", agregar: { gerenteId: agregarCon } }
         : { asignacionId: valor === "" ? undefined : valor === NO_INCLUIR ? null : Number(valor), estado: "elegido" };
     setGerentes((g) => ({ ...g, [uuid]: elegido }));
-    // Lo elegido sobre los montos asignados era de otro emparejamiento.
-    setElecciones((x) => ({ ...x, saldos: {} }));
+    // Lo elegido sobre los montos asignados y los jefes era de otro emparejamiento.
+    setElecciones((x) => ({ ...x, saldos: {}, jefes: {} }));
   }
 
   const elegir = <K extends "tasas" | "saldos" | "conflictos">(k: K, clave: string | number, e: Eleccion) =>
     setElecciones((x) => ({ ...x, [k]: { ...x[k], [clave]: e } }));
+
+  const elegirJefes = (ids: number[], e: Eleccion) =>
+    setElecciones((x) => ({ ...x, jefes: { ...x.jefes, ...Object.fromEntries(ids.map((id) => [id, e])) } }));
 
   function marcarEliminar(uuids: string[], marcar: boolean) {
     setElecciones((x) => {
@@ -196,6 +206,7 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
         plan.sinCambios > 0 && `Sin cambios: ${plan.sinCambios}`,
         plan.vinculos.length > 0 && `Ya lo tienes: ${plan.vinculos.length}`,
         plan.masNuevasAqui.length > 0 && `Tu versión es más nueva: ${plan.masNuevasAqui.length}`,
+        plan.jefes.some((f) => f.automatico) && `Toman el jefe del archivo: ${plan.jefes.filter((f) => f.automatico).length}`,
       ].filter((x): x is string => !!x)
     : [];
 
@@ -260,6 +271,7 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
               onConflicto={(u, e) => elegir("conflictos", u, e)}
             />
           )}
+          {gruposJefes.length > 0 && <JefesDistintos grupos={gruposJefes} d={d} onElegir={elegirJefes} />}
           {plan.noIncluidos.length > 0 && <NoIncluidos plan={plan} />}
           {plan.tasasNuevas.length > 0 && (
             <p className="text-sm text-muted-foreground">
@@ -272,7 +284,7 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
       )}
 
       <Card className="px-4">
-        {resumen.length > 0 && <ResumenCambios filas={resumen} agregadas={plan?.agregadas ?? []} />}
+        {resumen.length + jefesNuevos.length > 0 && <ResumenCambios filas={resumen} agregadas={plan?.agregadas ?? []} jefes={jefesNuevos} />}
         <div className="flex justify-end">
           <BotonConMotivo motivo={ocupado ? undefined : (motivo ?? undefined)}>
             <Button disabled={ocupado || !!motivo} onClick={() => void consolidar()}>
@@ -286,11 +298,12 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
   );
 }
 
-function ResumenCambios({ filas, agregadas }: { filas: CambioGerente[]; agregadas: Agregada[] }) {
+function ResumenCambios({ filas, agregadas, jefes }: { filas: CambioGerente[]; agregadas: Agregada[]; jefes: string[] }) {
   return (
     <div>
       <h2 className="mb-1 text-base font-semibold">Cómo quedan los gerentes</h2>
       {agregadas.length > 0 && <p className="mb-1 text-sm">Gerentes agregados a la campaña: {agregadas.map((a) => a.gerenteNombre).join(", ")}</p>}
+      {jefes.length > 0 && <p className="mb-1 text-sm">{`Jefes: ${jefes.join(", ")}`}</p>}
       <ul className="text-sm">
         {filas.map((f) => (
           <li key={f.asignacionId} className="flex flex-wrap gap-x-3">
