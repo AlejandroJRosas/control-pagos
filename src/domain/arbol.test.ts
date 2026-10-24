@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alternarRama, aplanarArbol, armarArbol, cicloEn, creaCiclo, descendientes, estadoRama, type Jefes } from "./arbol";
+import { acomodarDirectos, alternarRama, aplanarArbol, armarArbol, cicloEn, creaCiclo, descendientes, estadoRama, type Jefes, type LugarDirecto, type NodoArbol } from "./arbol";
 
 // Árbol de ejemplo: 1 Ana → 2 Luis → (3 Pedro, 4 María); 1 Ana → 5 Carla; 6 José sin jefe.
 const jefes: Jefes = new Map([
@@ -78,5 +78,43 @@ describe("arbol", () => {
     expect(estadoRama(m, jefes, 2)).toBe("todo");
     expect(estadoRama(m, jefes, 5)).toBe("nada");
     expect([...alternarRama(m, jefes, 2)]).toEqual([]);
+  });
+});
+
+describe("acomodarDirectos", () => {
+  const hoja = (n: number): NodoArbol<number> => ({ item: n, hijos: [] });
+  const equipo = (n: number): NodoArbol<number> => ({ item: n, hijos: [hoja(n * 10)] });
+  const sinGente = (n: NodoArbol<number>) => n.hijos.length === 0;
+  const forma = (filas: LugarDirecto<number>[][]) =>
+    filas.map((f) => f.map((l) => (l.tipo === "rama" ? l.nodo.item : `hojas:${l.nodos.map((n) => n.item).join(",")}/${l.columnas}`)));
+
+  it("sin directos no hay filas", () => {
+    expect(acomodarDirectos([], sinGente)).toEqual([]);
+  });
+
+  it("pocos lugares van en una sola fila, con las hojas juntas al final", () => {
+    expect(forma(acomodarDirectos([hoja(1), equipo(2), hoja(3)], sinGente))).toEqual([[2, "hojas:1,3/1"]]);
+    expect(forma(acomodarDirectos([hoja(1), hoja(2)], sinGente))).toEqual([["hojas:1,2/1"]]);
+  });
+
+  it("las hojas pasan a 2 columnas desde 4 y a 3 desde 13", () => {
+    expect(forma(acomodarDirectos([1, 2, 3, 4].map(hoja), sinGente))).toEqual([["hojas:1,2,3,4/2"]]);
+    const trece = Array.from({ length: 13 }, (_, i) => hoja(i + 1));
+    expect((acomodarDirectos(trece, sinGente)[0][0] as { columnas: number }).columnas).toBe(3);
+  });
+
+  it("con más de 3 lugares se reparten en filas de ⌈√n⌉", () => {
+    expect(forma(acomodarDirectos([1, 2, 3, 4].map(equipo), sinGente))).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
+    expect(forma(acomodarDirectos([...[1, 2, 3, 4, 5].map(equipo), hoja(6)], sinGente))).toEqual([
+      [1, 2, 3],
+      [4, 5, "hojas:6/1"],
+    ]);
+  });
+
+  it("lo compacto lo decide quien llama (p. ej. una rama plegada)", () => {
+    expect(forma(acomodarDirectos([equipo(1), equipo(2)], (n) => n.item === 2))).toEqual([[1, "hojas:2/1"]]);
   });
 });

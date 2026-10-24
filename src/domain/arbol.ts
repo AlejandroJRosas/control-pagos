@@ -124,3 +124,24 @@ export function estadoRama(marcados: ReadonlySet<number>, jefes: Jefes, id: numb
   const n = rama.filter((r) => marcados.has(r)).length;
   return n === 0 ? "nada" : n === rama.length ? "todo" : "parte";
 }
+
+/** Un lugar bajo el jefe en el organigrama: una rama con su gente o el bloque de los que se ven como una sola cajita. */
+export type LugarDirecto<T> = { tipo: "rama"; nodo: NodoArbol<T> } | { tipo: "hojas"; nodos: NodoArbol<T>[]; columnas: number };
+
+/** Hasta este número de lugares van en una sola fila, centrados bajo el jefe; con más se reparten en una grilla. */
+export const MAX_EN_FILA = 3;
+
+/**
+ * Acomoda a los directos de un jefe para aprovechar el espacio: los `compacto` (sin gente o con la rama plegada) van
+ * juntos al final en un bloque de 1 a 3 columnas, y los lugares se reparten en filas de ⌈√n⌉ (4 → 2×2, 9 → 3×3).
+ */
+export function acomodarDirectos<T>(hijos: NodoArbol<T>[], compacto: (n: NodoArbol<T>) => boolean): LugarDirecto<T>[][] {
+  const hojas = hijos.filter(compacto);
+  const lugares: LugarDirecto<T>[] = hijos.filter((h) => !compacto(h)).map((nodo) => ({ tipo: "rama", nodo }));
+  if (hojas.length > 0) lugares.push({ tipo: "hojas", nodos: hojas, columnas: hojas.length <= 3 ? 1 : hojas.length <= 12 ? 2 : 3 });
+  if (lugares.length <= MAX_EN_FILA) return lugares.length > 0 ? [lugares] : [];
+  const columnas = Math.ceil(Math.sqrt(lugares.length));
+  const filas: LugarDirecto<T>[][] = [];
+  for (let i = 0; i < lugares.length; i += columnas) filas.push(lugares.slice(i, i + columnas));
+  return filas;
+}

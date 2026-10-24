@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Lock, Move } from "lucide-react";
 import { toast } from "sonner";
@@ -6,7 +6,7 @@ import { getDb } from "@/db";
 import { moverAJefe, restaurarJefes } from "@/db/operaciones/moverAJefe";
 import { MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { type GerenteResumen } from "@/domain/campanaView";
-import { aplanarArbol, armarArbol, creaCiclo, type Jefes, type NodoArbol } from "@/domain/arbol";
+import { acomodarDirectos, aplanarArbol, armarArbol, creaCiclo, type Jefes, type LugarDirecto, type NodoArbol } from "@/domain/arbol";
 import { clicSeleccion, SIN_SELECCION, type Seleccion } from "@/domain/seleccion";
 import { hayDialogoAbierto } from "@/hooks/useAtajo";
 import { invalidate } from "@/hooks/useData";
@@ -170,40 +170,73 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
     );
   };
 
-  /** Un nodo: la cajita encima de su gente. Si toda su gente son hojas, van en columna para no ensanchar la pirámide. */
-  const rama = (n: Nodo) => {
+  /** Se ve como una sola cajita: sin gente o con la rama plegada. */
+  const compacta = (n: Nodo) => esHoja(n) || ramas.plegados.has(n.item.asignacionId);
+
+  /** Las hojas de un jefe: en columna sobre la línea (1 columna) o en un recuadro de 2 o 3 columnas. */
+  const bloqueHojas = (nodos: Nodo[], columnas: number) =>
+    columnas === 1 ? (
+      <div className="relative flex flex-col items-center gap-2">
+        <span aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+        {nodos.map((h) => (
+          <div key={h.item.asignacionId} className="relative">
+            {rama(h)}
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className={cn("grid gap-2 rounded-lg border border-dashed bg-background/60 p-2", columnas === 2 ? "grid-cols-2" : "grid-cols-3")}>
+        {nodos.map((h) => (
+          <div key={h.item.asignacionId}>{rama(h)}</div>
+        ))}
+      </div>
+    );
+
+  /**
+   * Una fila de directos colgando de una línea horizontal. En la grilla la línea arranca en el tronco de la izquierda;
+   * si no, va del primero al último.
+   */
+  const fila = (lugares: LugarDirecto<GerenteResumen>[], enGrilla: boolean) => (
+    <div className={cn("flex items-start", enGrilla && "pb-4")}>
+      {lugares.map((l, i) => (
+        <div key={l.tipo === "rama" ? l.nodo.item.asignacionId : "hojas"} className="relative flex flex-col items-center px-3 pt-5">
+          {(enGrilla || lugares.length > 1) && (
+            <span
+              aria-hidden
+              className={cn("absolute top-0 h-px bg-border", i === 0 && !enGrilla ? "left-1/2" : "left-0", i === lugares.length - 1 ? "right-1/2" : "right-0")}
+            />
+          )}
+          <span aria-hidden className="absolute top-0 left-1/2 h-5 w-px bg-border" />
+          {l.tipo === "rama" ? rama(l.nodo) : bloqueHojas(l.nodos, l.columnas)}
+        </div>
+      ))}
+    </div>
+  );
+
+  /**
+   * Un nodo: la cajita encima de su gente (`acomodarDirectos`). Con pocos lugares van en una fila centrada; con más, en
+   * una grilla de filas que cuelgan de un tronco que baja desde el centro del jefe (por eso el jefe va a la izquierda).
+   */
+  const rama = (n: Nodo): ReactNode => {
     const abierta = n.hijos.length > 0 && !ramas.plegados.has(n.item.asignacionId);
-    const enColumna = n.hijos.every(esHoja);
+    const filas = abierta ? acomodarDirectos(n.hijos, compacta) : [];
+    const enGrilla = filas.length > 1;
+    const [unico] = filas.length === 1 && filas[0].length === 1 ? filas[0] : [];
     return (
-      <div role="group" aria-label={`Rama de ${n.item.gerenteNombre}`} className="flex flex-col items-center">
+      <div role="group" aria-label={`Rama de ${n.item.gerenteNombre}`} className={cn("flex flex-col", enGrilla ? "items-start" : "items-center")}>
         {cajita(n)}
-        {abierta && <span aria-hidden className="h-5 w-px bg-border" />}
-        {abierta &&
-          (enColumna ? (
-            <div className="relative flex flex-col items-center gap-2">
-              <span aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
-              {n.hijos.map((h) => (
-                <div key={h.item.asignacionId} className="relative">
-                  {rama(h)}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-start">
-              {n.hijos.map((h, i) => (
-                <div key={h.item.asignacionId} className="relative flex flex-col items-center px-2 pt-5">
-                  {n.hijos.length > 1 && (
-                    <span
-                      aria-hidden
-                      className={cn("absolute top-0 h-px bg-border", i === 0 ? "left-1/2" : "left-0", i === n.hijos.length - 1 ? "right-1/2" : "right-0")}
-                    />
-                  )}
-                  <span aria-hidden className="absolute top-0 left-1/2 h-5 w-px bg-border" />
-                  {rama(h)}
-                </div>
-              ))}
-            </div>
-          ))}
+        {abierta && <span aria-hidden className={cn("h-5 w-px bg-border", enGrilla && "ml-20")} />}
+        {unico?.tipo === "hojas" ? bloqueHojas(unico.nodos, unico.columnas) : filas.length === 1 && fila(filas[0], false)}
+        {enGrilla && (
+          <div className="ml-20 flex flex-col">
+            {filas.map((f, i) => (
+              <div key={i} className="relative">
+                {i < filas.length - 1 && <span aria-hidden className="absolute inset-y-0 left-0 w-px bg-border" />}
+                {fila(f, true)}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -240,9 +273,12 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
         </div>
       ) : (
         <LienzoOrganigrama clave={`estructura-${campanaId}`} zona={cerrada ? {} : zona(null, "punta")} resaltado={sobre === "punta"}>
-          <div className="flex items-start gap-10">
-            {arboles.map((a) => (
-              <div key={a.item.asignacionId}>{rama(a)}</div>
+          {/* Las puntas también se reparten en filas para no hacer un organigrama larguísimo a lo ancho. */}
+          <div className="flex flex-col gap-10">
+            {acomodarDirectos(arboles, compacta).map((f, i) => (
+              <div key={i} className="flex items-start gap-10">
+                {f.map((l) => (l.tipo === "rama" ? <div key={l.nodo.item.asignacionId}>{rama(l.nodo)}</div> : <div key="hojas">{bloqueHojas(l.nodos, l.columnas)}</div>))}
+              </div>
             ))}
           </div>
         </LienzoOrganigrama>
