@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createTestDb } from "@/db/testing/sqljsDriver";
 import { createCampana, setEstadoCampana } from "@/db/repos/campanas";
@@ -121,6 +121,30 @@ it("Estructura dibuja la pirámide, arrastra para cambiar el jefe y deshace", as
   expect(await jefeDe(ids.ana)).toBeNull();
   expect(await jefeDe(ids.luis)).toBe(ids.ana);
   expect(screen.queryByText(/Ana ahora está bajo/)).not.toBeInTheDocument();
+
+  // la zona de la punta (fuera de las cajitas) también le quita el jefe
+  dt = arrastre();
+  fireEvent.dragStart(screen.getByRole("button", { name: "Luis" }), { dataTransfer: dt });
+  fireEvent.dragOver(screen.getByRole("region", { name: "Organigrama" }), { dataTransfer: dt });
+  fireEvent.drop(screen.getByRole("region", { name: "Organigrama" }), { dataTransfer: dt });
+  expect(await screen.findByText("Luis ya no tiene jefe")).toBeInTheDocument();
+  expect(await jefeDe(ids.luis)).toBeNull();
+});
+
+it("Estructura deja pasar a la ventana un archivo soltado desde afuera", async () => {
+  const { db, campanaId } = await campanaConArbol();
+  await renderApp(`/campanas/${campanaId}?tab=estructura`, { db, hoy: "2026-10-19" });
+  const enVentana = vi.fn();
+  window.addEventListener("drop", enVentana);
+  try {
+    const archivos = () => ({ dataTransfer: { files: [new File(["x"], "a.txt")], types: ["Files"] } });
+    fireEvent.drop(await screen.findByRole("button", { name: "Ana" }), archivos());
+    fireEvent.drop(screen.getByRole("region", { name: "Sin estructura" }), archivos());
+    fireEvent.drop(screen.getByRole("region", { name: "Organigrama" }), archivos());
+    expect(enVentana).toHaveBeenCalledTimes(3);
+  } finally {
+    window.removeEventListener("drop", enVentana);
+  }
 });
 
 it("Estructura con la campaña cerrada no deja arrastrar", async () => {

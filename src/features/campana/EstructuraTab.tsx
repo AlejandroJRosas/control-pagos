@@ -25,7 +25,7 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
   const navigate = useNavigate();
   const ramas = useRamasPlegadas(`estructura-${campanaId}`);
   const [arrastrando, setArrastrando] = useState<number | null>(null);
-  const [sobre, setSobre] = useState<number | "sueltos" | null>(null);
+  const [sobre, setSobre] = useState<number | "sueltos" | "punta" | null>(null);
   const { arboles, sueltos } = useMemo(() => {
     const orden = [...gerentes].sort((a, b) => a.gerenteNombre.localeCompare(b.gerenteNombre, "es"));
     const raices = armarArbol(orden, idDe, jefes);
@@ -50,8 +50,8 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
           onClick: async () => {
             try {
               await setJefeAsignacion(await getDb(), id, anterior);
-              toast.success("Cambio deshecho");
               invalidate();
+              toast.success("Cambio deshecho");
             } catch (e) {
               reportError(e, "Deshacer");
             }
@@ -68,27 +68,30 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
     setSobre(null);
   };
   /**
-   * Manejadores de una zona de soltar: `preventDefault` solo si el destino es válido, así el inválido no se resalta. No se
-   * propaga: una cajita dentro de "Sin estructura" no suelta también en la región.
+   * Manejadores de una zona de soltar: `preventDefault` solo si el destino es válido, así el inválido no se resalta. Un
+   * arrastre propio no se propaga (una cajita dentro de una zona no suelta también en ella); uno de afuera (imágenes, un
+   * .cpagos) no se toca, para que lo reciba `SoltarImagenes` en la ventana.
    */
-  const zona = (destino: number | null) => ({
+  const zona = (destino: number | null, marca: number | "sueltos" | "punta" = destino ?? "sueltos") => ({
     onDragOver: (e: DragEvent) => {
+      if (arrastrando === null) return;
       e.stopPropagation();
       if (!valido(destino)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
-      setSobre(destino ?? "sueltos");
+      setSobre(marca);
     },
     onDragLeave: (e: DragEvent) => {
       if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSobre(null);
     },
     onDrop: (e: DragEvent) => {
+      const id = arrastrando;
+      if (id === null) return;
       e.preventDefault();
       e.stopPropagation();
-      const id = arrastrando ?? (Number(e.dataTransfer.getData(TIPO_ARRASTRE)) || null);
       const ok = valido(destino);
       terminar();
-      if (id !== null && ok) void mover(id, destino);
+      if (ok) void mover(id, destino);
     },
   });
 
@@ -171,11 +174,16 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
         ) : (
           <>
             <Move className="size-4" />
-            Arrastra un gerente sobre otro para ponerlo debajo; suéltalo en «Sin estructura» para quitarle el jefe.
+            Arrastra un gerente sobre otro para ponerlo debajo; suéltalo arriba, fuera de las cajitas, o en «Sin estructura» para quitarle el jefe.
           </>
         )}
       </p>
-      <div className="overflow-x-auto rounded-xl border bg-muted/30 p-6">
+      <div
+        role="region"
+        aria-label="Organigrama"
+        {...(cerrada ? {} : zona(null, "punta"))}
+        className={cn("overflow-x-auto rounded-xl border bg-muted/30 p-6 transition-colors", sobre === "punta" && "border-primary-intenso bg-fila-hover")}
+      >
         {arboles.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">Todavía nadie tiene gente a cargo.</p>
         ) : (
