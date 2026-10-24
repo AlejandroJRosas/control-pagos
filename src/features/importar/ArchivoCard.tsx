@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { DestinoGerente } from "@/components/DestinoGerente";
 import { Casilla } from "@/components/Casilla";
+import { IconoIncidencias } from "@/components/IconoIncidencias";
 import { FechaInput } from "@/components/FechaInput";
 import { MontoInput } from "@/components/MontoInput";
 import type { CampanaData } from "@/db/queries/campanaData";
@@ -20,6 +21,7 @@ import { formatBs, formatTasa, formatUsd } from "@/domain/money";
 import type { DestinoDraft } from "@/domain/validation";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { cn } from "@/lib/utils";
+import { motivosFila } from "./incidencias";
 
 export type Archivo = {
   key: string;
@@ -31,6 +33,8 @@ export type Archivo = {
   /** Lo que el usuario completó, por fila del Excel. */
   ediciones: Map<number, EdicionFila>;
 };
+
+type Vista = "todas" | "bien" | "incidencias";
 
 type Col = "fila" | "fecha" | "banco" | "referencia" | "cuenta" | "montoBs" | "tasa" | "usd";
 const COLUMNAS: Columnas<FilaPlan, Col> = {
@@ -69,14 +73,18 @@ export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, 
   const [importando, setImportando] = useState(false);
   const { orden, alternar } = useOrden<Col>();
   const { cuadro, filas } = a.plan;
-  const ordenadas = ordenar(filas, COLUMNAS, orden);
+  const [vista, setVista] = useState<Vista>("todas");
+  const conIncidencias = filas.filter((f) => motivosFila(f).length > 0);
+  const visibles = vista === "todas" ? filas : filas.filter((f) => (motivosFila(f).length > 0) === (vista === "incidencias"));
+  const ordenadas = ordenar(visibles, COLUMNAS, orden);
   const elegidas = filas.filter((f) => a.marcadas.has(f.fila));
   const totalUsd = elegidas.reduce((s, f) => s.plus(f.usd ?? 0), new Decimal(0));
   const selAsignacion = /^a:(\d+)$/.exec(a.destino.sel);
   const asignacion = selAsignacion ? campana.asignaciones.find((x) => x.id === Number(selAsignacion[1])) : undefined;
   const saldoDistinto = asignacion && cuadro.saldoInicial && !new Decimal(asignacion.saldoUsd).eq(cuadro.saldoInicial);
-  const importables = filas.filter((f) => f.importable);
+  const importables = visibles.filter((f) => f.importable);
   const todas = importables.length > 0 && importables.every((f) => a.marcadas.has(f.fila));
+  const marcadasVisibles = importables.filter((f) => a.marcadas.has(f.fila)).length;
   // Sin depósitos elegidos todavía sirve para agregar el gerente a la campaña (p. ej. uno sin depósitos en un Excel exportado).
   const soloGerente = elegidas.length === 0 && filas.length === 0 && a.destino.sel !== "" && !selAsignacion;
 
@@ -86,6 +94,29 @@ export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, 
     else next.delete(fila);
     onChange({ marcadas: next });
   }
+
+  // Marcar todos actúa solo sobre lo que se ve: lo marcado fuera del filtro se queda como está.
+  function marcarVisibles(si: boolean) {
+    const next = new Set(a.marcadas);
+    importables.forEach((f) => (si ? next.add(f.fila) : next.delete(f.fila)));
+    onChange({ marcadas: next });
+  }
+
+  const chip = (v: Vista, label: string, n: number) => (
+    <button
+      key={v}
+      type="button"
+      aria-pressed={vista === v}
+      onClick={() => setVista(v)}
+      className={cn(
+        "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors hover:bg-fila-hover",
+        vista === v && "border-primary-intenso bg-fila-hover font-medium",
+      )}
+    >
+      {label}
+      <span className="text-muted-foreground tabular-nums">{n}</span>
+    </button>
+  );
 
   return (
     <Card>
@@ -118,16 +149,24 @@ export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, 
           </label>
         )}
 
+        {filas.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {chip("todas", "Todas", filas.length)}
+            {chip("bien", "Bien", filas.length - conIncidencias.length)}
+            {chip("incidencias", "Con incidencias", conIncidencias.length)}
+          </div>
+        )}
+
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-8">
                 <Casilla
                   aria-label="Marcar todas"
-                  indeterminado={!todas && elegidas.length > 0}
+                  indeterminado={!todas && marcadasVisibles > 0}
                   checked={todas}
                   disabled={importables.length === 0}
-                  onChange={(e) => onChange({ marcadas: e.target.checked ? new Set(importables.map((f) => f.fila)) : new Set() })}
+                  onChange={(e) => marcarVisibles(e.target.checked)}
                 />
               </TableHead>
               {ENCABEZADOS.map(([col, label, className]) => (
@@ -262,31 +301,26 @@ function CampoFila(props: { f: FilaPlan; campo: CampoEditable; valor: string; di
 }
 
 function Revision({ f }: { f: FilaPlan }) {
-  const notas: { texto: string; tono: "error" | "aviso" | "info" }[] = [];
-  f.problemas.forEach((p) => notas.push({ texto: p, tono: "error" }));
-  if (f.bancoDesconocido) notas.push({ texto: "Banco que no conozco: elige cuál es arriba", tono: "error" });
-  if (f.estadoTasa === "nueva") notas.push({ texto: "Tasa nueva: se registrará", tono: "info" });
-  if (f.estadoTasa === "registrada") notas.push({ texto: "Tasa tomada de la app", tono: "info" });
-  if (f.editada) notas.push({ texto: "Editada", tono: "info" });
-  if (f.estadoTasa === "distinta" && f.tasa && f.tasaAplicada) {
-    notas.push({ texto: `El Excel dice ${formatTasa(f.tasa)}; se usará la del día: ${formatTasa(f.tasaAplicada)}`, tono: "aviso" });
-  }
-  f.duplicados.forEach((d) =>
-    notas.push({ texto: `Ya registrado (no se importa): ${formatFecha(d.fecha)} · ${d.gerenteNombre} · ${d.campanaNombre}`, tono: "error" }),
-  );
-  if (f.repetidaEnArchivo !== null) notas.push({ texto: `Repetida en el archivo (fila ${f.repetidaEnArchivo}): no se importa`, tono: "error" });
-  f.posiblesRepetidos.forEach((d) =>
-    notas.push({ texto: `Posible repetido: ${formatFecha(d.fecha)} · ${d.gerenteNombre} · ${d.campanaNombre}`, tono: "aviso" }),
-  );
-  if (f.repetidaPosibleEnArchivo !== null) notas.push({ texto: `Posible repetido (fila ${f.repetidaPosibleEnArchivo} del archivo)`, tono: "aviso" });
-  if (notas.length === 0) return <Badge variant="secondary">OK</Badge>;
+  const motivos = motivosFila(f);
+  // El ícono lleva los motivos; el detalle de cada uno (dónde está el registrado, qué dice el Excel) va debajo de ellos.
+  const detalle: string[] = [];
+  f.duplicados.forEach((d) => detalle.push(`Ya registrado (no se importa): ${formatFecha(d.fecha)} · ${d.gerenteNombre} · ${d.campanaNombre}`));
+  f.posiblesRepetidos.forEach((d) => detalle.push(`Posible repetido: ${formatFecha(d.fecha)} · ${d.gerenteNombre} · ${d.campanaNombre}`));
+  if (f.bancoDesconocido) detalle.push("Elige qué banco es en la parte de arriba");
+  if (f.estadoTasa === "distinta" && f.tasa && f.tasaAplicada) detalle.push(`El Excel dice ${formatTasa(f.tasa)}; se usará la del día: ${formatTasa(f.tasaAplicada)}`);
+  const infos: string[] = [];
+  if (f.estadoTasa === "nueva") infos.push("Tasa nueva: se registrará");
+  if (f.estadoTasa === "registrada") infos.push("Tasa tomada de la app");
+  if (f.editada) infos.push("Editada");
+  if (motivos.length === 0 && infos.length === 0) return <Badge variant="secondary">OK</Badge>;
   return (
-    <ul className="space-y-0.5 text-xs">
-      {notas.map((n) => (
-        <li key={n.texto} className={cn(n.tono === "error" && "text-destructive", n.tono === "aviso" && "text-amber-700 dark:text-amber-400")}>
-          {n.texto}
-        </li>
-      ))}
-    </ul>
+    <div className="flex items-start gap-2">
+      <IconoIncidencias motivos={[...motivos, ...detalle]} />
+      <ul className="space-y-0.5 text-xs">
+        {infos.map((t) => (
+          <li key={t}>{t}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
