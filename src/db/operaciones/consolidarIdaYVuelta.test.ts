@@ -5,6 +5,7 @@ import { crearDuplicado, depositoBase, seedBasico } from "../testing/fixtures";
 import { createDeposito, deleteDeposito, updateDeposito } from "../repos/depositos";
 import { getEquivalencias, marcarIntercambio } from "../repos/consolidacion";
 import { createGerente } from "../repos/gerentes";
+import { guardarAliasBanco } from "../repos/bancosAlias";
 import { createAsignacion, setJefeAsignacion } from "../repos/asignaciones";
 import { cargarEnvio } from "../queries/envioConsolidar";
 import { armarPaquete, leerPaquete, type Paquete } from "@/domain/paquete";
@@ -527,6 +528,20 @@ describe("consolidar ida y vuelta entre dos instalaciones", () => {
     expect(antes).toEqual(await depositos(a.db));
   });
 
+  it("el banco del archivo se lee con los alias que recuerda quien recibe: es el mismo depósito, no un nuevo que falla", async () => {
+    const a = await instalacion("A");
+    const b = await instalacion("B");
+    await guardarAliasBanco(b.db, "BANCO XYZ", "Bancamiga");
+    await registrar(b, { banco: "Bancamiga", referencia: "123" });
+    await registrar(a, { banco: "BANCO XYZ", referencia: "123" });
+    reloj("2026-03-05T11:00:00.000Z");
+    const ida = await recibir(b, await enviar(a));
+    expect(ida.plan.nuevos).toEqual([]);
+    expect(ida.plan.vinculos).toHaveLength(1);
+    expect(ida.resultado).toMatchObject({ nuevos: 0, vinculados: 1 });
+    expect(await b.db.select("SELECT banco, referencia FROM depositos")).toEqual([{ banco: "Bancamiga", referencia: "123" }]);
+  });
+
   describe("posibles repetidos del Provincial", () => {
     const pago = { banco: "BBVA Provincial", referencia: "V-12.345.678", montoBs: "5000" };
     const cuantos = async (db: SqlDriver) => (await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM depositos"))[0].n;
@@ -552,6 +567,8 @@ describe("consolidar ida y vuelta entre dos instalaciones", () => {
       const a = await instalacion("A");
       const b = await instalacion("B");
       await registrar(a, pago);
+      // B lo registra a otra hora y con la cédula escrita de otra forma: al vincularlos, la cédula no cuenta como un cambio.
+      reloj("2026-03-05T10:30:00.000Z");
       await registrar(b, { ...pago, referencia: "12345678" });
       reloj("2026-03-05T11:00:00.000Z");
       const ida = await recibir(b, await enviar(a));
@@ -563,14 +580,20 @@ describe("consolidar ida y vuelta entre dos instalaciones", () => {
       const vuelta = await recibir(a, await enviar(b));
       expect(vuelta.plan.posiblesRepetidos).toEqual([]);
       expect(vuelta.plan.nuevos).toEqual([]);
+      expect([vuelta.plan.correcciones, vuelta.plan.conflictos, vuelta.plan.masNuevasAqui]).toEqual([[], [], []]);
+      expect(vuelta.motivo).toBe("No hay nada nuevo para consolidar");
       expect(await cuantos(a.db)).toBe(1);
       // Segundo intercambio: ya no pregunta en ninguna de las dos.
       reloj("2026-03-05T13:00:00.000Z");
       const otra = await recibir(b, await enviar(a));
       expect(otra.plan.posiblesRepetidos).toEqual([]);
+      expect([otra.plan.correcciones, otra.plan.conflictos, otra.plan.masNuevasAqui]).toEqual([[], [], []]);
       expect(otra.motivo).toBe("No hay nada nuevo para consolidar");
       reloj("2026-03-05T14:00:00.000Z");
-      expect((await recibir(a, await enviar(b))).plan.posiblesRepetidos).toEqual([]);
+      const otraEnA = await recibir(a, await enviar(b));
+      expect(otraEnA.plan.posiblesRepetidos).toEqual([]);
+      expect([otraEnA.plan.correcciones, otraEnA.plan.conflictos, otraEnA.plan.masNuevasAqui]).toEqual([[], [], []]);
+      expect(otraEnA.motivo).toBe("No hay nada nuevo para consolidar");
       expect([await cuantos(a.db), await cuantos(b.db)]).toEqual([1, 1]);
     });
 

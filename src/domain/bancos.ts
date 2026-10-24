@@ -84,10 +84,15 @@ export function sinReferenciaUnica(banco: string): boolean {
   return BANCOS_SIN_REFERENCIA_UNICA.some((b) => claveBanco(b) === k);
 }
 
-/** Clave de "posible repetido" del Provincial: cédula (solo dígitos, sin ceros iniciales), fecha y monto. Vacía si no aplica. */
+/** Cédula de la referencia del Provincial para comparar: solo los dígitos, sin ceros iniciales ("V-12.345.678" = "12345678"). */
+export function claveCedula(referencia: string): string {
+  return referencia.replace(/\D/g, "").replace(/^0+/, "");
+}
+
+/** Clave de "posible repetido" del Provincial: cédula (`claveCedula`), fecha y monto. Vacía si no aplica. */
 export function clavePosibleRepetido(banco: string, referencia: string, fecha: string, montoBs: string): string {
   if (!sinReferenciaUnica(banco) || !fecha) return "";
-  const cedula = referencia.replace(/\D/g, "").replace(/^0+/, "");
+  const cedula = claveCedula(referencia);
   if (!cedula) return "";
   let monto: string;
   try {

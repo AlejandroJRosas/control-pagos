@@ -102,7 +102,7 @@ const base = (o: Partial<LocalConsolidar> = {}): LocalConsolidar => ({
   campana: { id: 1, uuid: "c1", nombre: "Marzo", estado: "activa" },
   asignaciones: [asigLocal(10, "José Pérez", "100"), asigLocal(11, "Ana", "50")],
   depositos: [], tasas: new Map([["2026-03-04", { id: 1, valor: "36.50", usos: 3 }]]), feriados: new Set(), eliminados: new Set(),
-  equivalenciasDepositos: new Map(), gerentes: [], equivalenciasGerentes: new Map(), ...o,
+  equivalenciasDepositos: new Map(), gerentes: [], equivalenciasGerentes: new Map(), bancos: new Map(), ...o,
 });
 const GER: Record<string, GerenteEmparejado> = {
   ra: { asignacionId: 10, estado: "nombre" }, rb: { asignacionId: 11, estado: "nombre" }, rc: { asignacionId: null, estado: "ninguno" },
@@ -606,9 +606,26 @@ describe("posibles repetidos del Provincial", () => {
   it("uno del archivo igual a uno local (otra uuid, sin equivalencia) va a posibles repetidos, no a nuevos", () => {
     const plan = clasificar(paq([prov()]), base({ depositos: [provLocal()] }), GER);
     expect(plan.nuevos).toEqual([]);
-    expect(plan.posiblesRepetidos).toEqual([{ remoto: prov(), locales: [provLocal()], asignacionId: 10, tasa: { fecha: "2026-03-04", accion: "existente" } }]);
+    // El banco del archivo queda con el nombre canónico de aquí.
+    expect(plan.posiblesRepetidos).toEqual([
+      { remoto: prov({ banco: "Provincial" }), locales: [provLocal()], asignacionId: 10, tasa: { fecha: "2026-03-04", accion: "existente" } },
+    ]);
     expect(decisionesIniciales(plan).entranRepetidos).toEqual(new Set());
     expect(motivoPendiente(plan, GER, decisionesIniciales(plan))).toBeNull();
+  });
+
+  it("la cédula del Provincial escrita de otra forma no es un cambio; otra cédula sí", () => {
+    const local = base({ depositos: [provLocal({ actualizadoEn: "2026-03-04T09:00:00.000Z" })], equivalenciasDepositos: new Map([["p1", 5]]) });
+    expect(clasificar(paq([prov()]), local, GER)).toMatchObject({ sinCambios: 1, correcciones: [], conflictos: [], masNuevasAqui: [] });
+    const otra = clasificar(paq([prov({ referencia: "V-9.999.999" })]), local, GER);
+    expect([...otra.correcciones, ...otra.conflictos].map((c) => c.cambios)).toEqual([[{ campo: "referencia", antes: "12345678", despues: "V-9.999.999" }]]);
+  });
+
+  it("el banco del archivo se lee con los alias recordados aquí", () => {
+    const local = base({ depositos: [loc({ id: 5, uuid: "q1", banco: "Bancamiga", referencia: "123" })], bancos: new Map([["bancoxyz", "Bancamiga"]]) });
+    const plan = clasificar(paq([rem({ uuid: "p1", banco: "BANCO XYZ", referencia: "123" })]), local, GER);
+    expect(plan.nuevos).toEqual([]);
+    expect(plan.vinculos.map((v) => [v.remoto.banco, v.local.id])).toEqual([["Bancamiga", 5]]);
   });
 
   it("otra fecha, otro monto o uno ya reconocido no es posible repetido", () => {
