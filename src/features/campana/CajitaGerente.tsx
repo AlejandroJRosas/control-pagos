@@ -1,4 +1,4 @@
-import type { DragEvent } from "react";
+import type { DragEvent, MouseEvent } from "react";
 import Decimal from "decimal.js";
 import { ChevronDown } from "lucide-react";
 import { ESTADOS_GERENTE } from "@/components/EstadoGerenteBadge";
@@ -25,12 +25,15 @@ type Props = {
   /** undefined = sin gente a cargo (no se pliega). */
   plegada?: boolean;
   onAlternar?: () => void;
-  onAbrir: () => void;
+  /** Clic en la cajita; el evento trae Ctrl/Shift para elegir varias. */
+  onClic: (e: MouseEvent) => void;
+  /** Elegida junto con otras para moverlas a la vez. */
+  elegida?: boolean;
   arrastre?: Arrastre;
 };
 
 /** Un gerente en el organigrama: nombre, estado y lo que le falta. */
-export function CajitaGerente({ g, cerrada, debajo, plegada, onAlternar, onAbrir, arrastre }: Props) {
+export function CajitaGerente({ g, cerrada, debajo, plegada, onAlternar, onClic, elegida, arrastre }: Props) {
   const restante = new Decimal(g.restante);
   const estado = ESTADOS_GERENTE[estadoGerente(g)];
   return (
@@ -39,6 +42,7 @@ export function CajitaGerente({ g, cerrada, debajo, plegada, onAlternar, onAbrir
       className={cn(
         "relative w-40 rounded-lg border bg-card shadow-xs transition",
         arrastre?.resaltado && "border-primary-intenso ring-2 ring-primary-intenso/40",
+        elegida && "border-primary-intenso bg-fila-hover ring-2 ring-primary-intenso/40",
         arrastre?.origen && "opacity-50",
       )}
     >
@@ -46,10 +50,11 @@ export function CajitaGerente({ g, cerrada, debajo, plegada, onAlternar, onAbrir
         type="button"
         aria-label={g.gerenteNombre}
         title={`${g.gerenteNombre} · ${estado.label}`}
+        data-elegida={elegida || undefined}
         draggable={!cerrada}
         onDragStart={arrastre?.onDragStart}
         onDragEnd={arrastre?.onDragEnd}
-        onClick={onAbrir}
+        onClick={onClic}
         className={cn("grid w-full gap-0.5 rounded-lg px-3 py-2 text-left hover:bg-fila-hover", !cerrada && "cursor-grab active:cursor-grabbing")}
       >
         <span className="flex items-center gap-1.5 text-sm font-medium">

@@ -1,12 +1,14 @@
-import { useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent, type MouseEvent } from "react";
 import { useNavigate } from "react-router";
 import { Lock, Move } from "lucide-react";
 import { toast } from "sonner";
 import { getDb } from "@/db";
-import { setJefeAsignacion } from "@/db/repos/asignaciones";
+import { moverAJefe, restaurarJefes } from "@/db/operaciones/moverAJefe";
 import { MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { type GerenteResumen } from "@/domain/campanaView";
-import { armarArbol, creaCiclo, type Jefes, type NodoArbol } from "@/domain/arbol";
+import { aplanarArbol, armarArbol, creaCiclo, type Jefes, type NodoArbol } from "@/domain/arbol";
+import { clicSeleccion, SIN_SELECCION, type Seleccion } from "@/domain/seleccion";
+import { hayDialogoAbierto } from "@/hooks/useAtajo";
 import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { useRamasPlegadas } from "@/lib/ramasPlegadas";
@@ -24,7 +26,8 @@ const esHoja = (n: Nodo) => n.hijos.length === 0;
 export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
   const navigate = useNavigate();
   const ramas = useRamasPlegadas(`estructura-${campanaId}`);
-  const [arrastrando, setArrastrando] = useState<number | null>(null);
+  const [arrastrando, setArrastrando] = useState<number[] | null>(null);
+  const [seleccion, setSeleccion] = useState<Seleccion>(SIN_SELECCION);
   const [sobre, setSobre] = useState<number | "sueltos" | "punta" | null>(null);
   const { arboles, sueltos } = useMemo(() => {
     const orden = [...gerentes].sort((a, b) => a.gerenteNombre.localeCompare(b.gerenteNombre, "es"));
@@ -33,23 +36,52 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
   }, [gerentes, jefes]);
   const nombres = useMemo(() => new Map(gerentes.map((g) => [g.asignacionId, g.gerenteNombre])), [gerentes]);
 
-  /** Destino válido para lo que se arrastra: ni él mismo, ni alguien de su rama, ni su jefe actual (no cambiaría nada). */
-  const valido = (destino: number | null) =>
-    !cerrada && arrastrando !== null && (jefes.get(arrastrando) ?? null) !== destino && !creaCiclo(jefes, arrastrando, destino);
+  /** Las cajitas en el orden en que se ven: la pirámide (sin ramas plegadas) y luego «Sin estructura». */
+  const orden = useMemo(() => [...aplanarArbol(arboles, idDe).map((f) => idDe(f.item)), ...sueltos.map(idDe)], [arboles, sueltos]);
+  const elegidos = useMemo(() => orden.filter((id) => seleccion.marcados.has(id)), [orden, seleccion]);
+  const hayElegidos = !cerrada && elegidos.length > 0;
 
-  async function mover(id: number, jefe: number | null) {
-    const anterior = jefes.get(id) ?? null;
-    const nombre = nombres.get(id) ?? "";
+  // Esc suelta la selección y no vuelve atrás: en captura, antes del Esc de PageHeader.
+  useEffect(() => {
+    if (!hayElegidos) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || hayDialogoAbierto()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setSeleccion(SIN_SELECCION);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [hayElegidos]);
+
+  /** Destino válido para lo que se arrastra: ni una de ellas, ni alguien de su rama, y que al menos una cambie de jefe. */
+  const valido = (destino: number | null) =>
+    !cerrada &&
+    arrastrando !== null &&
+    arrastrando.some((id) => (jefes.get(id) ?? null) !== destino) &&
+    !arrastrando.some((id) => creaCiclo(jefes, id, destino));
+
+  async function mover(ids: number[], jefe: number | null) {
+    const destino = jefe === null ? null : (nombres.get(jefe) ?? "");
+    const texto =
+      ids.length === 1
+        ? jefe === null
+          ? `${nombres.get(ids[0])} ya no tiene jefe`
+          : `${nombres.get(ids[0])} ahora está bajo ${destino}`
+        : jefe === null
+          ? `${ids.length} gerentes ya no tienen jefe`
+          : `${ids.length} gerentes ahora están bajo ${destino}`;
     try {
-      await setJefeAsignacion(await getDb(), id, jefe);
+      const anteriores = await moverAJefe(await getDb(), ids, jefe);
+      setSeleccion(SIN_SELECCION);
       invalidate();
-      toast.success(jefe === null ? `${nombre} ya no tiene jefe` : `${nombre} ahora está bajo ${nombres.get(jefe)}`, {
+      toast.success(texto, {
         duration: 10_000,
         action: {
           label: "Deshacer",
           onClick: async () => {
             try {
-              await setJefeAsignacion(await getDb(), id, anterior);
+              await restaurarJefes(await getDb(), anteriores);
               invalidate();
               toast.success("Cambio deshecho");
             } catch (e) {
@@ -85,13 +117,13 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
       if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSobre(null);
     },
     onDrop: (e: DragEvent) => {
-      const id = arrastrando;
-      if (id === null) return;
+      const ids = arrastrando;
+      if (ids === null) return;
       e.preventDefault();
       e.stopPropagation();
       const ok = valido(destino);
       terminar();
-      if (ok) void mover(id, destino);
+      if (ok) void mover(ids, destino);
     },
   });
 
@@ -101,14 +133,20 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
       : {
           zona: zona(g.asignacionId),
           resaltado: sobre === g.asignacionId,
-          origen: arrastrando === g.asignacionId,
+          origen: arrastrando?.includes(g.asignacionId) ?? false,
           onDragStart: (e) => {
             e.dataTransfer.setData(TIPO_ARRASTRE, String(g.asignacionId));
             e.dataTransfer.effectAllowed = "move";
-            setArrastrando(g.asignacionId);
+            setArrastrando(elegidos.includes(g.asignacionId) ? elegidos : [g.asignacionId]);
           },
           onDragEnd: terminar,
         };
+
+  /** Ctrl/Shift + clic elige (no abre); el clic simple abre al gerente. Con la campaña cerrada no se elige. */
+  const clic = (id: number) => (e: MouseEvent) => {
+    if (!cerrada && (e.ctrlKey || e.metaKey || e.shiftKey)) setSeleccion((s) => clicSeleccion(s, orden, id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey }));
+    else navigate(`/asignaciones/${id}`);
+  };
 
   const cajita = (n: Nodo) => {
     const g = n.item;
@@ -119,7 +157,8 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
         debajo={contar(n)}
         plegada={n.hijos.length > 0 ? ramas.plegados.has(g.asignacionId) : undefined}
         onAlternar={() => ramas.alternar(g.asignacionId)}
-        onAbrir={() => navigate(`/asignaciones/${g.asignacionId}`)}
+        onClic={clic(g.asignacionId)}
+        elegida={hayElegidos && seleccion.marcados.has(g.asignacionId)}
         arrastre={arrastre(g)}
       />
     );
@@ -174,10 +213,16 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
         ) : (
           <>
             <Move className="size-4" />
-            Arrastra un gerente sobre otro para ponerlo debajo; suéltalo arriba, fuera de las cajitas, o en «Sin estructura» para quitarle el jefe.
+            Arrastra un gerente sobre otro para ponerlo debajo; suéltalo arriba, fuera de las cajitas, o en «Sin estructura» para quitarle el jefe. Con
+            Ctrl o Shift + clic eliges varios para moverlos a la vez.
           </>
         )}
       </p>
+      {hayElegidos && (
+        <p role="status" className="text-sm font-medium">
+          {`${elegidos.length} ${elegidos.length === 1 ? "elegido" : "elegidos"} · Esc para soltar`}
+        </p>
+      )}
       <div
         role="region"
         aria-label="Organigrama"
@@ -213,7 +258,8 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
                 g={g}
                 cerrada={cerrada}
                 debajo={0}
-                onAbrir={() => navigate(`/asignaciones/${g.asignacionId}`)}
+                onClic={clic(g.asignacionId)}
+                elegida={hayElegidos && seleccion.marcados.has(g.asignacionId)}
                 arrastre={arrastre(g)}
               />
             ))}

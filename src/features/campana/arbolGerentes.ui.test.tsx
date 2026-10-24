@@ -161,3 +161,88 @@ it("Estructura con la campaña cerrada no deja arrastrar", async () => {
   expect(await screen.findByRole("button", { name: "Ana" })).toHaveAttribute("draggable", "false");
   expect(screen.getByRole("button", { name: "José" })).toHaveAttribute("draggable", "false");
 });
+
+it("Estructura elige varios con Ctrl y Shift, los mueve juntos, deshace y Esc suelta sin volver atrás", async () => {
+  const { db, campanaId, ids, jefeDe } = await campanaConArbol();
+  const { user } = await renderApp(`/campanas/${campanaId}?tab=estructura`, { db, hoy: "2026-10-19" });
+  const ctrlClic = (n: string) => user.keyboard("{Control>}").then(() => user.click(screen.getByRole("button", { name: n }))).then(() => user.keyboard("{/Control}"));
+  const shiftClic = (n: string) => user.keyboard("{Shift>}").then(() => user.click(screen.getByRole("button", { name: n }))).then(() => user.keyboard("{/Shift}"));
+
+  await screen.findByRole("button", { name: "Ana" });
+  await ctrlClic("José");
+  await ctrlClic("Rosa");
+  expect(await screen.findByText("2 elegidos · Esc para soltar")).toBeInTheDocument();
+
+  // soltar sobre una de las elegidas no mueve nada
+  let dt = arrastre();
+  fireEvent.dragStart(screen.getByRole("button", { name: "José" }), { dataTransfer: dt });
+  expect(fireEvent.dragOver(screen.getByRole("button", { name: "Rosa" }), { dataTransfer: dt })).toBe(true); // no se previno: no es destino
+  fireEvent.drop(screen.getByRole("button", { name: "Rosa" }), { dataTransfer: dt });
+  expect(await jefeDe(ids.jose)).toBeNull();
+  expect(await jefeDe(ids.rosa)).toBeNull();
+  fireEvent.dragEnd(screen.getByRole("button", { name: "José" }), { dataTransfer: dt });
+
+  dt = arrastre();
+  fireEvent.dragStart(screen.getByRole("button", { name: "José" }), { dataTransfer: dt });
+  fireEvent.dragOver(screen.getByRole("button", { name: "Ana" }), { dataTransfer: dt });
+  fireEvent.drop(screen.getByRole("button", { name: "Ana" }), { dataTransfer: dt });
+  expect(await screen.findByText("2 gerentes ahora están bajo Ana")).toBeInTheDocument();
+  expect(await jefeDe(ids.jose)).toBe(ids.ana);
+  expect(await jefeDe(ids.rosa)).toBe(ids.ana);
+  expect(screen.queryByText(/elegidos/)).not.toBeInTheDocument();
+
+  const aviso = screen.getByText("2 gerentes ahora están bajo Ana").closest("li") as HTMLElement;
+  fireEvent.click(within(aviso).getByRole("button", { name: "Deshacer" }));
+  await waitFor(async () => expect(await jefeDe(ids.jose)).toBeNull());
+  expect(await jefeDe(ids.rosa)).toBeNull();
+
+  // rango con Shift, en el orden en que se ven (pirámide y luego «Sin estructura»: Ana, Luis, José, Rosa)
+  await ctrlClic("Ana");
+  await shiftClic("José");
+  expect(await screen.findByText("3 elegidos · Esc para soltar")).toBeInTheDocument();
+
+  // un destino que está en la rama de una elegida no se resalta ni mueve nada: Luis es de la rama de Ana
+  dt = arrastre();
+  fireEvent.dragStart(screen.getByRole("button", { name: "Ana" }), { dataTransfer: dt });
+  expect(fireEvent.dragOver(screen.getByRole("button", { name: "Luis" }), { dataTransfer: dt })).toBe(true);
+  fireEvent.drop(screen.getByRole("button", { name: "Luis" }), { dataTransfer: dt });
+  fireEvent.dragEnd(screen.getByRole("button", { name: "Ana" }), { dataTransfer: dt });
+  expect(await jefeDe(ids.ana)).toBeNull();
+  expect(await jefeDe(ids.jose)).toBeNull();
+
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByText(/elegidos/)).not.toBeInTheDocument());
+});
+
+it("Estructura: Esc con elegidos solo los suelta (no vuelve a Campañas) y el clic simple abre al gerente", async () => {
+  const { db, campanaId } = await campanaConArbol();
+  const { user } = await renderApp(`/campanas/${campanaId}?tab=estructura`, { db, hoy: "2026-10-19" });
+  await screen.findByRole("button", { name: "Ana" });
+  await user.keyboard("{Control>}");
+  await user.click(screen.getByRole("button", { name: "José" }));
+  await user.keyboard("{/Control}");
+  await screen.findByText("1 elegido · Esc para soltar");
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByText(/elegido/)).not.toBeInTheDocument());
+  expect(screen.getByRole("region", { name: "Organigrama" })).toBeInTheDocument();
+  await user.keyboard("{Escape}"); // sin elegidos vuelve a la lista
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Organigrama" })).not.toBeInTheDocument());
+});
+
+it("Estructura: el clic simple abre al gerente", async () => {
+  const { db, campanaId } = await campanaConArbol();
+  const { user } = await renderApp(`/campanas/${campanaId}?tab=estructura`, { db, hoy: "2026-10-19" });
+  await user.click(await screen.findByRole("button", { name: "Ana" }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Organigrama" })).not.toBeInTheDocument());
+});
+
+it("Estructura con la campaña cerrada no elige con Ctrl+clic", async () => {
+  const { db, campanaId } = await campanaConArbol();
+  await setEstadoCampana(db, campanaId, "cerrada");
+  const { user } = await renderApp(`/campanas/${campanaId}?tab=estructura`, { db, hoy: "2026-10-19" });
+  await screen.findByRole("button", { name: "Ana" });
+  await user.keyboard("{Control>}");
+  await user.click(screen.getByRole("button", { name: "José" }));
+  await user.keyboard("{/Control}");
+  expect(screen.queryByText(/elegido/)).not.toBeInTheDocument();
+});
