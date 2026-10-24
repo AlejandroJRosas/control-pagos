@@ -51,7 +51,7 @@ it("Por gerente muestra el árbol con sangría, pliega ramas y con búsqueda u o
 
   await screen.findByText("Ana");
   expect(within(await fila("Ana")).getByText(/· 2 debajo/)).toBeInTheDocument();
-  expect(nombres()).toEqual(["Ana", "Zoe", "Pedro", "Bruno"]);
+  expect(nombres()).toEqual(["Bruno", "Ana", "Zoe", "Pedro"]);
   expect((await fila("Pedro")).querySelector('[data-nivel="2"]')).not.toBeNull();
 
   await user.click(screen.getByRole("button", { name: "Plegar a Ana" }));

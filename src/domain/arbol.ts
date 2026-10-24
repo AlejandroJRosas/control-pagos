@@ -59,7 +59,12 @@ export function cicloEn(jefes: Jefes): number[] | null {
 
 export type NodoArbol<T> = { item: T; hijos: NodoArbol<T>[] };
 
-/** Raíces e hijos en el orden de `items`. Un jefe fuera de `items` cuenta como sin jefe; los nodos de un ciclo van como raíces. */
+/** Partición estable: primero los que no tienen a nadie debajo, después los que sí. */
+function directosPrimero<T>(nodos: NodoArbol<T>[]): NodoArbol<T>[] {
+  return [...nodos.filter((n) => n.hijos.length === 0), ...nodos.filter((n) => n.hijos.length > 0)];
+}
+
+/** Raíces e hijos en el orden de `items`, con los que no tienen equipo antes que los que sí. Un jefe fuera de `items` cuenta como sin jefe; los nodos de un ciclo van como raíces. */
 export function armarArbol<T>(items: T[], id: (t: T) => number, jefes: Jefes): NodoArbol<T>[] {
   const presentes = new Set(items.map(id));
   const enCiclo = new Set<number>();
@@ -82,7 +87,8 @@ export function armarArbol<T>(items: T[], id: (t: T) => number, jefes: Jefes): N
     if (padre) padre.hijos.push(nodo);
     else raices.push(nodo);
   }
-  return raices;
+  for (const nodo of nodos.values()) nodo.hijos = directosPrimero(nodo.hijos);
+  return directosPrimero(raices);
 }
 
 export type FilaArbol<T> = { item: T; nivel: number; debajo: number; tieneHijos: boolean };

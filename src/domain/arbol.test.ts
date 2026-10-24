@@ -33,18 +33,31 @@ describe("arbol", () => {
       )?.sort(),
     ).toEqual([1, 2]);
   });
+  it("armarArbol pone primero a los que no tienen a nadie debajo, sin cambiar el orden dentro de cada grupo", () => {
+    const j: Jefes = new Map([
+      [2, 1],
+      [4, 2],
+      [3, 1],
+      [5, null],
+      [6, 1],
+    ]);
+    const raices = armarArbol([1, 2, 3, 4, 5, 6], (x) => x, j);
+    expect(raices.map((n) => n.item)).toEqual([5, 1]);
+    expect(raices[1].hijos.map((n) => n.item)).toEqual([3, 6, 2]);
+    expect(raices[1].hijos[2].hijos.map((n) => n.item)).toEqual([4]);
+  });
   it("aplanarArbol en preorden con nivel, debajo y plegados", () => {
     const items = [1, 2, 3, 4, 5, 6];
     const filas = aplanarArbol(armarArbol(items, (x) => x, jefes), (x) => x);
     expect(filas.map((f) => [f.item, f.nivel, f.debajo])).toEqual([
+      [6, 0, 0],
       [1, 0, 4],
+      [5, 1, 0],
       [2, 1, 2],
       [3, 2, 0],
       [4, 2, 0],
-      [5, 1, 0],
-      [6, 0, 0],
     ]);
-    expect(aplanarArbol(armarArbol(items, (x) => x, jefes), (x) => x, new Set([2])).map((f) => f.item)).toEqual([1, 2, 5, 6]);
+    expect(aplanarArbol(armarArbol(items, (x) => x, jefes), (x) => x, new Set([2])).map((f) => f.item)).toEqual([6, 1, 5, 2]);
   });
   it("un jefe que no está en la lista cuenta como raíz", () => {
     expect(armarArbol([3, 4], (x) => x, jefes).map((n) => n.item)).toEqual([3, 4]);
