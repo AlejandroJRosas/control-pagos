@@ -68,6 +68,12 @@ it("Por gerente muestra el árbol con sangría, pliega ramas y con búsqueda u o
   expect(await screen.findByText("Pedro")).toBeInTheDocument();
   expect((await fila("Pedro")).querySelector('[data-nivel="2"]')).toBeNull();
   expect(screen.queryByRole("button", { name: /Plegar a|Desplegar a/ })).not.toBeInTheDocument();
+
+  // asc -> desc -> orden original: vuelve el árbol
+  await user.click(screen.getByRole("button", { name: "Restante" }));
+  await user.click(screen.getByRole("button", { name: "Restante" }));
+  await user.click(await screen.findByRole("button", { name: "Desplegar a Ana" })); // la rama seguía plegada
+  expect((await fila("Pedro")).querySelector('[data-nivel="2"]')).not.toBeNull();
 });
 
 /** dataTransfer falso: jsdom no lo trae. */

@@ -51,7 +51,7 @@ describe("emparejarGerentes", () => {
     expect(r.a2).toEqual({ asignacionId: -2, estado: "ninguno", agregar: { gerenteId: 7 } }); // por nombre
     expect(r.a3).toEqual({ asignacionId: -3, estado: "ninguno", agregar: { gerenteId: 8 } }); // por uuid
     expect(r.a4).toEqual({ asignacionId: -4, estado: "ninguno", agregar: { gerenteId: 9 } }); // recordado
-    expect(r.a5).toEqual({ asignacionId: -5, estado: "ninguno", agregar: { gerenteId: null } }); // dos con el nombre: uno nuevo
+    expect(r.a5).toEqual({ asignacionId: undefined, estado: "varios" }); // dos con el nombre: que elija el usuario
     expect(idProvisional(paq([]), "rb")).toBe(-2);
   });
   it("emparejar por el uuid de la asignación lo da por recordado", () => {

@@ -98,7 +98,13 @@ export function emparejarGerentes(
     }
     if (elegido.asignacionId === null) {
       const iguales = gerentesMismoNombre(r, fuera);
-      const existente = gerenteConocido(r, fuera, recordados) ?? (iguales.length === 1 ? iguales[0] : null);
+      const conocido = gerenteConocido(r, fuera, recordados);
+      // varios locales con el mismo nombre fuera de la campaña: que el usuario elija cuál (o crear uno nuevo), sin crear un tercero en silencio
+      if (!conocido && iguales.length > 1) {
+        resultado[r.uuid] = { asignacionId: undefined, estado: "varios" };
+        continue;
+      }
+      const existente = conocido ?? (iguales.length === 1 ? iguales[0] : null);
       elegido = { asignacionId: idProvisional({ asignaciones: remotas }, r.uuid), estado: "ninguno", agregar: { gerenteId: existente?.id ?? null } };
     }
     resultado[r.uuid] = elegido;

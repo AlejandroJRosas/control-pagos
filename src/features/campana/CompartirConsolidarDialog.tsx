@@ -179,6 +179,7 @@ export function CompartirConsolidarDialog({ campanaId, open, onOpenChange }: Pro
                     <span className="flex-1">
                       {a.gerenteNombre}
                       {tieneHijos && <span className="ml-2 text-muted-foreground">· {debajo} debajo</span>}
+                      {tieneHijos && estado === "parte" && !marcados.has(a.id) && <span className="ml-2 text-muted-foreground">(él no)</span>}
                     </span>
                     <span className="text-muted-foreground tabular-nums">{n === 1 ? "1 depósito" : `${n} depósitos`}</span>
                   </label>

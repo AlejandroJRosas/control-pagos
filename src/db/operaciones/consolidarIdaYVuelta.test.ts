@@ -389,6 +389,21 @@ describe("consolidar ida y vuelta entre dos instalaciones", () => {
       expect(await arbol(b.db)).toEqual(await arbol(a.db));
     });
 
+    it("rama con gerentes que B ya tenía sin jefe: quedan armados solos", async () => {
+      const a = await instalacion("A");
+      const b = await instalacion("B");
+      await sumar(b, "Luis");
+      await sumar(b, "Pedro");
+      await sumar(a, "Luis", "Ana");
+      await sumar(a, "Pedro", "Luis");
+      reloj("2026-03-05T12:00:00.000Z");
+      const r = await recibir(b, await enviar(a));
+      expect(r.plan.jefes.map((f) => [f.gerenteNombre, f.automatico])).toEqual([["Luis", true], ["Pedro", true]]);
+      expect(r.resultado).toMatchObject({ gerentesAgregados: 0, jefesCambiados: 2 });
+      expect(await arbol(b.db)).toEqual(await arbol(a.db));
+      expect((await arbol(b.db)).filter((x) => x.jefe !== null)).toEqual([{ nombre: "Luis", jefe: "Ana" }, { nombre: "Pedro", jefe: "Luis" }]);
+    });
+
     /** A y B con Ana, Karla y Luis; en A Luis está bajo Ana y en B bajo Karla. */
     async function jefeDistinto() {
       const a = await instalacion("A");

@@ -143,10 +143,11 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
   const ordenadas = useMemo(() => {
     const k = claveComparacion(f.qg);
     const visibles = conEstado.filter((g) => (!f.estado || g.estado === f.estado) && claveComparacion(g.gerenteNombre).includes(k));
-    return ordenar(visibles, COLUMNAS, orden);
+    // sin orden elegido (vuelta al original) la base del árbol es por nombre
+    return ordenar(visibles, COLUMNAS, orden ?? { key: "gerenteNombre", dir: 1 });
   }, [conEstado, f.qg, f.estado, orden]);
   // árbol solo con el orden por defecto y sin filtros; con búsqueda, estado u otro orden es lista plana
-  const modoArbol = orden?.key === "gerenteNombre" && orden.dir === 1 && !f.qg && !f.estado;
+  const modoArbol = (!orden || (orden.key === "gerenteNombre" && orden.dir === 1)) && !f.qg && !f.estado;
   const plegadosClave = [...ramas.plegados].join(",");
   const filas = useMemo(
     () =>

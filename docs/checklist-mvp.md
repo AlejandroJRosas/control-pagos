@@ -136,5 +136,5 @@ Usar la instancia aislada de `CLAUDE.md` como segunda app (otros datos y puerto)
 ## Árbol de gerentes
 
 - [ ] Campaña → Estructura con unos 40 gerentes en 4 niveles: el organigrama se lee, hay scroll horizontal y el arrastre funciona en la app real (soltar sobre otro lo pone debajo; la punta y «Sin estructura» quitan el jefe). Arrastrar a una rama propia no resalta ni se deja.
-- [ ] Soltar una imagen de comprobante sobre Estructura sigue abriendo el registro (el arrastre de archivos no se traga). Por gerente muestra el árbol, se pliega por rama y marcar un jefe marca su rama.
+- [ ] Soltar una imagen de comprobante sobre Estructura sigue abriendo el registro (el arrastre de archivos no se traga). Por gerente muestra el árbol, se pliega por rama. En Compartir para consolidar, marcar un jefe marca su rama (y si la rama está a medias avisa "(él no)" cuando el jefe no va).
 - [ ] Ida y vuelta real con dos instancias (la aislada de `CLAUDE.md`): compartir una rama, "Agregar a mi campaña" para los gerentes que faltan, "Jefe distinto" con «mía» por defecto y un ciclo bloqueado; luego B → A deja ambos árboles iguales.

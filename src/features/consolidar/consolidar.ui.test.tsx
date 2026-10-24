@@ -93,7 +93,7 @@ it("ofrece Agregar a mi campaña y lo muestra en el resumen", async () => {
 
   expect(await screen.findByLabelText("Luis es…")).toHaveValue("Agregar a mi campaña");
   expect(await seccion(/Nuevos \(2\)/)).toBeInTheDocument();
-  expect(screen.getByText("Gerentes agregados a la campaña: Luis")).toBeInTheDocument();
+  expect(screen.getByText("Gerentes agregados a la campaña (1): Luis")).toBeInTheDocument();
   expect(screen.getByText("(nuevo en tu campaña)")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Consolidar" }));
 

@@ -101,6 +101,15 @@ export function CampanaPage() {
     }
   }
 
+  function descripcionQuitar(g: GerenteResumen) {
+    const base = `Se quitará a ${g.gerenteNombre} de esta campaña.`;
+    const n = asignaciones.filter((a) => a.jefeId === g.asignacionId).length;
+    if (n === 0) return base;
+    const jefeId = jefes.get(g.asignacionId) ?? null;
+    const jefe = jefeId === null ? undefined : asignaciones.find((a) => a.id === jefeId)?.gerenteNombre;
+    return `${base} ${n === 1 ? "El 1 que tiene debajo pasa" : `Los ${n} que tiene debajo pasan`} ${jefe ? `a ${jefe}` : "a la punta, sin jefe"}.`;
+  }
+
   async function quitarGerente(g: GerenteResumen) {
     try {
       await deleteAsignacion(await getDb(), g.asignacionId);
@@ -333,7 +342,7 @@ export function CampanaPage() {
         open={quitar !== null}
         onOpenChange={(o) => !o && setQuitar(null)}
         title="Quitar gerente"
-        description={quitar ? `Se quitará a ${quitar.gerenteNombre} de esta campaña.` : ""}
+        description={quitar ? descripcionQuitar(quitar) : ""}
         confirmLabel="Quitar"
         destructive
         onConfirm={() => (quitar ? quitarGerente(quitar) : undefined)}

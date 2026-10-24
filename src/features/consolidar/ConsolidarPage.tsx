@@ -181,14 +181,14 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
   const opcionesGerente = (uuid: string) => {
     const remota = paquete.asignaciones.find((a) => a.uuid === uuid);
     const usadoPorOtro = (k: (g: GerenteEmparejado) => boolean) => Object.entries(gerentes).some(([otro, g]) => otro !== uuid && k(g));
-    const agregar: { value: string; label: string }[] = [];
+    const agregar: { value: string; label: string; detalle?: string }[] = [];
     if (remota && datos) {
       const fuera = gerentesFuera(datos.local);
       const conocido = gerentesRecordados(datos.local).get(remota.gerente.uuid);
       if (conocido === undefined) agregar.push({ value: AGREGAR, label: "Agregar a mi campaña" });
       const candidatos = conocido === undefined ? gerentesMismoNombre(remota, fuera) : fuera.filter((g) => g.id === conocido);
       for (const g of candidatos) {
-        if (!usadoPorOtro((o) => o.agregar?.gerenteId === g.id)) agregar.push({ value: `${AGREGAR}:${g.id}`, label: `Agregar a ${g.nombre}` });
+        if (!usadoPorOtro((o) => o.agregar?.gerenteId === g.id)) agregar.push({ value: `${AGREGAR}:${g.id}`, label: `Agregar a ${g.nombre}`, detalle: candidatos.length > 1 ? `gerente n.º ${g.id}` : undefined });
       }
     }
     return [
@@ -302,7 +302,7 @@ function ResumenCambios({ filas, agregadas, jefes }: { filas: CambioGerente[]; a
   return (
     <div>
       <h2 className="mb-1 text-base font-semibold">Cómo quedan los gerentes</h2>
-      {agregadas.length > 0 && <p className="mb-1 text-sm">Gerentes agregados a la campaña: {agregadas.map((a) => a.gerenteNombre).join(", ")}</p>}
+      {agregadas.length > 0 && <p className="mb-1 text-sm">Gerentes agregados a la campaña ({agregadas.length}): {agregadas.map((a) => a.gerenteNombre).join(", ")}</p>}
       {jefes.length > 0 && <p className="mb-1 text-sm">{`Jefes: ${jefes.join(", ")}`}</p>}
       <ul className="text-sm">
         {filas.map((f) => (
