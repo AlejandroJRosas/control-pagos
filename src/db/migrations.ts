@@ -164,6 +164,14 @@ const MIGRATIONS: Migration[] = [
       "CREATE TABLE IF NOT EXISTS consolidaciones (asignacion_id INTEGER NOT NULL REFERENCES asignaciones(id) ON DELETE CASCADE, sentido TEXT NOT NULL, en TEXT NOT NULL, PRIMARY KEY (asignacion_id, sentido))",
     ],
   },
+  {
+    // Árbol de gerentes por campaña: cada asignación puede tener como jefe a otra asignación de la misma campaña (solo organiza, no cambia montos).
+    version: 8,
+    statements: [
+      "ALTER TABLE asignaciones ADD COLUMN jefe_id INTEGER REFERENCES asignaciones(id)",
+      "CREATE INDEX IF NOT EXISTS idx_asignaciones_jefe ON asignaciones(jefe_id)",
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

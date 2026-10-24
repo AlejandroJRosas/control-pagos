@@ -3,13 +3,13 @@ import { getCampana, type Campana } from "../repos/campanas";
 import type { AsignacionData, DepositoData } from "@/domain/campanaView";
 import { DomainError } from "@/domain/errors";
 
-export type CampanaData = { campana: Campana; asignaciones: AsignacionData[]; depositos: DepositoData[] };
+export type CampanaData = { campana: Campana; asignaciones: (AsignacionData & { jefeId: number | null })[]; depositos: DepositoData[] };
 
 export async function loadCampanaData(db: SqlDriver, campanaId: number): Promise<CampanaData> {
   const campana = await getCampana(db, campanaId);
   if (!campana) throw new DomainError("NO_ENCONTRADO", "La campaña no existe");
-  const asignaciones = await db.select<AsignacionData>(
-    `SELECT a.id, a.gerente_id AS gerenteId, g.nombre AS gerenteNombre, a.saldo_usd AS saldoUsd
+  const asignaciones = await db.select<AsignacionData & { jefeId: number | null }>(
+    `SELECT a.id, a.gerente_id AS gerenteId, g.nombre AS gerenteNombre, a.saldo_usd AS saldoUsd, a.jefe_id AS jefeId
      FROM asignaciones a JOIN gerentes g ON g.id = a.gerente_id
      WHERE a.campana_id = ? ORDER BY g.nombre COLLATE NOCASE`,
     [campanaId],

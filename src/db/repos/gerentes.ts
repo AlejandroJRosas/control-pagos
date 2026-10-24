@@ -44,14 +44,14 @@ export async function getGerente(db: SqlDriver, id: number): Promise<Gerente | n
   return row ? toGerente(row) : null;
 }
 
-export async function createGerente(db: SqlDriver, v: GerenteValido): Promise<number> {
+export async function createGerente(db: SqlDriver, v: GerenteValido, o: { uuid?: string } = {}): Promise<number> {
   const now = nowIso();
   const r = await db.execute("INSERT INTO gerentes (nombre, telefono, nacimiento, activo, creado_en, uuid, actualizado_en) VALUES (?, ?, ?, 1, ?, ?, ?)", [
     v.nombre,
     v.telefono,
     v.nacimiento ?? null,
     now,
-    crypto.randomUUID(),
+    o.uuid ?? crypto.randomUUID(),
     now,
   ]);
   return r.lastInsertId;

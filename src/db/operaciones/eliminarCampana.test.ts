@@ -3,9 +3,10 @@ import type { SqlDriver } from "../driver";
 import { createTestDb } from "../testing/sqljsDriver";
 import { depositoBase, seedBasico } from "../testing/fixtures";
 import { createCampana, getCampana, setEstadoCampana } from "../repos/campanas";
-import { createAsignacion } from "../repos/asignaciones";
+import { createAsignacion, setJefeAsignacion } from "../repos/asignaciones";
 import { createDeposito } from "../repos/depositos";
 import { borradorDepositoVacio, encolarDeposito } from "../repos/cola";
+import { createGerente } from "../repos/gerentes";
 import { eliminarCampana, resumenEliminacion } from "./eliminarCampana";
 
 let db: SqlDriver;
@@ -50,4 +51,12 @@ it("no borra una campaña cerrada ni una inexistente", async () => {
   await expect(eliminarCampana(db, s.campanaId)).rejects.toMatchObject({ code: "CAMPANA_CERRADA" });
   expect(await getCampana(db, s.campanaId)).not.toBeNull();
   await expect(eliminarCampana(db, 999)).rejects.toMatchObject({ code: "NO_ENCONTRADO" });
+});
+
+it("elimina una campaña con árbol sin fallar por el jefe", async () => {
+  const luis = await createGerente(db, { nombre: "Luis", telefono: null });
+  const hija = await createAsignacion(db, { campanaId: s.campanaId, gerenteId: luis, saldoUsd: "5" });
+  await setJefeAsignacion(db, hija, s.asignacionId);
+  await eliminarCampana(db, s.campanaId);
+  expect(await contar("asignaciones")).toBe(0);
 });
