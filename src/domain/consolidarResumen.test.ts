@@ -23,7 +23,7 @@ const loc = (id: number, o: Partial<DepositoLocal> = {}): DepositoLocal => ({
 const plan = (o: Partial<PlanConsolidacion> = {}): PlanConsolidacion => ({
   campana: { id: 1, uuid: "c1", nombre: "Marzo", estado: "activa" },
   nuevos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0, masNuevasAqui: [], noIncluidos: [],
-  tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], ...o,
+  tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], agregadas: [], ...o,
 });
 const tasas = new Map([
   ["2026-03-02", { id: 1, valor: "36.5", usos: 2 }],
@@ -49,7 +49,7 @@ describe("resumenConsolidacion", () => {
     const p = plan({ nuevos: [{ remoto: rem(), asignacionId: 10, tasa: { fecha: "2026-03-02", accion: "existente" } }] });
     const r = resumenConsolidacion(base, p, decisionesIniciales(p), tasas);
     expect(r).toHaveLength(1);
-    expect(r[0]).toMatchObject({ asignacionId: 10, gerenteNombre: "Ana" });
+    expect(r[0]).toMatchObject({ asignacionId: 10, gerenteNombre: "Ana", agregado: false });
     expect(r[0].antes.pagado).toBe("200.00");
     expect(r[0].despues.pagado).toBe("400.00");
     expect(r[0].despues.cantidad).toBe(3);
@@ -85,6 +85,20 @@ describe("resumenConsolidacion", () => {
     expect(resumenConsolidacion(base, p, d, tasas)[0].despues).toMatchObject({ pagado: "50.00", cantidad: 1 });
     d.eliminar.delete("u1");
     expect(resumenConsolidacion(base, p, d, tasas)[0].despues).toMatchObject({ pagado: "100.00", cantidad: 2 });
+  });
+  it("un gerente agregado empieza en cero y queda con su monto asignado y sus nuevos", () => {
+    const p = plan({
+      agregadas: [{ remotaUuid: "rz", asignacionId: -2, gerenteId: null, gerenteNombre: "Rosa", saldoUsd: "80" }],
+      nuevos: [{ remoto: rem({ asignacionUuid: "rz" }), asignacionId: -2, tasa: { fecha: "2026-03-02", accion: "existente" } }],
+    });
+    const r = resumenConsolidacion(base, p, decisionesIniciales(p), tasas);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ asignacionId: -2, gerenteNombre: "Rosa", agregado: true });
+    expect([r[0].antes.asignado, r[0].antes.pagado, r[0].antes.cantidad]).toEqual(["0.00", "0.00", 0]);
+    expect([r[0].despues.asignado, r[0].despues.pagado, r[0].despues.cantidad]).toEqual(["80.00", "200.00", 1]);
+    // sin depósitos ni monto también sale: es un gerente nuevo en la campaña
+    const vacio = plan({ agregadas: [{ remotaUuid: "rz", asignacionId: -2, gerenteId: 2, gerenteNombre: "Luis", saldoUsd: "0" }] });
+    expect(resumenConsolidacion(base, vacio, decisionesIniciales(vacio), tasas).map((x) => [x.gerenteNombre, x.agregado])).toEqual([["Luis", true]]);
   });
 });
 

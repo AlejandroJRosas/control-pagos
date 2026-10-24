@@ -1,6 +1,7 @@
 import type { SqlDriver } from "../driver";
 import { assertCampanaActiva } from "../repos/campanas";
-import { updateSaldoAsignacion } from "../repos/asignaciones";
+import { createAsignacion, updateSaldoAsignacion } from "../repos/asignaciones";
+import { createGerente } from "../repos/gerentes";
 import { createTasa, deleteTasa, getTasaParaFecha, listTasas, updateTasa } from "../repos/tasas";
 import { feriadosSet } from "../repos/feriados";
 import { createDeposito, deleteDepositos, getDeposito, restaurarDepositos, updateDeposito, type DepositoGuardar } from "../repos/depositos";
@@ -8,8 +9,8 @@ import {
   deleteEquivalencia, getEquivalencias, getIntercambios, marcarIntercambio, setEquivalencia, uuidsEliminados, type TablaEquivalencia,
 } from "../repos/consolidacion";
 import {
-  emparejarCampana, emparejarGerentes, gerentesRepetidos, motivoRepetidos, type AsignacionLocal, type Decisiones, type DepositoLocal, type EstadoEmparejamiento,
-  type GerenteEmparejado, type LocalConsolidar, type PlanConsolidacion,
+  emparejarCampana, emparejarGerentes, gerentesFuera, gerentesRecordados, gerentesRepetidos, motivoRepetidos, type AsignacionLocal, type Decisiones,
+  type DepositoLocal, type EstadoEmparejamiento, type GerenteEmparejado, type GerenteLocal, type LocalConsolidar, type PlanConsolidacion,
 } from "@/domain/consolidar";
 import type { DepositoPaquete, Paquete } from "@/domain/paquete";
 import { DomainError } from "@/domain/errors";
@@ -39,13 +40,18 @@ export async function cargarLocal(db: SqlDriver, campanaId: number): Promise<Loc
     feriados: await feriadosSet(db),
     eliminados: await uuidsEliminados(db),
     equivalenciasDepositos: await getEquivalencias(db, "depositos"),
+    gerentes: await db.select<GerenteLocal>("SELECT id, uuid, nombre FROM gerentes ORDER BY nombre, id"),
+    equivalenciasGerentes: await getEquivalencias(db, "gerentes"),
   };
 }
 
-/** Emparejamiento de los gerentes del paquete con las asignaciones de una campaña local (los recordados primero). */
+/**
+ * Emparejamiento de los gerentes del paquete con las asignaciones de una campaña local (los recordados primero); los que no están se
+ * proponen agregar, con el gerente local que ya es él si lo hay.
+ */
 export async function emparejarGerentesDe(db: SqlDriver, p: Paquete, campanaId: number): Promise<Record<string, GerenteEmparejado>> {
-  const locales = (await cargarLocal(db, campanaId)).asignaciones;
-  return emparejarGerentes(p.asignaciones, locales, await getEquivalencias(db, "gerentes"));
+  const local = await cargarLocal(db, campanaId);
+  return emparejarGerentes(p.asignaciones, local.asignaciones, gerentesRecordados(local), gerentesFuera(local));
 }
 
 /**
@@ -67,7 +73,10 @@ export async function emparejamientoInicial(
   return { campanaId, estadoCampana: estado, gerentes: campanaId === null ? {} : await emparejarGerentesDe(db, p, campanaId) };
 }
 
-export type Resultado = { nuevos: number; corregidos: number; eliminados: number; vinculados: number; tasasCreadas: number; tasasCambiadas: number; saldosCambiados: number };
+export type Resultado = {
+  nuevos: number; corregidos: number; eliminados: number; vinculados: number; tasasCreadas: number; tasasCambiadas: number; saldosCambiados: number;
+  gerentesAgregados: number;
+};
 
 type FilaDeposito = NonNullable<Awaited<ReturnType<typeof getDeposito>>>;
 
@@ -104,15 +113,36 @@ export async function aplicarConsolidacion(
     [campanaId],
   );
   const asignacionPorId = new Map(asignaciones.map((a) => [a.id, a]));
+  const remotaPorUuid = new Map(p.asignaciones.map((a) => [a.uuid, a]));
+  const agregadaPorId = new Map(plan.agregadas.map((a) => [a.asignacionId, a]));
   const emparejadas = p.asignaciones.flatMap((a) => {
     const id = gerentes[a.uuid]?.asignacionId;
     return typeof id === "number" ? [{ remota: a, id }] : [];
   });
-  const fuera = emparejadas.find((e) => !asignacionPorId.has(e.id));
+  const fuera = emparejadas.find((e) => (e.id < 0 ? agregadaPorId.get(e.id)?.remotaUuid !== e.remota.uuid : !asignacionPorId.has(e.id)));
   if (fuera) throw new DomainError("VALIDACION", `${fuera.remota.gerente.nombre} está emparejado con un gerente que no es de esta campaña`);
+  for (const a of plan.agregadas) {
+    const remota = remotaPorUuid.get(a.remotaUuid);
+    if (!remota || gerentes[a.remotaUuid]?.asignacionId !== a.asignacionId) {
+      throw new DomainError("VALIDACION", "El plan no corresponde a los gerentes elegidos");
+    }
+    if (a.gerenteId === null && (await db.select("SELECT id FROM gerentes WHERE uuid = ?", [remota.gerente.uuid])).length > 0) {
+      throw new DomainError("VALIDACION", `${remota.gerente.nombre} ya existe en tu app: elige agregarlo con ese gerente`);
+    }
+  }
 
-  const r: Resultado = { nuevos: 0, corregidos: 0, eliminados: 0, vinculados: 0, tasasCreadas: 0, tasasCambiadas: 0, saldosCambiados: 0 };
+  const r: Resultado = {
+    nuevos: 0, corregidos: 0, eliminados: 0, vinculados: 0, tasasCreadas: 0, tasasCambiadas: 0, saldosCambiados: 0, gerentesAgregados: 0,
+  };
   const deshacer: (() => Promise<void>)[] = [];
+  /** Id provisional de una asignación agregada → id real (se llena al crearlas, antes que todo lo demás). */
+  const provisionales = new Map<number, number>();
+  const real = (id: number): number => {
+    if (id >= 0) return id;
+    const x = provisionales.get(id);
+    if (x === undefined) throw new DomainError("VALIDACION", "Falta crear un gerente agregado a la campaña");
+    return x;
+  };
 
   /** Restaura la fila previa de un depósito tal cual (con su actualizado_en). */
   const reponerDeposito = (a: FilaDeposito) => async () => {
@@ -143,6 +173,32 @@ export async function aplicarConsolidacion(
   };
 
   try {
+    // Gerentes agregados a la campaña: el gerente si falta (con el uuid y el nombre del archivo) y su asignación (con el uuid y el monto del archivo).
+    for (const a of plan.agregadas) {
+      const remota = remotaPorUuid.get(a.remotaUuid)!;
+      let gerenteId = a.gerenteId;
+      let gerenteUuid: string;
+      if (gerenteId === null) {
+        const nuevo = await createGerente(db, { nombre: remota.gerente.nombre, telefono: null }, { uuid: remota.gerente.uuid });
+        deshacer.push(async () => {
+          await db.execute("DELETE FROM gerentes WHERE id = ?", [nuevo]);
+        });
+        gerenteId = nuevo;
+        gerenteUuid = remota.gerente.uuid;
+      } else {
+        const [g] = await db.select<{ uuid: string }>("SELECT uuid FROM gerentes WHERE id = ?", [gerenteId]);
+        if (!g) throw new DomainError("NO_ENCONTRADO", `El gerente con el que se agrega a ${remota.gerente.nombre} ya no existe`);
+        gerenteUuid = g.uuid;
+      }
+      const id = await createAsignacion(db, { campanaId, gerenteId, saldoUsd: a.saldoUsd }, { uuid: a.remotaUuid });
+      deshacer.push(async () => {
+        await db.execute("DELETE FROM asignaciones WHERE id = ?", [id]);
+      });
+      provisionales.set(a.asignacionId, id);
+      asignacionPorId.set(id, { id, gerenteId, gerenteUuid });
+      r.gerentesAgregados++;
+    }
+
     // Tasas nuevas.
     for (const t of plan.tasasNuevas) {
       const id = await createTasa(db, { fecha: t.fecha, valor: t.valor, notas: `Recibida de ${p.origen}`, imagenPath: null });
@@ -197,7 +253,9 @@ export async function aplicarConsolidacion(
       if (delArchivo) {
         const tasaId = await tasaIdPara(c.remoto.fecha);
         const imagenPath = c.remoto.imagen ? ((await deps.importarImagen(c.remoto.imagen)) ?? previa.imagenPath) : null;
-        await updateDeposito(db, c.local.id, camposDe(c.remoto, tasaId, imagenPath), { actualizadoEn: c.remoto.actualizadoEn, asignacionId: c.asignacionId });
+        await updateDeposito(db, c.local.id, camposDe(c.remoto, tasaId, imagenPath), {
+          actualizadoEn: c.remoto.actualizadoEn, asignacionId: real(c.asignacionId),
+        });
         deshacer.push(reponerDeposito(previa));
         r.corregidos++;
       } else {
@@ -210,7 +268,7 @@ export async function aplicarConsolidacion(
     for (const n of plan.nuevos) {
       const tasaId = await tasaIdPara(n.remoto.fecha);
       const imagenPath = n.remoto.imagen ? await deps.importarImagen(n.remoto.imagen) : null;
-      const id = await createDeposito(db, n.asignacionId, camposDe(n.remoto, tasaId, imagenPath), {
+      const id = await createDeposito(db, real(n.asignacionId), camposDe(n.remoto, tasaId, imagenPath), {
         uuid: n.remoto.uuid, creadoEn: n.remoto.creadoEn, actualizadoEn: n.remoto.actualizadoEn,
       });
       deshacer.push(async () => {
@@ -222,7 +280,7 @@ export async function aplicarConsolidacion(
     // Equivalencias: campaña, gerentes emparejados y depósitos vinculados (los duplicados, quede la versión que quede).
     if (p.campana.uuid !== plan.campana.uuid) await equivaler("campanas", p.campana.uuid, campanaId);
     for (const e of emparejadas) {
-      const local = asignacionPorId.get(e.id);
+      const local = asignacionPorId.get(real(e.id));
       if (local && local.gerenteUuid !== e.remota.gerente.uuid) await equivaler("gerentes", e.remota.gerente.uuid, local.gerenteId);
     }
     for (const v of [...plan.vinculos, ...plan.conflictos.filter((c) => c.tipo === "duplicado")]) {
@@ -236,7 +294,7 @@ export async function aplicarConsolidacion(
     }
 
     // Último recibo de cada gerente emparejado.
-    const ids = [...new Set(emparejadas.map((e) => e.id))];
+    const ids = [...new Set(emparejadas.map((e) => real(e.id)))];
     const intercambios = await getIntercambios(db, campanaId);
     await marcarIntercambio(db, ids, "recibo", deps.ahora);
     deshacer.push(async () => {

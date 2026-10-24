@@ -4,6 +4,8 @@ import { createTestDb } from "../testing/sqljsDriver";
 import { crearDuplicado, depositoBase, seedBasico } from "../testing/fixtures";
 import { createDeposito, deleteDeposito, updateDeposito } from "../repos/depositos";
 import { getEquivalencias, marcarIntercambio } from "../repos/consolidacion";
+import { createGerente } from "../repos/gerentes";
+import { createAsignacion } from "../repos/asignaciones";
 import { cargarEnvio } from "../queries/envioConsolidar";
 import { armarPaquete, leerPaquete, type Paquete } from "@/domain/paquete";
 import { clasificar, decisionesIniciales, motivoPendiente, type Decisiones, type PlanConsolidacion } from "@/domain/consolidar";
@@ -251,6 +253,96 @@ describe("consolidar ida y vuelta entre dos instalaciones", () => {
     expect([p4.depositos, p4.eliminaciones]).toEqual([[], []]);
     expect((await recibir(b, p4)).motivo).toBe("No hay nada nuevo para consolidar");
     expect(await depositos(b.db)).toEqual(await depositos(a.db));
+  });
+
+  describe("un gerente que la otra no tiene en la campaña", () => {
+    /** A tiene a Ana y a Luis (con un depósito); B solo a Ana. */
+    async function conLuisEnA() {
+      const a = await instalacion("A");
+      const b = await instalacion("B");
+      const luis = await createGerente(a.db, { nombre: "Luis", telefono: null });
+      const asigLuis = await createAsignacion(a.db, { campanaId: a.s.campanaId, gerenteId: luis, saldoUsd: "40" });
+      await createDeposito(a.db, asigLuis, depositoBase(a.s.tasaId, { referencia: "777", imagenPath: "imagenes/l.png" }));
+      await registrar(a, { referencia: "111" });
+      return { a, b };
+    }
+    const gerenteYAsignacion = (db: SqlDriver, nombre: string) =>
+      db.select<{ gerenteUuid: string; asignacionUuid: string; saldoUsd: string }>(
+        `SELECT g.uuid AS gerenteUuid, a.uuid AS asignacionUuid, a.saldo_usd AS saldoUsd FROM gerentes g JOIN asignaciones a ON a.gerente_id = g.id
+         WHERE g.nombre = ? ORDER BY a.id`,
+        [nombre],
+      );
+
+    it("B agrega a la campaña al gerente que no tenía, y el segundo archivo lo reconoce sin preguntar", async () => {
+      const { a, b } = await conLuisEnA();
+      reloj("2026-03-05T11:00:00.000Z");
+      const r = await recibir(b, await enviar(a));
+      expect(r.resultado).toMatchObject({ gerentesAgregados: 1, nuevos: 2 });
+      // En B Luis tiene el mismo uuid que en A, su asignación en Marzo el mismo uuid y el monto de A, y su depósito.
+      expect(await gerenteYAsignacion(b.db, "Luis")).toEqual(await gerenteYAsignacion(a.db, "Luis"));
+      expect(await depositos(b.db)).toEqual(await depositos(a.db));
+      expect([...(await getEquivalencias(b.db, "gerentes")).keys()]).not.toContain((await gerenteYAsignacion(a.db, "Luis"))[0].gerenteUuid);
+
+      // A corrige el depósito de Luis y reenvía: en B es una corrección, sin otro Luis ni emparejamientos que decidir.
+      reloj("2026-03-06T09:00:00.000Z");
+      await editar(a, "777", { montoBs: "7300" });
+      reloj("2026-03-06T10:00:00.000Z");
+      const p = await enviar(a, true);
+      const e = await emparejamientoInicial(b.db, p, null);
+      expect(Object.values(e.gerentes).every((g) => g.estado === "recordado" || g.estado === "nombre")).toBe(true);
+      const segunda = await recibir(b, p);
+      expect(segunda.plan.agregadas).toEqual([]);
+      expect(segunda.resultado).toMatchObject({ gerentesAgregados: 0, corregidos: 1, nuevos: 0 });
+      expect(await gerenteYAsignacion(b.db, "Luis")).toHaveLength(1);
+      expect(await depositos(b.db)).toEqual(await depositos(a.db));
+
+      // Y de vuelta en A, lo de B no cambia nada de Luis.
+      reloj("2026-03-06T11:00:00.000Z");
+      const vuelta = await recibir(a, await enviar(b));
+      expect(vuelta.plan.agregadas).toEqual([]);
+      expect(vuelta.motivo).toBe("No hay nada nuevo para consolidar");
+    });
+
+    it("si aplicar falla, no queda el gerente ni la asignación agregados", async () => {
+      const { a, b } = await conLuisEnA();
+      const tablas = ["gerentes", "asignaciones", "depositos", "equivalencias", "consolidaciones", "tasas"];
+      const volcado = async () => Promise.all(tablas.map((t) => b.db.select(`SELECT * FROM ${t} ORDER BY rowid`)));
+      const antes = await volcado();
+      const p = await enviar(a);
+      const e = await emparejamientoInicial(b.db, p, null);
+      const plan = clasificar(p, await cargarLocal(b.db, e.campanaId as number), e.gerentes);
+      expect(plan.agregadas.map((x) => [x.gerenteId, x.gerenteNombre])).toEqual([[null, "Luis"]]);
+      const falla = async () => {
+        throw new Error("disco lleno");
+      };
+      await expect(aplicarConsolidacion(b.db, p, plan, e.gerentes, decisionesIniciales(plan), { importarImagen: falla, ahora: new Date().toISOString() }))
+        .rejects.toThrow("disco lleno");
+      expect(await volcado()).toEqual(antes);
+    });
+
+    it("se agrega con el gerente que B ya tenía fuera de la campaña (del mismo nombre) y se recuerda", async () => {
+      const { a, b } = await conLuisEnA();
+      const luisB = await createGerente(b.db, { nombre: "luis", telefono: null });
+      reloj("2026-03-05T11:00:00.000Z");
+      const p = await enviar(a);
+      const r = await recibir(b, p);
+      expect(r.plan.agregadas.map((x) => [x.gerenteId, x.gerenteNombre])).toEqual([[luisB, "luis"]]);
+      expect(r.resultado).toMatchObject({ gerentesAgregados: 1, nuevos: 2 });
+      expect(await b.db.select("SELECT id FROM gerentes WHERE nombre LIKE 'luis'")).toEqual([{ id: luisB }]);
+      expect((await getEquivalencias(b.db, "gerentes")).get(p.asignaciones.find((x) => x.gerente.nombre === "Luis")!.gerente.uuid)).toBe(luisB);
+    });
+
+    it("No incluir no crea nada y el depósito queda fuera", async () => {
+      const { a, b } = await conLuisEnA();
+      const p = await enviar(a);
+      const e = await emparejamientoInicial(b.db, p, null);
+      const luis = p.asignaciones.find((x) => x.gerente.nombre === "Luis")!;
+      const gerentes = { ...e.gerentes, [luis.uuid]: { asignacionId: null, estado: "elegido" as const } };
+      const plan = clasificar(p, await cargarLocal(b.db, e.campanaId as number), gerentes);
+      const r = await aplicarConsolidacion(b.db, p, plan, gerentes, decisionesIniciales(plan), { importarImagen, ahora: new Date().toISOString() });
+      expect(r).toMatchObject({ gerentesAgregados: 0, nuevos: 1 });
+      expect(await gerenteYAsignacion(b.db, "Luis")).toEqual([]);
+    });
   });
 
   it("aplicar el mismo archivo dos veces no cambia nada la segunda", async () => {

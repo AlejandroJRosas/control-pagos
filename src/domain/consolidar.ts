@@ -26,22 +26,62 @@ export function emparejarCampana(
 export type AsignacionLocal = {
   id: number; uuid: string; gerenteId: number; gerenteNombre: string; saldoUsd: string; ultimoEnvio: string | null; ultimoRecibo: string | null;
 };
-/** `asignacionId`: undefined = falta decidir; null = no incluir (sin bloquear). */
-export type GerenteEmparejado = { asignacionId: number | null | undefined; estado: EstadoEmparejamiento };
+export type GerenteLocal = { id: number; uuid: string; nombre: string };
+/**
+ * `asignacionId`: undefined = falta decidir; null = no incluir (sin bloquear). Con `agregar`, la asignación se crea al aplicar y
+ * `asignacionId` es su id provisional (`idProvisional`); `gerenteId: null` = crear también el gerente (con el uuid y el nombre del archivo).
+ */
+export type GerenteEmparejado = { asignacionId: number | null | undefined; estado: EstadoEmparejamiento; agregar?: { gerenteId: number | null } };
 
-/** Asignación local de cada asignación del paquete (por uuid remoto). Una asignación local recibe a lo sumo una remota automática. */
+/** Id (negativo) de la asignación que se agregaría a la campaña por una asignación del paquete, hasta que aplicar la cree. */
+export function idProvisional(p: Pick<Paquete, "asignaciones">, asignacionUuid: string): number {
+  return -(p.asignaciones.findIndex((a) => a.uuid === asignacionUuid) + 1);
+}
+
+/** Gerente local (de los que no están en la campaña) que ya es el del archivo: el del mismo uuid o el recordado; null si no se conoce. */
+export function gerenteConocido(remota: AsignacionPaquete, fuera: GerenteLocal[], recordados: Map<string, number>): GerenteLocal | null {
+  const recordado = recordados.get(remota.gerente.uuid);
+  return fuera.find((g) => g.uuid === remota.gerente.uuid) ?? fuera.find((g) => g.id === recordado) ?? null;
+}
+
+/** Gerentes locales (de los que no están en la campaña) con el mismo nombre que el del archivo. */
+export function gerentesMismoNombre(remota: AsignacionPaquete, fuera: GerenteLocal[]): GerenteLocal[] {
+  const clave = claveComparacion(remota.gerente.nombre);
+  return fuera.filter((g) => claveComparacion(g.nombre) === clave);
+}
+
+/** Gerentes conocidos: uuid remoto → id local (los recordados y los que tienen el mismo uuid, como uno que se agregó desde un archivo). */
+export function gerentesRecordados(local: Pick<LocalConsolidar, "gerentes" | "equivalenciasGerentes">): Map<string, number> {
+  return new Map([...local.gerentes.map((g) => [g.uuid, g.id] as const), ...local.equivalenciasGerentes]);
+}
+
+/** Los gerentes locales sin asignación en la campaña (los que se le pueden agregar). */
+export function gerentesFuera(local: Pick<LocalConsolidar, "gerentes" | "asignaciones">): GerenteLocal[] {
+  const dentro = new Set(local.asignaciones.map((a) => a.gerenteId));
+  return local.gerentes.filter((g) => !dentro.has(g.id));
+}
+
+/**
+ * Asignación local de cada asignación del paquete (por uuid remoto). Una asignación local recibe a lo sumo una remota automática.
+ * Primero la del mismo uuid; luego el gerente recordado y el nombre; si no hay ninguna, se propone agregarlo a la campaña con el gerente
+ * local que ya es él (`fuera`: los que no están en la campaña), el único del mismo nombre o uno nuevo.
+ */
 export function emparejarGerentes(
   remotas: AsignacionPaquete[],
   locales: AsignacionLocal[],
   recordados: Map<string, number>,
+  fuera: GerenteLocal[],
 ): Record<string, GerenteEmparejado> {
   const resultado: Record<string, GerenteEmparejado> = {};
   const usadas = new Set<number>();
   for (const r of remotas) {
     let elegido: GerenteEmparejado;
     const gerenteId = recordados.get(r.gerente.uuid);
+    const mismoUuid = locales.find((l) => l.uuid === r.uuid);
     const recordada = gerenteId === undefined ? undefined : locales.find((l) => l.gerenteId === gerenteId);
-    if (recordada) {
+    if (mismoUuid) {
+      elegido = { asignacionId: mismoUuid.id, estado: "recordado" };
+    } else if (recordada) {
       elegido = { asignacionId: recordada.id, estado: "recordado" };
     } else {
       const clave = claveComparacion(r.gerente.nombre);
@@ -53,6 +93,11 @@ export function emparejarGerentes(
     if (typeof elegido.asignacionId === "number") {
       if (usadas.has(elegido.asignacionId)) elegido = { asignacionId: undefined, estado: "varios" };
       else usadas.add(elegido.asignacionId);
+    }
+    if (elegido.asignacionId === null) {
+      const iguales = gerentesMismoNombre(r, fuera);
+      const existente = gerenteConocido(r, fuera, recordados) ?? (iguales.length === 1 ? iguales[0] : null);
+      elegido = { asignacionId: idProvisional({ asignaciones: remotas }, r.uuid), estado: "ninguno", agregar: { gerenteId: existente?.id ?? null } };
     }
     resultado[r.uuid] = elegido;
   }
@@ -73,6 +118,8 @@ export type LocalConsolidar = {
   feriados: ReadonlySet<string>;
   eliminados: ReadonlySet<string>; // uuids eliminados aquí
   equivalenciasDepositos: Map<string, number>; // uuid remoto → id local
+  gerentes: GerenteLocal[]; // todos los de esta instalación
+  equivalenciasGerentes: Map<string, number>; // uuid remoto → id local
 };
 export type Campo = "fecha" | "banco" | "referencia" | "cuentaDestino" | "montoBs" | "observaciones" | "gerente";
 export type Cambio = { campo: Campo; antes: string | null; despues: string | null };
@@ -92,7 +139,11 @@ export type PlanConsolidacion = {
   saldos: { asignacionId: number; gerenteNombre: string; local: string; archivo: string }[];
   /** Depósitos del archivo reconocidos por sus `equivalentes`: al aplicar se recuerda su uuid. */
   equivalencias: { remotoUuid: string; localId: number }[];
+  /** Gerentes del archivo que se agregan a la campaña. */
+  agregadas: Agregada[];
 };
+/** `gerenteId` null = gerente nuevo. Nombre: el del gerente local si ya existe; si no, el del archivo. */
+export type Agregada = { remotaUuid: string; asignacionId: number; gerenteId: number | null; gerenteNombre: string; saldoUsd: string };
 export type Eleccion = "mia" | "archivo";
 export type Decisiones = { tasas: Record<string, Eleccion | undefined>; saldos: Record<number, Eleccion>; conflictos: Record<string, Eleccion>; eliminar: Set<string> };
 
@@ -119,7 +170,7 @@ function compararCampos(remoto: DepositoPaquete, local: DepositoLocal, asignacio
 export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<string, GerenteEmparejado>): PlanConsolidacion {
   const plan: PlanConsolidacion = {
     campana: local.campana, nuevos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0, masNuevasAqui: [],
-    noIncluidos: [], tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [],
+    noIncluidos: [], tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], agregadas: [],
   };
   const campanaId = local.campana.id;
   const porId = new Map(local.depositos.map((d) => [d.id, d]));
@@ -163,6 +214,17 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
   }
   const asignacionesArchivo = new Map(p.asignaciones.map((a) => [a.uuid, a]));
   const asignacionesLocales = new Map(local.asignaciones.map((a) => [a.id, a]));
+  // Las que se agregan cuentan como de la campaña, con su id provisional, el monto del archivo y sin recibo.
+  for (const a of p.asignaciones) {
+    const g = gerentes[a.uuid];
+    if (!g?.agregar || typeof g.asignacionId !== "number") continue;
+    const gerenteId = g.agregar.gerenteId;
+    const gerenteNombre = (gerenteId === null ? undefined : local.gerentes.find((x) => x.id === gerenteId)?.nombre) ?? a.gerente.nombre;
+    plan.agregadas.push({ remotaUuid: a.uuid, asignacionId: g.asignacionId, gerenteId, gerenteNombre, saldoUsd: a.saldoUsd });
+    asignacionesLocales.set(g.asignacionId, {
+      id: g.asignacionId, uuid: a.uuid, gerenteId: gerenteId ?? g.asignacionId, gerenteNombre, saldoUsd: a.saldoUsd, ultimoEnvio: null, ultimoRecibo: null,
+    });
+  }
   const nombreLocal = (id: number) => asignacionesLocales.get(id)?.gerenteNombre ?? "";
   const tasasArchivo = new Map(p.tasas.map((t) => [t.fecha, t.valor]));
   const fechasNuevas = new Set<string>();
@@ -312,14 +374,17 @@ export function decisionesIniciales(plan: PlanConsolidacion): Decisiones {
   };
 }
 
-/** Dos gerentes del archivo (uuid de su asignación) emparejados con la misma asignación local, o null. */
+/** Dos gerentes del archivo (uuid de su asignación) emparejados con la misma asignación local o agregados con el mismo gerente local, o null. */
 export function gerentesRepetidos(gerentes: Record<string, GerenteEmparejado>): [string, string] | null {
-  const vistos = new Map<number, string>();
+  const vistos = new Map<string, string>();
   for (const [uuid, g] of Object.entries(gerentes)) {
     if (typeof g.asignacionId !== "number") continue;
-    const otro = vistos.get(g.asignacionId);
-    if (otro !== undefined) return [otro, uuid];
-    vistos.set(g.asignacionId, uuid);
+    const claves = [`asignacion ${g.asignacionId}`, ...(typeof g.agregar?.gerenteId === "number" ? [`gerente ${g.agregar.gerenteId}`] : [])];
+    for (const k of claves) {
+      const otro = vistos.get(k);
+      if (otro !== undefined) return [otro, uuid];
+      vistos.set(k, uuid);
+    }
   }
   return null;
 }
@@ -367,7 +432,8 @@ export function motivoPendiente(
   const reemplazo = reemplazoSinEliminar(plan, d);
   if (reemplazo) return `${reemplazo.banco} ${reemplazo.referencia} del archivo reemplaza a uno que el archivo elimina: marca esa eliminación para consolidar`;
   const hayAlgo =
-    plan.nuevos.length > 0 || plan.correcciones.length > 0 || plan.conflictos.length > 0 || plan.vinculos.length > 0 || plan.tasasNuevas.length > 0 ||
+    plan.agregadas.length > 0 || plan.nuevos.length > 0 || plan.correcciones.length > 0 || plan.conflictos.length > 0 || plan.vinculos.length > 0 ||
+    plan.tasasNuevas.length > 0 ||
     plan.eliminaciones.some((e) => d.eliminar.has(e.remotoUuid)) || plan.saldos.some((s) => d.saldos[s.asignacionId] === "archivo") ||
     plan.tasasDistintas.some((t) => d.tasas[t.fecha] === "archivo");
   return hayAlgo ? null : "No hay nada nuevo para consolidar";

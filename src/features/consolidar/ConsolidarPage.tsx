@@ -14,7 +14,8 @@ import { listCampanas, type Campana } from "@/db/repos/campanas";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { aplicarConsolidacion, cargarLocal, emparejamientoInicial, emparejarGerentesDe } from "@/db/operaciones/consolidar";
 import {
-  clasificar, decisionesIniciales, motivoPendiente, type Decisiones, type Eleccion, type EstadoEmparejamiento, type GerenteEmparejado,
+  clasificar, decisionesIniciales, gerentesFuera, gerentesMismoNombre, gerentesRecordados, idProvisional, motivoPendiente, type Agregada, type Decisiones,
+  type Eleccion, type EstadoEmparejamiento, type GerenteEmparejado,
 } from "@/domain/consolidar";
 import { mensajeConsolidado, resumenConsolidacion, tasaParaFecha, type CambioGerente } from "@/domain/consolidarResumen";
 import { formatFecha, formatFechaHora } from "@/domain/dates";
@@ -34,6 +35,8 @@ type Elecciones = { tasas: Record<string, Eleccion>; saldos: Record<number, Elec
 const SIN_ELECCIONES: Elecciones = { tasas: {}, saldos: {}, conflictos: {}, noEliminar: new Set() };
 
 const NO_INCLUIR = "no";
+/** "agregar" = con un gerente nuevo; "agregar:<id>" = con ese gerente local. */
+const AGREGAR = "agregar";
 
 /** Revisa un paquete `.cpagos` recibido y lo aplica a una campaña: nada se escribe hasta confirmar. */
 export function ConsolidarPage() {
@@ -101,7 +104,8 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
 
   const campana = campanas.find((c) => c.id === campanaId) ?? null;
   const asignaciones = datos?.local.asignaciones ?? [];
-  const nombreDe = (id: number) => asignaciones.find((a) => a.id === id)?.gerenteNombre ?? "";
+  const nombreDe = (id: number) =>
+    asignaciones.find((a) => a.id === id)?.gerenteNombre ?? plan?.agregadas.find((a) => a.asignacionId === id)?.gerenteNombre ?? "";
   const resumen = useMemo(() => (datos && plan && d ? resumenConsolidacion(datos.base, plan, d, datos.local.tasas) : []), [datos, plan, d]);
   const nombres = useMemo(() => Object.fromEntries(paquete.asignaciones.map((a) => [a.uuid, a.gerente.nombre])), [paquete]);
   const motivo = !plan || !d ? "Elige en qué campaña consolidar el archivo" : motivoPendiente(plan, gerentes, d, nombres);
@@ -119,7 +123,12 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
   }
 
   function elegirGerente(uuid: string, valor: string) {
-    setGerentes((g) => ({ ...g, [uuid]: { asignacionId: valor === "" ? undefined : valor === NO_INCLUIR ? null : Number(valor), estado: "elegido" } }));
+    const agregarCon = valor === AGREGAR ? null : valor.startsWith(`${AGREGAR}:`) ? Number(valor.slice(AGREGAR.length + 1)) : undefined;
+    const elegido: GerenteEmparejado =
+      agregarCon !== undefined
+        ? { asignacionId: idProvisional(paquete, uuid), estado: "elegido", agregar: { gerenteId: agregarCon } }
+        : { asignacionId: valor === "" ? undefined : valor === NO_INCLUIR ? null : Number(valor), estado: "elegido" };
+    setGerentes((g) => ({ ...g, [uuid]: elegido }));
     // Lo elegido sobre los montos asignados era de otro emparejamiento.
     setElecciones((x) => ({ ...x, saldos: {} }));
   }
@@ -155,14 +164,33 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
   }
 
   const porDecidir = paquete.asignaciones.filter((a) => gerentes[a.uuid] && gerentes[a.uuid].estado !== "recordado");
-  /** Las asignaciones que ya tiene otro gerente del archivo no se ofrecen: el emparejamiento es uno a uno. */
-  const opcionesGerente = (uuid: string) => [
-    ...asignaciones
-      .filter((a) => !Object.entries(gerentes).some(([otro, g]) => otro !== uuid && g.asignacionId === a.id))
-      .map((a) => ({ value: String(a.id), label: a.gerenteNombre })),
-    { value: NO_INCLUIR, label: "No incluir" },
-  ];
-  const valorGerente = (g: GerenteEmparejado) => (g.asignacionId === undefined ? "" : g.asignacionId === null ? NO_INCLUIR : String(g.asignacionId));
+  /**
+   * Lo que ya tiene otro gerente del archivo no se ofrece: el emparejamiento es uno a uno. Si el del archivo ya se conoce aquí (por uuid o
+   * recordado), solo se agrega con ese gerente (si no está en la campaña); si no, con uno nuevo o con uno del mismo nombre fuera de la campaña.
+   */
+  const opcionesGerente = (uuid: string) => {
+    const remota = paquete.asignaciones.find((a) => a.uuid === uuid);
+    const usadoPorOtro = (k: (g: GerenteEmparejado) => boolean) => Object.entries(gerentes).some(([otro, g]) => otro !== uuid && k(g));
+    const agregar: { value: string; label: string }[] = [];
+    if (remota && datos) {
+      const fuera = gerentesFuera(datos.local);
+      const conocido = gerentesRecordados(datos.local).get(remota.gerente.uuid);
+      if (conocido === undefined) agregar.push({ value: AGREGAR, label: "Agregar a mi campaña" });
+      const candidatos = conocido === undefined ? gerentesMismoNombre(remota, fuera) : fuera.filter((g) => g.id === conocido);
+      for (const g of candidatos) {
+        if (!usadoPorOtro((o) => o.agregar?.gerenteId === g.id)) agregar.push({ value: `${AGREGAR}:${g.id}`, label: `Agregar a ${g.nombre}` });
+      }
+    }
+    return [
+      ...asignaciones.filter((a) => !usadoPorOtro((g) => g.asignacionId === a.id)).map((a) => ({ value: String(a.id), label: a.gerenteNombre })),
+      ...agregar,
+      { value: NO_INCLUIR, label: "No incluir" },
+    ];
+  };
+  const valorGerente = (g: GerenteEmparejado) => {
+    if (g.agregar) return g.agregar.gerenteId === null ? AGREGAR : `${AGREGAR}:${g.agregar.gerenteId}`;
+    return g.asignacionId === undefined ? "" : g.asignacionId === null ? NO_INCLUIR : String(g.asignacionId);
+  };
   const discretos = plan
     ? [
         plan.sinCambios > 0 && `Sin cambios: ${plan.sinCambios}`,
@@ -244,7 +272,7 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
       )}
 
       <Card className="px-4">
-        {resumen.length > 0 && <ResumenCambios filas={resumen} />}
+        {resumen.length > 0 && <ResumenCambios filas={resumen} agregadas={plan?.agregadas ?? []} />}
         <div className="flex justify-end">
           <BotonConMotivo motivo={ocupado ? undefined : (motivo ?? undefined)}>
             <Button disabled={ocupado || !!motivo} onClick={() => void consolidar()}>
@@ -258,14 +286,16 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
   );
 }
 
-function ResumenCambios({ filas }: { filas: CambioGerente[] }) {
+function ResumenCambios({ filas, agregadas }: { filas: CambioGerente[]; agregadas: Agregada[] }) {
   return (
     <div>
       <h2 className="mb-1 text-base font-semibold">Cómo quedan los gerentes</h2>
+      {agregadas.length > 0 && <p className="mb-1 text-sm">Gerentes agregados a la campaña: {agregadas.map((a) => a.gerenteNombre).join(", ")}</p>}
       <ul className="text-sm">
         {filas.map((f) => (
           <li key={f.asignacionId} className="flex flex-wrap gap-x-3">
             <span className="font-medium">{f.gerenteNombre}</span>
+            {f.agregado && <span className="text-muted-foreground">(nuevo en tu campaña)</span>}
             <span className="tabular-nums">
               Pagado {formatUsd(f.antes.pagado)} → {formatUsd(f.despues.pagado)}
             </span>

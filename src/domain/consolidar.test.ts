@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  clasificar, decisionesIniciales, emparejarCampana, emparejarGerentes, motivoPendiente,
+  clasificar, decisionesIniciales, emparejarCampana, emparejarGerentes, gerentesRepetidos, idProvisional, motivoPendiente,
   type AsignacionLocal, type DepositoLocal, type GerenteEmparejado, type LocalConsolidar, type PlanConsolidacion,
 } from "./consolidar";
 import { MOTIVO_CERRADA } from "./motivos";
@@ -31,23 +31,45 @@ describe("emparejarCampana", () => {
 
 describe("emparejarGerentes", () => {
   it("gerente recordado", () => {
-    const r = emparejarGerentes([remota("a1", "g1", "Otro nombre")], [local(10, 5, "Jose Perez")], new Map([["g1", 5]]));
+    const r = emparejarGerentes([remota("a1", "g1", "Otro nombre")], [local(10, 5, "Jose Perez")], new Map([["g1", 5]]), []);
     expect(r.a1).toEqual({ asignacionId: 10, estado: "recordado" });
   });
   it("gerente por nombre", () => {
-    const r = emparejarGerentes([remota("a1", "g1", "Jose Perez")], [local(10, 5, "José Pérez")], new Map());
+    const r = emparejarGerentes([remota("a1", "g1", "Jose Perez")], [local(10, 5, "José Pérez")], new Map(), []);
     expect(r.a1).toEqual({ asignacionId: 10, estado: "nombre" });
   });
-  it("gerente sin coincidencia queda en No incluir sin bloquear", () => {
-    const r = emparejarGerentes([remota("a1", "g1", "Nadie")], [local(10, 5, "José Pérez")], new Map());
-    expect(r.a1).toEqual({ asignacionId: null, estado: "ninguno" });
+  it("un gerente que no está en la campaña se propone agregar (nuevo, o el local del mismo nombre)", () => {
+    const remotas = [
+      remota("a1", "g1", "Nadie"), remota("a2", "g2", "Luis Díaz"), remota("a3", "g3", "Otro"), remota("a4", "g4", "Beto"), remota("a5", "g5", "Rosa"),
+    ];
+    const fuera = [
+      { id: 7, uuid: "x7", nombre: "luis diaz" }, { id: 8, uuid: "g3", nombre: "Distinto" }, { id: 9, uuid: "x9", nombre: "Recordada" },
+      { id: 20, uuid: "x20", nombre: "Rosa" }, { id: 21, uuid: "x21", nombre: "rosa" },
+    ];
+    const r = emparejarGerentes(remotas, [local(10, 5, "José Pérez")], new Map([["g4", 9]]), fuera);
+    expect(r.a1).toEqual({ asignacionId: -1, estado: "ninguno", agregar: { gerenteId: null } });
+    expect(r.a2).toEqual({ asignacionId: -2, estado: "ninguno", agregar: { gerenteId: 7 } }); // por nombre
+    expect(r.a3).toEqual({ asignacionId: -3, estado: "ninguno", agregar: { gerenteId: 8 } }); // por uuid
+    expect(r.a4).toEqual({ asignacionId: -4, estado: "ninguno", agregar: { gerenteId: 9 } }); // recordado
+    expect(r.a5).toEqual({ asignacionId: -5, estado: "ninguno", agregar: { gerenteId: null } }); // dos con el nombre: uno nuevo
+    expect(idProvisional(paq([]), "rb")).toBe(-2);
+  });
+  it("emparejar por el uuid de la asignación lo da por recordado", () => {
+    const r = emparejarGerentes([remota("l10", "g1", "Otro nombre")], [local(11, 6, "Otro nombre"), local(10, 5, "Ana")], new Map(), []);
+    expect(r.l10).toEqual({ asignacionId: 10, estado: "recordado" });
+  });
+  it("dos del archivo no pueden agregarse al mismo gerente local", () => {
+    const g = (gerenteId: number | null, id: number): GerenteEmparejado => ({ asignacionId: id, estado: "elegido", agregar: { gerenteId } });
+    expect(gerentesRepetidos({ a: g(7, -1), b: g(7, -2) })).toEqual(["a", "b"]);
+    expect(gerentesRepetidos({ a: g(null, -1), b: g(null, -2) })).toBeNull();
+    expect(gerentesRepetidos({ a: g(7, -1), b: g(8, -2) })).toBeNull();
   });
   it("dos gerentes locales con el mismo nombre piden decidir", () => {
-    const r = emparejarGerentes([remota("a1", "g1", "José Pérez")], [local(10, 5, "José Pérez"), local(11, 6, "jose perez")], new Map());
+    const r = emparejarGerentes([remota("a1", "g1", "José Pérez")], [local(10, 5, "José Pérez"), local(11, 6, "jose perez")], new Map(), []);
     expect(r.a1).toEqual({ asignacionId: undefined, estado: "varios" });
   });
   it("dos remotos no caen en la misma asignación", () => {
-    const r = emparejarGerentes([remota("a1", "g1", "José Pérez"), remota("a2", "g2", "jose perez")], [local(10, 5, "José Pérez")], new Map());
+    const r = emparejarGerentes([remota("a1", "g1", "José Pérez"), remota("a2", "g2", "jose perez")], [local(10, 5, "José Pérez")], new Map(), []);
     expect(r.a1).toEqual({ asignacionId: 10, estado: "nombre" });
     expect(r.a2).toEqual({ asignacionId: undefined, estado: "varios" });
   });
@@ -80,7 +102,7 @@ const base = (o: Partial<LocalConsolidar> = {}): LocalConsolidar => ({
   campana: { id: 1, uuid: "c1", nombre: "Marzo", estado: "activa" },
   asignaciones: [asigLocal(10, "José Pérez", "100"), asigLocal(11, "Ana", "50")],
   depositos: [], tasas: new Map([["2026-03-04", { id: 1, valor: "36.50", usos: 3 }]]), feriados: new Set(), eliminados: new Set(),
-  equivalenciasDepositos: new Map(), ...o,
+  equivalenciasDepositos: new Map(), gerentes: [], equivalenciasGerentes: new Map(), ...o,
 });
 const GER: Record<string, GerenteEmparejado> = {
   ra: { asignacionId: 10, estado: "nombre" }, rb: { asignacionId: 11, estado: "nombre" }, rc: { asignacionId: null, estado: "ninguno" },
@@ -142,6 +164,20 @@ describe("clasificar", () => {
     const plan = clasificar(paq([rem(), rem({ uuid: "r2", referencia: "222" })], { tasas: [{ fecha: "2026-03-04", valor: "36.6" }] }), base(), GER);
     expect(plan.nuevos.map((n) => n.tasa.accion)).toEqual(["distinta", "distinta"]);
     expect(plan.tasasDistintas).toEqual([{ fecha: "2026-03-04", local: "36.50", archivo: "36.6", usos: 3 }]);
+  });
+
+  it("los depósitos de un agregado salen como nuevos con el id provisional", () => {
+    const d = rem({ uuid: "c1", referencia: "555", asignacionUuid: "rc" });
+    const ger = { ...GER, rc: { asignacionId: -3, estado: "ninguno" as const, agregar: { gerenteId: null } } };
+    const plan = clasificar(paq([d]), base(), ger);
+    expect(plan.nuevos).toEqual([{ remoto: d, asignacionId: -3, tasa: { fecha: "2026-03-04", accion: "existente" } }]);
+    expect(plan.agregadas).toEqual([{ remotaUuid: "rc", asignacionId: -3, gerenteId: null, gerenteNombre: "Carlos", saldoUsd: "70" }]);
+    expect([plan.saldos, plan.noIncluidos]).toEqual([[], []]);
+    expect(motivoPendiente(clasificar(paq([]), base(), ger), ger, decisionesIniciales(plan))).toBeNull();
+    // con un gerente local que no estaba en la campaña, su nombre
+    const conLocal = { ...GER, rc: { asignacionId: -3, estado: "elegido" as const, agregar: { gerenteId: 40 } } };
+    const otro = clasificar(paq([d]), base({ gerentes: [{ id: 40, uuid: "x40", nombre: "Carlos Ruiz" }] }), conLocal);
+    expect(otro.agregadas[0]).toMatchObject({ gerenteId: 40, gerenteNombre: "Carlos Ruiz" });
   });
 
   it("gerente no emparejado o excluido no se incluye", () => {

@@ -11,7 +11,9 @@ import { getEquivalencias, getIntercambios, marcarIntercambio } from "../repos/c
 import { cargarEnvio } from "../queries/envioConsolidar";
 import { loadCampanaData } from "../queries/campanaData";
 import { armarPaquete, type Paquete } from "@/domain/paquete";
-import { clasificar, decisionesIniciales, motivoPendiente, type Decisiones, type GerenteEmparejado, type PlanConsolidacion } from "@/domain/consolidar";
+import {
+  clasificar, decisionesIniciales, idProvisional, motivoPendiente, type Decisiones, type GerenteEmparejado, type PlanConsolidacion,
+} from "@/domain/consolidar";
 import { buildCampanaView } from "@/domain/campanaView";
 import { aplicarConsolidacion, cargarLocal, emparejamientoInicial, type Resultado } from "./consolidar";
 
@@ -75,7 +77,9 @@ describe("aplicarConsolidacion", () => {
     reloj("2026-03-05T12:00:00.000Z");
     const { resultado, p } = await consolidar(origen, destino.db, { ahora: "2026-03-05T12:00:00.000Z" });
 
-    expect(resultado).toEqual({ nuevos: 2, corregidos: 0, eliminados: 0, vinculados: 0, tasasCreadas: 0, tasasCambiadas: 0, saldosCambiados: 0 });
+    expect(resultado).toEqual({
+      nuevos: 2, corregidos: 0, eliminados: 0, vinculados: 0, tasasCreadas: 0, tasasCambiadas: 0, saldosCambiados: 0, gerentesAgregados: 0,
+    });
     const filas = await destino.db.select<{ uuid: string; creadoEn: string; actualizadoEn: string; imagenPath: string | null; asignacionId: number }>(
       "SELECT uuid, creado_en AS creadoEn, actualizado_en AS actualizadoEn, imagen_path AS imagenPath, asignacion_id AS asignacionId FROM depositos ORDER BY id",
     );
@@ -225,7 +229,7 @@ describe("aplicarConsolidacion", () => {
     expect(await destino.db.select("SELECT tasa_id AS t FROM depositos")).toEqual([{ t: tasa?.id }]);
   });
 
-  it("gerente solo en el origen no crea nada", async () => {
+  it("gerente solo en el origen: se propone agregar y, con No incluir, no crea nada", async () => {
     const origen = await instalacion();
     const destino = await instalacion();
     const beto = await createGerente(origen.db, { nombre: "Beto", telefono: null });
@@ -234,9 +238,15 @@ describe("aplicarConsolidacion", () => {
     await createDeposito(origen.db, origen.s.asignacionId, depositoBase(origen.s.tasaId, { referencia: "111" }));
     const antes = await volcado(destino.db);
 
-    const { plan, resultado } = await consolidar(origen, destino.db);
+    const p = await paqueteDe(origen);
+    const e = await emparejamientoInicial(destino.db, p, null);
+    const uuidBeto = p.asignaciones.find((a) => a.gerente.nombre === "Beto")!.uuid;
+    expect(e.gerentes[uuidBeto]).toEqual({ asignacionId: idProvisional(p, uuidBeto), estado: "ninguno", agregar: { gerenteId: null } });
+    const gerentes = { ...e.gerentes, [uuidBeto]: { asignacionId: null, estado: "elegido" as const } };
+    const plan = clasificar(p, await cargarLocal(destino.db, destino.s.campanaId), gerentes);
+    const resultado = await aplicarConsolidacion(destino.db, p, plan, gerentes, decisionesIniciales(plan), { importarImagen, ahora: new Date().toISOString() });
 
-    expect(resultado.nuevos).toBe(1);
+    expect(resultado).toMatchObject({ nuevos: 1, gerentesAgregados: 0 });
     expect(plan.noIncluidos.map((n) => n.gerenteNombre)).toEqual(["Beto"]);
     const despues = await volcado(destino.db);
     expect(despues.gerentes).toEqual(antes.gerentes);
@@ -400,7 +410,8 @@ describe("emparejamientoInicial", () => {
     const renombrado = { ...p, campana: { ...p.campana, nombre: "Campaña de marzo" } };
     const e = await emparejamientoInicial(destino.db, renombrado, otra);
     expect(e).toMatchObject({ campanaId: otra, estadoCampana: "elegido" });
-    expect(e.gerentes[p.asignaciones[0].uuid]).toEqual({ asignacionId: null, estado: "ninguno" });
+    // Ana no está en Abril: se propone agregar a la Ana de aquí (mismo nombre).
+    expect(e.gerentes[p.asignaciones[0].uuid]).toEqual({ asignacionId: -1, estado: "ninguno", agregar: { gerenteId: destino.s.anaId } });
 
     expect(await emparejamientoInicial(destino.db, renombrado, null)).toEqual({ campanaId: null, estadoCampana: "ninguno", gerentes: {} });
   });

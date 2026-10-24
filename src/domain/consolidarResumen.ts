@@ -11,11 +11,12 @@ export function tasaParaFecha(plan: PlanConsolidacion, d: Decisiones, tasas: Tas
   return tasas.get(fecha)?.valor ?? plan.tasasNuevas.find((t) => t.fecha === fecha)?.valor ?? null;
 }
 
-export type CambioGerente = { asignacionId: number; gerenteNombre: string; antes: GerenteResumen; despues: GerenteResumen };
+/** `agregado`: el gerente entra a la campaña al consolidar. */
+export type CambioGerente = { asignacionId: number; gerenteNombre: string; antes: GerenteResumen; despues: GerenteResumen; agregado: boolean };
 
 /**
- * Cómo queda cada gerente de la campaña si se consolida con estas decisiones (nuevos, correcciones, conflictos del archivo,
- * eliminaciones marcadas, tasas y montos asignados elegidos). Solo los gerentes que cambian.
+ * Cómo queda cada gerente de la campaña si se consolida con estas decisiones (gerentes agregados, nuevos, correcciones, conflictos del
+ * archivo, eliminaciones marcadas, tasas y montos asignados elegidos). Solo los gerentes que cambian (los agregados, siempre).
  */
 export function resumenConsolidacion(
   base: { asignaciones: AsignacionData[]; depositos: DepositoData[] },
@@ -46,17 +47,26 @@ export function resumenConsolidacion(
       cuentaDestino: n.remoto.cuentaDestino, montoBs: n.remoto.montoBs, tasaId: 0, tasaValor, observaciones: n.remoto.observaciones, imagenPath: null,
     });
   });
-  const asignaciones = base.asignaciones.map((a) => {
-    const s = plan.saldos.find((x) => x.asignacionId === a.id);
-    return s && d.saldos[a.id] === "archivo" ? { ...a, saldoUsd: s.archivo } : a;
+  // Las agregadas: antes en cero y sin depósitos; después con el monto del archivo (con su id provisional, como sus nuevos).
+  const agregadas = new Set(plan.agregadas.map((a) => a.asignacionId));
+  const agregada = (a: PlanConsolidacion["agregadas"][number], saldoUsd: string): AsignacionData => ({
+    id: a.asignacionId, gerenteId: a.gerenteId ?? a.asignacionId, gerenteNombre: a.gerenteNombre, saldoUsd,
   });
+  const asignaciones = [
+    ...base.asignaciones.map((a) => {
+      const s = plan.saldos.find((x) => x.asignacionId === a.id);
+      return s && d.saldos[a.id] === "archivo" ? { ...a, saldoUsd: s.archivo } : a;
+    }),
+    ...plan.agregadas.map((a) => agregada(a, a.saldoUsd)),
+  ];
 
-  const antes = buildCampanaView(base.asignaciones, base.depositos).gerentes;
+  const antes = buildCampanaView([...base.asignaciones, ...plan.agregadas.map((a) => agregada(a, "0"))], base.depositos).gerentes;
   const despues = buildCampanaView(asignaciones, depositos).gerentes;
   return antes.flatMap((a, i) => {
     const b = despues[i];
+    const agregado = agregadas.has(a.asignacionId);
     const igual = new Decimal(a.pagado).eq(b.pagado) && new Decimal(a.asignado).eq(b.asignado) && a.cantidad === b.cantidad;
-    return igual ? [] : [{ asignacionId: a.asignacionId, gerenteNombre: a.gerenteNombre, antes: a, despues: b }];
+    return igual && !agregado ? [] : [{ asignacionId: a.asignacionId, gerenteNombre: a.gerenteNombre, antes: a, despues: b, agregado }];
   });
 }
 

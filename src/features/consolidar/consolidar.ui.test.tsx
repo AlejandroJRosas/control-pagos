@@ -79,17 +79,57 @@ it("pide elegir la tasa distinta antes de consolidar", async () => {
   expect(screen.getByRole("button", { name: "Consolidar" })).toBeEnabled();
 });
 
-it("gerente que no está en la campaña aparece en No se incluyen", async () => {
-  await paqueteDeOrigen(async (db, s) => {
+const conLuis = () =>
+  paqueteDeOrigen(async (db, s) => {
     const luis = await createGerente(db, { nombre: "Luis", telefono: null });
     const a = await createAsignacion(db, { campanaId: s.campanaId, gerenteId: luis, saldoUsd: "10" });
     await createDeposito(db, a, depositoBase(s.tasaId, { referencia: "777" }));
   });
-  const { db, s } = await destino();
-  await renderApp(`/consolidar?carpeta=recibidos/p1&campana=${s.campanaId}`, { db, hoy: "2026-03-06" });
 
+it("ofrece Agregar a mi campaña y lo muestra en el resumen", async () => {
+  await conLuis();
+  const { db, s } = await destino();
+  const { user, router } = await renderApp(`/consolidar?carpeta=recibidos/p1&campana=${s.campanaId}`, { db, hoy: "2026-03-06" });
+
+  expect(await screen.findByLabelText("Luis es…")).toHaveValue("Agregar a mi campaña");
+  expect(await seccion(/Nuevos \(2\)/)).toBeInTheDocument();
+  expect(screen.getByText("Gerentes agregados a la campaña: Luis")).toBeInTheDocument();
+  expect(screen.getByText("(nuevo en tu campaña)")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Consolidar" }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe(`/campanas/${s.campanaId}`));
+  const filas = await db.select<{ nombre: string; saldoUsd: string; n: number }>(
+    `SELECT g.nombre, a.saldo_usd AS saldoUsd, (SELECT COUNT(*) FROM depositos d WHERE d.asignacion_id = a.id) AS n
+     FROM asignaciones a JOIN gerentes g ON g.id = a.gerente_id WHERE a.campana_id = ? ORDER BY g.nombre`,
+    [s.campanaId],
+  );
+  expect(filas).toEqual([{ nombre: "Ana", saldoUsd: "100", n: 1 }, { nombre: "Luis", saldoUsd: "10", n: 1 }]);
+});
+
+it("propone agregar al gerente del mismo nombre que no está en la campaña", async () => {
+  await conLuis();
+  const { db, s } = await destino();
+  await createGerente(db, { nombre: "Luis", telefono: null });
+  const { user } = await renderApp(`/consolidar?carpeta=recibidos/p1&campana=${s.campanaId}`, { db, hoy: "2026-03-06" });
+
+  const campo = await screen.findByLabelText("Luis es…");
+  expect(campo).toHaveValue("Agregar a Luis");
+  await user.clear(campo);
+  await user.click(campo);
+  expect((await screen.findAllByRole("option")).map((o) => o.textContent)).toEqual(["Agregar a mi campaña", "Agregar a Luis", "No incluir"]);
+});
+
+it("gerente que no se incluye aparece en No se incluyen", async () => {
+  await conLuis();
+  const { db, s } = await destino();
+  const { user } = await renderApp(`/consolidar?carpeta=recibidos/p1&campana=${s.campanaId}`, { db, hoy: "2026-03-06" });
+
+  const campo = await screen.findByLabelText("Luis es…");
+  await user.clear(campo);
+  await user.type(campo, "No incl");
+  await user.click(await screen.findByRole("option", { name: "No incluir" }));
   const fuera = await seccion(/No se incluyen \(1\)/);
-  expect(within(fuera).getByText(/Luis no está en tu campaña/)).toBeInTheDocument();
+  expect(within(fuera).getByText(/Elegiste no incluir a Luis/)).toBeInTheDocument();
   expect(within(fuera).getByText(/Para recibirlos más adelante, pide que te manden la campaña con «Solo lo que cambió desde mi último envío» desmarcado/))
     .toBeInTheDocument();
   expect(await seccion(/Nuevos \(1\)/)).toBeInTheDocument();
@@ -132,7 +172,9 @@ it("no ofrece a un gerente que ya tiene otro del archivo", async () => {
   const { db, s } = await destino();
   const { user } = await renderApp(`/consolidar?carpeta=recibidos/p1&campana=${s.campanaId}`, { db, hoy: "2026-03-06" });
 
-  await user.click(await screen.findByLabelText("Luis es…"));
+  const campo = await screen.findByLabelText("Luis es…");
+  await user.clear(campo);
+  await user.click(campo);
   const opciones = (await screen.findAllByRole("option")).map((o) => o.textContent);
-  expect(opciones).toEqual(["No incluir"]);
+  expect(opciones).toEqual(["Agregar a mi campaña", "No incluir"]);
 });
