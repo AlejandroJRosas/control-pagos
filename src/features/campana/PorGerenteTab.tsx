@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import Decimal from "decimal.js";
 import { useNavigate } from "react-router";
-import { Search, UserPlus } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { STICKY_PIE, Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,12 +11,14 @@ import { ColumnasMenu } from "@/components/ColumnasMenu";
 import { BotonConMotivo, MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { ESTADOS_GERENTE, EstadoGerenteBadge, ORDEN_ESTADOS } from "@/components/EstadoGerenteBadge";
 import { estadoGerente, sumarResumenes, type EstadoGerente, type GerenteResumen, type Resumen } from "@/domain/campanaView";
+import { aplanarArbol, armarArbol, type Jefes } from "@/domain/arbol";
 import { formatFecha } from "@/domain/dates";
 import { formatPct, formatUsd } from "@/domain/money";
 import { claveComparacion } from "@/domain/texto";
 import { useFiltrosUrl } from "@/lib/filtrosUrl";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { agruparPie, useColumnas } from "@/lib/columnas";
+import { useRamasPlegadas } from "@/lib/ramasPlegadas";
 import { cn } from "@/lib/utils";
 
 type Fila = GerenteResumen & { estado: EstadoGerente };
@@ -63,10 +65,36 @@ function CeldaTotal({ col, t }: { col: Key; t: Resumen }) {
   }
 }
 
-function Celda({ col, g }: { col: Key; g: Fila }) {
+/** Lugar de una fila en el árbol (solo en el modo árbol). */
+type Rama = { nivel: number; debajo: number; tieneHijos: boolean; plegada: boolean; onAlternar: () => void };
+
+function Celda({ col, g, rama }: { col: Key; g: Fila; rama?: Rama }) {
   switch (col) {
     case "gerenteNombre":
-      return <TableCell className="font-medium">{g.gerenteNombre}</TableCell>;
+      if (!rama) return <TableCell className="font-medium">{g.gerenteNombre}</TableCell>;
+      return (
+        <TableCell className="font-medium" data-nivel={rama.nivel} style={{ paddingLeft: `calc(var(--spacing) * 2 + ${rama.nivel * 1.25}rem)` }}>
+          <div className="flex items-center gap-1">
+            {rama.tieneHijos ? (
+              <button
+                type="button"
+                aria-label={`${rama.plegada ? "Desplegar" : "Plegar"} a ${g.gerenteNombre}`}
+                className="-ml-1 rounded p-0.5 hover:bg-fila-hover"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  rama.onAlternar();
+                }}
+              >
+                {rama.plegada ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
+              </button>
+            ) : (
+              <span className="inline-block size-5" aria-hidden />
+            )}
+            <span data-gerente>{g.gerenteNombre}</span>
+            {rama.debajo > 0 && <span className="text-xs font-normal text-muted-foreground">{`· ${rama.debajo} debajo`}</span>}
+          </div>
+        </TableCell>
+      );
     case "estado":
       return (
         <TableCell>
@@ -93,13 +121,14 @@ function Celda({ col, g }: { col: Key; g: Fila }) {
 type Props = {
   campanaId: number;
   gerentes: GerenteResumen[];
+  jefes: Jefes;
   cerrada: boolean;
   onEditarSaldo: (g: GerenteResumen) => void;
   onQuitar: (g: GerenteResumen) => void;
   onAgregar: () => void;
 };
 
-export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQuitar, onAgregar }: Props) {
+export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSaldo, onQuitar, onAgregar }: Props) {
   const navigate = useNavigate();
   const { orden, alternar } = useOrden<Key>({ key: "gerenteNombre", dir: 1 });
   const { valores: f, set, limpiar } = useFiltrosUrl(`campana-${campanaId}-gerentes`, FILTROS);
@@ -110,12 +139,25 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
     conEstado.forEach((g) => (c[g.estado] += 1));
     return c;
   }, [conEstado]);
-  const filas = useMemo(() => {
+  const ramas = useRamasPlegadas(`campana-${campanaId}`);
+  const ordenadas = useMemo(() => {
     const k = claveComparacion(f.qg);
     const visibles = conEstado.filter((g) => (!f.estado || g.estado === f.estado) && claveComparacion(g.gerenteNombre).includes(k));
     return ordenar(visibles, COLUMNAS, orden);
   }, [conEstado, f.qg, f.estado, orden]);
-  const total = useMemo(() => sumarResumenes(filas), [filas]);
+  // árbol solo con el orden por defecto y sin filtros; con búsqueda, estado u otro orden es lista plana
+  const modoArbol = orden?.key === "gerenteNombre" && orden.dir === 1 && !f.qg && !f.estado;
+  const plegadosClave = [...ramas.plegados].join(",");
+  const filas = useMemo(
+    () =>
+      modoArbol
+        ? aplanarArbol(armarArbol(ordenadas, (a) => a.asignacionId, jefes), (a) => a.asignacionId, ramas.plegados)
+        : ordenadas.map((item) => ({ item, nivel: 0, debajo: 0, tieneHijos: false })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [modoArbol, ordenadas, jefes, plegadosClave],
+  );
+  // las ramas plegadas siguen contando en el total: solo cambia lo que se ve
+  const total = useMemo(() => sumarResumenes(ordenadas), [ordenadas]);
 
   if (gerentes.length === 0)
     return (
@@ -176,7 +218,7 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
           />
         </div>
       </div>
-      {filas.length === 0 ? (
+      {ordenadas.length === 0 ? (
         <Vacio texto="Ningún gerente coincide con la búsqueda o el estado elegido.">
           <Button variant="outline" onClick={limpiar}>
             Limpiar filtros
@@ -195,10 +237,19 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filas.map((g) => (
+            {filas.map(({ item: g, nivel, debajo, tieneHijos }) => (
               <TableRow key={g.asignacionId} className="cursor-pointer" onClick={() => navigate(`/asignaciones/${g.asignacionId}`)}>
                 {columnas.visibles.map((col) => (
-                  <Celda key={col} col={col} g={g} />
+                  <Celda
+                    key={col}
+                    col={col}
+                    g={g}
+                    rama={
+                      modoArbol
+                        ? { nivel, debajo, tieneHijos, plegada: ramas.plegados.has(g.asignacionId), onAlternar: () => ramas.alternar(g.asignacionId) }
+                        : undefined
+                    }
+                  />
                 ))}
                 <TableCell className="space-x-2 text-right" onClick={(e) => e.stopPropagation()}>
                   <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
@@ -224,7 +275,7 @@ export function PorGerenteTab({ campanaId, gerentes, cerrada, onEditarSaldo, onQ
                   <CeldaTotal key={i} col={c.col as Key} t={total} />
                 ) : (
                   <TableCell key={i} colSpan={c.span} className="whitespace-nowrap">
-                    {c.tipo === "etiqueta" && `Total (${filas.length} ${filas.length === 1 ? "gerente" : "gerentes"})`}
+                    {c.tipo === "etiqueta" && `Total (${ordenadas.length} ${ordenadas.length === 1 ? "gerente" : "gerentes"})`}
                   </TableCell>
                 ),
               )}
