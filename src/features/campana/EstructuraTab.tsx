@@ -14,6 +14,7 @@ import { reportError } from "@/lib/reportError";
 import { useRamasPlegadas } from "@/lib/ramasPlegadas";
 import { cn } from "@/lib/utils";
 import { CajitaGerente, TIPO_ARRASTRE, type Arrastre } from "./CajitaGerente";
+import { LienzoOrganigrama } from "./LienzoOrganigrama";
 
 type Nodo = NodoArbol<GerenteResumen>;
 type Props = { campanaId: number; gerentes: GerenteResumen[]; jefes: Jefes; cerrada: boolean };
@@ -228,22 +229,24 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
           {`${elegidos.length} ${elegidos.length === 1 ? "elegido" : "elegidos"} · Esc para soltar`}
         </p>
       )}
-      <div
-        role="region"
-        aria-label="Organigrama"
-        {...(cerrada ? {} : zona(null, "punta"))}
-        className={cn("overflow-x-auto rounded-xl border bg-muted/30 p-6 transition-colors", sobre === "punta" && "border-primary-intenso bg-fila-hover")}
-      >
-        {arboles.length === 0 ? (
+      {arboles.length === 0 ? (
+        <div
+          role="region"
+          aria-label="Organigrama"
+          {...(cerrada ? {} : zona(null, "punta"))}
+          className={cn("rounded-xl border bg-muted/30 p-6 transition-colors", sobre === "punta" && "border-primary-intenso bg-fila-hover")}
+        >
           <p className="py-6 text-center text-sm text-muted-foreground">Todavía nadie tiene gente a cargo.</p>
-        ) : (
-          <div className="mx-auto flex w-max items-start gap-10">
+        </div>
+      ) : (
+        <LienzoOrganigrama clave={`estructura-${campanaId}`} zona={cerrada ? {} : zona(null, "punta")} resaltado={sobre === "punta"}>
+          <div className="flex items-start gap-10">
             {arboles.map((a) => (
               <div key={a.item.asignacionId}>{rama(a)}</div>
             ))}
           </div>
-        )}
-      </div>
+        </LienzoOrganigrama>
+      )}
       <section
         role="region"
         aria-label="Sin estructura"

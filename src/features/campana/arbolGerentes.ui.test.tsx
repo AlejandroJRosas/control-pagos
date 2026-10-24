@@ -273,3 +273,38 @@ it("Estructura: el aviso cuenta solo a los que cambian de jefe y arrastrar uno n
   expect(screen.getByText("1 elegido · Esc para soltar")).toBeInTheDocument();
   expect(await jefeDe(ids.rosa)).toBeNull();
 });
+
+it("la campaña recuerda la última pestaña al volver a entrar sin ?tab=", async () => {
+  const { db, campanaId } = await campanaConArbol();
+  const primera = await renderApp(`/campanas/${campanaId}`, { db, hoy: "2026-10-19" });
+  await primera.user.click(await screen.findByRole("tab", { name: "Estructura" }));
+  await screen.findByRole("region", { name: "Organigrama" });
+  primera.unmount();
+
+  const segunda = await renderApp(`/campanas/${campanaId}`, { db, hoy: "2026-10-19" });
+  expect(await screen.findByRole("region", { name: "Organigrama" })).toBeInTheDocument();
+  await segunda.user.click(screen.getByRole("tab", { name: /Todos los depósitos/ }));
+  segunda.unmount();
+
+  await renderApp(`/campanas/${campanaId}`, { db, hoy: "2026-10-19" });
+  await screen.findByRole("tab", { name: /Todos los depósitos/, selected: true });
+  expect(screen.queryByRole("region", { name: "Organigrama" })).not.toBeInTheDocument();
+});
+
+it("Estructura acerca y aleja con los botones y recuerda el zoom de la campaña", async () => {
+  const { db, campanaId } = await campanaConArbol();
+  const primera = await renderApp(`/campanas/${campanaId}?tab=estructura`, { db, hoy: "2026-10-19" });
+  const zoom = () => screen.getByLabelText("Zoom del organigrama").textContent;
+  await screen.findByRole("region", { name: "Organigrama" });
+  expect(zoom()).toBe("100 %");
+  expect(screen.getByRole("button", { name: "Ajustar" })).toBeDisabled();
+  await primera.user.click(screen.getByRole("button", { name: "Alejar" }));
+  expect(zoom()).toBe("80 %");
+  primera.unmount();
+
+  const segunda = await renderApp(`/campanas/${campanaId}?tab=estructura`, { db, hoy: "2026-10-19" });
+  await screen.findByRole("region", { name: "Organigrama" });
+  expect(zoom()).toBe("80 %");
+  await segunda.user.click(screen.getByRole("button", { name: "Ajustar" }));
+  expect(zoom()).toBe("100 %");
+});

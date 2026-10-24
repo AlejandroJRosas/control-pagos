@@ -54,7 +54,7 @@ export function CampanaPage() {
   );
   const { data: pendientes } = useData((db) => contarPendientesDepositos(db, campanaId), [campanaId]);
   const { data: duplicados } = useData(async (db) => (await loadDuplicadosCampana(db, campanaId)).length, [campanaId]);
-  const [tab, setTab] = usePestanaUrl(PESTANAS);
+  const [tab, setTab] = usePestanaUrl(PESTANAS, "campana");
   const [editar, setEditar] = useState(false);
   const navigate = useNavigate();
   const [agregar, setAgregar] = useState(false);
