@@ -13,7 +13,8 @@ import type { Destino, DestinoDraft } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
 import { toInputVE, toUsd } from "@/domain/money";
 import { fechaDeTasa, formatFecha } from "@/domain/dates";
-import { claveDuplicado, clavePosibleRepetido } from "@/domain/bancos";
+import { bancoCanonico, claveDuplicado, clavePosibleRepetido } from "@/domain/bancos";
+import { bancosConocidos } from "../repos/bancosAlias";
 
 /**
  * existente: ya hay tasa ese día y coincide · nueva: se registrará · distinta: se usará la ya registrada (o la de una fila anterior)
@@ -32,6 +33,8 @@ export type FilaPlan = FilaCuadro & {
   posiblesRepetidos: Duplicado[];
   /** Fila anterior del mismo archivo con la misma cédula, fecha y monto (Provincial). */
   repetidaPosibleEnArchivo: number | null;
+  /** El banco del Excel no es uno conocido ni tiene alias recordado: hay que preguntar qué banco es antes de poder importar. */
+  bancoDesconocido: boolean;
   importable: boolean;
   /** Sugerencia inicial: se desmarca lo que pide revisión. */
   marcada: boolean;
@@ -63,6 +66,7 @@ export async function planificarImportacion(
   ediciones: ReadonlyMap<number, EdicionFila> = new Map(),
 ): Promise<PlanImportacion> {
   const feriados = await feriadosSet(db);
+  const conocidos = await bancosConocidos(db);
   const tasas = new Map<string, { valor: string; registrada: boolean }>();
   const vistas = new Map<string, number>();
   const posibles = new Map<string, number>();
@@ -70,7 +74,11 @@ export async function planificarImportacion(
 
   for (const original of cuadro.filas) {
     const edicion = ediciones.get(original.fila);
-    const f = aplicarEdicion(original, edicion);
+    const editada = aplicarEdicion(original, edicion);
+    // Un banco conocido (o con alias recordado) queda con su nombre canónico; uno que no se reconoce se pregunta antes de importar.
+    const canonico = editada.banco ? bancoCanonico(editada.banco, conocidos) : null;
+    const bancoDesconocido = Boolean(editada.banco) && canonico === null;
+    const f = canonico ? { ...editada, banco: canonico } : editada;
     let estadoTasa: EstadoTasa | null = null;
     let tasaAplicada: string | null = null;
     let tasaEnApp = false;
@@ -115,7 +123,7 @@ export async function planificarImportacion(
 
     const problemas = tasaAplicada ? f.problemas.filter((p) => !PROBLEMAS_TASA.includes(p)) : f.problemas;
     // Un depósito ya registrado (o repetido más arriba en el archivo) no se importa: no puede haber duplicados.
-    const importable = problemas.length === 0 && duplicados.length === 0 && repetidaEnArchivo === null;
+    const importable = problemas.length === 0 && !bancoDesconocido && duplicados.length === 0 && repetidaEnArchivo === null;
     filas.push({
       ...f,
       problemas,
@@ -126,6 +134,7 @@ export async function planificarImportacion(
       repetidaEnArchivo,
       posiblesRepetidos,
       repetidaPosibleEnArchivo,
+      bancoDesconocido,
       importable,
       marcada: importable && estadoTasa !== "distinta" && posiblesRepetidos.length === 0 && repetidaPosibleEnArchivo === null,
       editada: edicion !== undefined && Object.keys(edicion).length > 0,

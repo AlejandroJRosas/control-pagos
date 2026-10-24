@@ -8,6 +8,10 @@ import { Aviso, Cargando } from "@/components/Feedback";
 import { getDb } from "@/db";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { listGerentes } from "@/db/repos/gerentes";
+import { listBancosUsados } from "@/db/repos/depositos";
+import { guardarAliasBanco } from "@/db/repos/bancosAlias";
+import { sugerenciasBancos } from "@/domain/bancos";
+import { claveComparacion } from "@/domain/texto";
 import { importarPagos, planificarImportacion, type PlanImportacion } from "@/db/operaciones/importarPagos";
 import { parseLibro, type CampoEditable } from "@/import/cuadroPagos";
 import { validateDestino } from "@/domain/validation";
@@ -15,11 +19,19 @@ import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { cn } from "@/lib/utils";
 import { ArchivoCard, type Archivo } from "./ArchivoCard";
+import { BancosDesconocidos } from "./BancosDesconocidos";
 import { ajustarMarcadas, marcadasPorDefecto } from "./seleccion";
 
 export function ImportarPage() {
   const campanaId = Number(useParams().campanaId);
-  const { data, error } = useData(async (db) => ({ campana: await loadCampanaData(db, campanaId), gerentes: await listGerentes(db) }), [campanaId]);
+  const { data, error } = useData(
+    async (db) => ({
+      campana: await loadCampanaData(db, campanaId),
+      gerentes: await listGerentes(db),
+      bancos: sugerenciasBancos(await listBancosUsados(db)),
+    }),
+    [campanaId],
+  );
   const [archivos, setArchivos] = useState<Archivo[]>([]);
   const [leyendo, setLeyendo] = useState(false);
   const [over, setOver] = useState(false);
@@ -86,6 +98,27 @@ export function ImportarPage() {
       }),
     );
   }
+
+  /** Se recuerda qué banco es `nombre` y se vuelven a revisar todos los archivos abiertos (así vale para todas las filas con ese nombre). */
+  async function elegirBanco(nombre: string, banco: string) {
+    try {
+      const db = await getDb();
+      await guardarAliasBanco(db, nombre, banco);
+      const planes = new Map<string, PlanImportacion>();
+      for (const a of archivos) planes.set(a.key, await planificarImportacion(db, campanaId, a.plan.cuadro, a.ediciones));
+      setArchivos((prev) =>
+        prev.map((a) => {
+          const plan = planes.get(a.key);
+          return plan ? { ...a, plan, marcadas: ajustarMarcadas(a.plan, plan, a.marcadas) } : a;
+        }),
+      );
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  const bancosDesconocidos = new Map<string, string>();
+  for (const a of archivos) for (const f of a.plan.filas) if (f.bancoDesconocido && !bancosDesconocidos.has(claveComparacion(f.banco))) bancosDesconocidos.set(claveComparacion(f.banco), f.banco);
 
   const actualizar = (key: string, cambio: Partial<Archivo>) => setArchivos((prev) => prev.map((a) => (a.key === key ? { ...a, ...cambio } : a)));
 
@@ -169,6 +202,8 @@ export function ImportarPage() {
           />
         </div>
       )}
+
+      <BancosDesconocidos nombres={[...bancosDesconocidos.values()]} bancos={data.bancos} onElegir={elegirBanco} />
 
       {archivos.map((a) => (
         <ArchivoCard

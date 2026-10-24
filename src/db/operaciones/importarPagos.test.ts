@@ -11,6 +11,7 @@ import { buildCampanaView } from "@/domain/campanaView";
 import type { CuadroPagos, FilaCuadro } from "@/import/cuadroPagos";
 import { importarPagos, planificarImportacion } from "./importarPagos";
 import { createFeriado } from "../repos/feriados";
+import { guardarAliasBanco } from "../repos/bancosAlias";
 
 let db: SqlDriver;
 let s: Awaited<ReturnType<typeof seedBasico>>;
@@ -153,7 +154,7 @@ describe("planificarImportacion", () => {
       editables: ["fecha", "banco"],
     });
 
-    const nueva = await planificarImportacion(db, s.campanaId, cuadro({ filas: [incompleta] }), new Map([[23, { fecha: "2026-03-04", banco: "V", tasa: "38,5" }]]));
+    const nueva = await planificarImportacion(db, s.campanaId, cuadro({ filas: [incompleta] }), new Map([[23, { fecha: "2026-03-04", banco: "Banesco", tasa: "38,5" }]]));
     expect(nueva.filas[0]).toMatchObject({ estadoTasa: "nueva", tasaAplicada: "38.5", importable: true, editables: ["fecha", "banco", "tasa"] });
   });
 });
@@ -299,5 +300,30 @@ describe("posible repetido del Provincial", () => {
     expect([p.filas[0].importable, p.filas[0].marcada]).toEqual([true, false]);
     await importarPagos(db, s.campanaId, { destino: { kind: "asignacion", asignacionId: s.asignacionId }, saldoUsd: null, filas: [prov()] });
     expect(await contar("depositos")).toBe(2);
+  });
+});
+
+describe("bancos que no se conocen", () => {
+  it("un banco desconocido se marca y no es importable", async () => {
+    const p = await planificarImportacion(db, s.campanaId, cuadro({ filas: [fila({ banco: "BANCO XYZ" })] }));
+    expect(p.filas[0]).toMatchObject({ bancoDesconocido: true, importable: false, marcada: false, banco: "BANCO XYZ", problemas: [] });
+  });
+
+  it("con el alias recordado la fila queda con el banco elegido e importable", async () => {
+    await guardarAliasBanco(db, "BANCO XYZ", "Bancamiga");
+    const p = await planificarImportacion(db, s.campanaId, cuadro({ filas: [fila({ banco: "BANCO XYZ" })] }));
+    expect(p.filas[0]).toMatchObject({ bancoDesconocido: false, importable: true, banco: "Bancamiga" });
+  });
+
+  it("un nombre conocido se unifica sin preguntar", async () => {
+    const p = await planificarImportacion(db, s.campanaId, cuadro({ filas: [fila({ banco: "BANCO MERCANTIL" })] }));
+    expect(p.filas[0]).toMatchObject({ bancoDesconocido: false, importable: true, banco: "Mercantil" });
+  });
+
+  it("un depósito ya registrado con el nombre canónico es duplicado aunque el Excel diga otro nombre", async () => {
+    await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Mercantil", referencia: "999" }));
+    const p = await planificarImportacion(db, s.campanaId, cuadro({ filas: [fila({ banco: "BANCO MERCANTIL", referencia: "999" })] }));
+    expect(p.filas[0].duplicados).toHaveLength(1);
+    expect(p.filas[0].importable).toBe(false);
   });
 });

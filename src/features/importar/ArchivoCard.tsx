@@ -264,6 +264,7 @@ function CampoFila(props: { f: FilaPlan; campo: CampoEditable; valor: string; di
 function Revision({ f }: { f: FilaPlan }) {
   const notas: { texto: string; tono: "error" | "aviso" | "info" }[] = [];
   f.problemas.forEach((p) => notas.push({ texto: p, tono: "error" }));
+  if (f.bancoDesconocido) notas.push({ texto: "Banco que no conozco: elige cuál es arriba", tono: "error" });
   if (f.estadoTasa === "nueva") notas.push({ texto: "Tasa nueva: se registrará", tono: "info" });
   if (f.estadoTasa === "registrada") notas.push({ texto: "Tasa tomada de la app", tono: "info" });
   if (f.editada) notas.push({ texto: "Editada", tono: "info" });
