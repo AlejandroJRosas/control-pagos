@@ -66,7 +66,15 @@ function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
   }));
   // "Siguiente" recorre lo que se ve: con el filtro de incidencias, solo los pendientes con incidencias.
   const recorrido = filtro === "incidencias" ? visiblesDe(elementos, filtro, actualId) : elementos;
-  const irAlSiguiente = (desde: number | null) => setActualId(siguientePendiente(recorrido, desde));
+  // Terminado el último con incidencias, si quedan otros pendientes se vuelve al filtro de pendientes y se sigue con ellos.
+  const siguiente = (desde: number | null): number | null => {
+    const s = siguientePendiente(recorrido, desde);
+    if (s !== null || filtro !== "incidencias") return s;
+    const otro = siguientePendiente(elementos, desde);
+    if (otro !== null) setFiltro("pendientes");
+    return otro;
+  };
+  const irAlSiguiente = (desde: number | null) => setActualId(siguiente(desde));
 
   async function asignar() {
     if (!gerenteMasivo || marcados.length === 0) return;
@@ -163,7 +171,7 @@ function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
           cerrada={cerrada}
           editor={editor}
           onSiguiente={() => irAlSiguiente(actual.id)}
-          onSaltar={() => setActualId(siguientePendiente(recorrido, actual.id) ?? actual.id)}
+          onSaltar={() => setActualId(siguiente(actual.id) ?? actual.id)}
         />
       ) : (
         <Vacio texto="No quedan comprobantes por revisar.">

@@ -108,3 +108,31 @@ it("el filtro de incidencias deja solo lo dudoso, ↓ no sale de lo visible y lo
   await user.click(screen.getByRole("button", { name: "Con incidencias (0)" }));
   expect(filas()).toHaveLength(0);
 });
+
+it("Hecho en el último con incidencias sigue con los demás pendientes en vez de decir que no queda nada", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  const completo = async (banco: string, referencia: string, montoBs: string) => {
+    const b = borradorDepositoVacio(`a:${s.asignacionId}`);
+    const id = await encolarDeposito(db, s.campanaId, {
+      imagenPath: "imagenes/x.png",
+      nombreArchivo: `${banco}.png`,
+      borrador: { ...b, draft: { ...b.draft, fecha: "2026-03-02", banco, referencia, cuentaDestino: "0102", montoBs } },
+    });
+    await db.execute("UPDATE cola_depositos SET formato = 'bdv' WHERE id = ?", [id]);
+  };
+  await completo("Banesco", "11", "1.000");
+  await completo("Mercantil", "", "2.000"); // le falta la referencia
+  await completo("BNC", "33", "3.000");
+  const { user } = await renderApp(`/campanas/${s.campanaId}/revision`, { db, hoy: "2026-03-02" });
+  await user.click(await screen.findByRole("button", { name: "Con incidencias (1)" }));
+  await user.click(within(filas()[0]).getByRole("button", { name: /Mercantil/ }));
+  await user.type(await screen.findByLabelText("Referencia bancaria"), "22");
+  await user.click(screen.getByRole("button", { name: "Hecho" }));
+
+  await waitFor(async () => expect(await contar(db)).toBe(1));
+  await waitFor(() => expect(screen.getByLabelText("Referencia bancaria")).toHaveValue("33"));
+  expect(screen.queryByText("No quedan comprobantes por revisar.")).not.toBeInTheDocument();
+  // Volvió al filtro de pendientes: se ven los dos que quedan.
+  await waitFor(() => expect(filas()).toHaveLength(2));
+});
