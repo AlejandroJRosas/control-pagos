@@ -100,6 +100,7 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - Datos en la UI: `useData(load, deps)`; después de cualquier escritura llamar `invalidate()`. Errores: `reportError(e)`.
 - TDD: la lógica nueva va en `domain/` o `db/` con su prueba primero. Flujos de la UI: `*.ui.test.tsx` con `renderApp(ruta, { db, hoy })` (`src/testing/`: BD sql.js, `@/db` y Tauri simulados en `setupUi.ts`, respuestas de `invoke` en `tauri.invoke`). Lo que no cubren, con `pnpm build` y `docs/checklist-mvp.md`.
 - Commits en español con prefijo (`feat:`, `fix:`, `docs:`…).
+- Versiones con versionado semántico `MAYOR.MENOR.PARCHE` (desde la 0.8.0), según lo que trae la versión desde la última etiqueta: solo arreglos o ajustes de lo que ya existe (`fix:`) → PARCHE (0.8.0 → 0.8.1); alguna funcionalidad nueva (`feat:`) → MENOR y PARCHE a 0 (0.8.1 → 0.9.0); un cambio estructural importante (p. ej. la fase 3, BD en línea) → MAYOR y lo demás a 0 (0.9.0 → 1.0.0). Manda el cambio más grande que incluya.
 
 ## Agregar un formato de comprobante (OCR)
 
