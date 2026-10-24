@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { cicloEn, creaCiclo, descendientes } from "./arbol";
-import { claveDuplicado } from "./bancos";
+import { claveBanco, claveDuplicado, clavePosibleRepetido } from "./bancos";
 import type { EstadoCampana } from "./campana";
 import { fechaDeTasa, formatFecha } from "./dates";
 import { MOTIVO_CERRADA } from "./motivos";
@@ -137,10 +137,12 @@ export type Correccion = { remoto: DepositoPaquete; local: DepositoLocal; asigna
 export type Conflicto = Correccion & { tipo: "editadoEnAmbas" | "duplicado" };
 export type Eliminacion = { remotoUuid: string; local: DepositoLocal };
 export type Vinculo = { remoto: DepositoPaquete; local: DepositoLocal };
+/** Del Provincial, igual (cédula, fecha y monto) a depósitos de aquí: por defecto es el mismo pago y no entra (`Decisiones.entranRepetidos`). */
+export type PosibleRepetido = { remoto: DepositoPaquete; locales: DepositoLocal[]; asignacionId: number; tasa: TasaUsada };
 export type NoIncluido = { remoto: DepositoPaquete; gerenteNombre: string; motivo: string };
 export type PlanConsolidacion = {
   campana: LocalConsolidar["campana"];
-  nuevos: Nuevo[]; correcciones: Correccion[]; conflictos: Conflicto[]; eliminaciones: Eliminacion[]; vinculos: Vinculo[];
+  nuevos: Nuevo[]; posiblesRepetidos: PosibleRepetido[]; correcciones: Correccion[]; conflictos: Conflicto[]; eliminaciones: Eliminacion[]; vinculos: Vinculo[];
   sinCambios: number; masNuevasAqui: Correccion[]; noIncluidos: NoIncluido[];
   tasasNuevas: { fecha: string; valor: string }[];
   tasasDistintas: { fecha: string; local: string; archivo: string; usos: number }[];
@@ -167,6 +169,8 @@ export type Eleccion = "mia" | "archivo";
 export type Decisiones = {
   tasas: Record<string, Eleccion | undefined>; saldos: Record<number, Eleccion>; conflictos: Record<string, Eleccion>; eliminar: Set<string>;
   jefes: Record<number, Eleccion>;
+  /** Uuids de los posibles repetidos que son otro pago y entran como nuevos; los demás se vinculan al local igual. */
+  entranRepetidos: Set<string>;
 };
 
 /** Diferencias de campos entre la copia local y la del archivo (montos por valor; observaciones vacías = sin observaciones). */
@@ -176,7 +180,8 @@ function compararCampos(remoto: DepositoPaquete, local: DepositoLocal, asignacio
     if ((antes ?? "") !== (despues ?? "")) cambios.push({ campo, antes, despues });
   };
   texto("fecha", local.fecha, remoto.fecha);
-  texto("banco", local.banco, remoto.banco);
+  // Por el nombre canónico: un cambio solo a la forma canónica (p. ej. "BBVA Provincial" → "Provincial") no es un cambio.
+  if (claveBanco(local.banco) !== claveBanco(remoto.banco)) cambios.push({ campo: "banco", antes: local.banco, despues: remoto.banco });
   texto("referencia", local.referencia, remoto.referencia);
   texto("cuentaDestino", local.cuentaDestino, remoto.cuentaDestino);
   if (!new Decimal(local.montoBs).eq(remoto.montoBs)) cambios.push({ campo: "montoBs", antes: local.montoBs, despues: remoto.montoBs });
@@ -191,8 +196,8 @@ function compararCampos(remoto: DepositoPaquete, local: DepositoLocal, asignacio
  */
 export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<string, GerenteEmparejado>): PlanConsolidacion {
   const plan: PlanConsolidacion = {
-    campana: local.campana, nuevos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0, masNuevasAqui: [],
-    noIncluidos: [], tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], agregadas: [], jefes: [], jefesLocales: new Map(),
+    campana: local.campana, nuevos: [], posiblesRepetidos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0,
+    masNuevasAqui: [], noIncluidos: [], tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], agregadas: [], jefes: [], jefesLocales: new Map(),
   };
   const campanaId = local.campana.id;
   const porId = new Map(local.depositos.map((d) => [d.id, d]));
@@ -260,6 +265,12 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
     if (r) reclamados.add(r.local.id);
   }
   const clavesArchivo = new Set<string>();
+  // Del Provincial (sin referencia única), por cédula, fecha y monto: los locales que no son ya la copia de otro del archivo ni se eliminan.
+  const porRepetido = new Map<string, DepositoLocal[]>();
+  for (const d of local.depositos) {
+    const k = clavePosibleRepetido(d.banco, d.referencia, d.fecha, d.montoBs);
+    if (k && !eliminadosPorArchivo.has(d.id) && !reclamados.has(d.id)) porRepetido.set(k, [...(porRepetido.get(k) ?? []), d]);
+  }
 
   /** Tasa que usaría el depósito según los feriados locales, o null si no hay ni aquí ni en el archivo. */
   const tasaDe = (d: DepositoPaquete): TasaUsada | null => {
@@ -339,9 +350,11 @@ export function clasificar(p: Paquete, local: LocalConsolidar, gerentes: Record<
         else plan.conflictos.push({ tipo: "duplicado", remoto: d, local: aqui, asignacionId, tasa, cambios });
         continue;
       }
-      // 4. Nuevo
+      // 4. Nuevo, o posible repetido de uno de aquí (solo contra los locales: dos iguales del archivo entran los dos)
       const tasa = tasaDe(d);
+      const repetidos = porRepetido.get(clavePosibleRepetido(d.banco, d.referencia, d.fecha, d.montoBs)) ?? [];
       if (!tasa) faltaTasa();
+      else if (repetidos.length > 0) plan.posiblesRepetidos.push({ remoto: d, locales: repetidos, asignacionId, tasa });
       else plan.nuevos.push({ remoto: d, asignacionId, tasa });
       continue;
     }
@@ -488,9 +501,15 @@ export function agruparJefes(plan: PlanConsolidacion, nombreDe: (id: number) => 
   return [...grupos.values()];
 }
 
+/** Los que se crean al aplicar: los nuevos y los posibles repetidos marcados como otro pago. */
+export function nuevosQueEntran(plan: PlanConsolidacion, d: Pick<Decisiones, "entranRepetidos">): Nuevo[] {
+  return [...plan.nuevos, ...plan.posiblesRepetidos.filter((r) => d.entranRepetidos.has(r.remoto.uuid))];
+}
+
 /**
  * Montos asignados: el mío. Conflictos: la más reciente (el archivo si editaron las dos; el mío si es un duplicado). Eliminaciones: todas.
  * Tasas: sin decidir. Jefes distintos: el mío.
+ * Posibles repetidos: ninguno entra (es el mismo pago).
  */
 export function decisionesIniciales(plan: PlanConsolidacion): Decisiones {
   return {
@@ -499,6 +518,7 @@ export function decisionesIniciales(plan: PlanConsolidacion): Decisiones {
     conflictos: Object.fromEntries(plan.conflictos.map((c) => [c.remoto.uuid, c.tipo === "editadoEnAmbas" ? ("archivo" as const) : ("mia" as const)])),
     eliminar: new Set(plan.eliminaciones.map((e) => e.remotoUuid)),
     jefes: Object.fromEntries(plan.jefes.filter((f) => !f.automatico).map((f) => [f.asignacionId, "mia" as const])),
+    entranRepetidos: new Set(),
   };
 }
 
@@ -529,7 +549,7 @@ function reemplazoSinEliminar(plan: PlanConsolidacion, d: Decisiones): DepositoP
   const sinEliminar = plan.eliminaciones.filter((e) => !d.eliminar.has(e.remotoUuid));
   if (sinEliminar.length === 0) return null;
   const entrantes = [
-    ...plan.nuevos.map((n) => ({ remoto: n.remoto, localId: null as number | null })),
+    ...nuevosQueEntran(plan, d).map((n) => ({ remoto: n.remoto, localId: null as number | null })),
     ...plan.correcciones.map((c) => ({ remoto: c.remoto, localId: c.local.id })),
     ...plan.conflictos.filter((c) => d.conflictos[c.remoto.uuid] === "archivo").map((c) => ({ remoto: c.remoto, localId: c.local.id })),
   ];
@@ -562,7 +582,8 @@ export function motivoPendiente(
   const ciclo = cicloEn(jefesFinales(plan, d));
   if (ciclo) return motivoCiclo(plan, ciclo);
   const hayAlgo =
-    plan.agregadas.length > 0 || jefesAplicados(plan, d).length > 0 || plan.nuevos.length > 0 || plan.correcciones.length > 0 || plan.conflictos.length > 0 || plan.vinculos.length > 0 ||
+    plan.agregadas.length > 0 || jefesAplicados(plan, d).length > 0 || plan.nuevos.length > 0 || plan.posiblesRepetidos.length > 0 ||
+    plan.correcciones.length > 0 || plan.conflictos.length > 0 || plan.vinculos.length > 0 ||
     plan.tasasNuevas.length > 0 ||
     plan.eliminaciones.some((e) => d.eliminar.has(e.remotoUuid)) || plan.saldos.some((s) => d.saldos[s.asignacionId] === "archivo") ||
     plan.tasasDistintas.some((t) => d.tasas[t.fecha] === "archivo");

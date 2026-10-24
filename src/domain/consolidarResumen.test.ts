@@ -22,7 +22,7 @@ const loc = (id: number, o: Partial<DepositoLocal> = {}): DepositoLocal => ({
 });
 const plan = (o: Partial<PlanConsolidacion> = {}): PlanConsolidacion => ({
   campana: { id: 1, uuid: "c1", nombre: "Marzo", estado: "activa" },
-  nuevos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0, masNuevasAqui: [], noIncluidos: [],
+  nuevos: [], posiblesRepetidos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0, masNuevasAqui: [], noIncluidos: [],
   tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], agregadas: [], jefes: [], jefesLocales: new Map(), ...o,
 });
 const tasas = new Map([
@@ -53,6 +53,16 @@ describe("resumenConsolidacion", () => {
     expect(r[0].antes.pagado).toBe("200.00");
     expect(r[0].despues.pagado).toBe("400.00");
     expect(r[0].despues.cantidad).toBe(3);
+  });
+
+  it("un posible repetido solo cuenta si se marca que entra", () => {
+    const repetido = { remoto: rem({ banco: "Provincial" }), locales: [loc(1)], asignacionId: 10, tasa: { fecha: "2026-03-02", accion: "existente" as const } };
+    const p = plan({ posiblesRepetidos: [repetido] });
+    const d = decisionesIniciales(p);
+    expect(resumenConsolidacion(base, p, d, tasas)).toEqual([]);
+    d.entranRepetidos.add("r1");
+    const r = resumenConsolidacion(base, p, d, tasas);
+    expect(r.map((x) => [x.asignacionId, x.despues.pagado, x.despues.cantidad])).toEqual([[10, "400.00", 3]]);
   });
 
   it("aplica correcciones (también de gerente), conflictos del archivo, eliminaciones marcadas y montos asignados elegidos", () => {

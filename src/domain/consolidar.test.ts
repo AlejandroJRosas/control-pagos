@@ -457,7 +457,9 @@ describe("decisiones y motivoPendiente", () => {
     const plan = conPendientes();
     expect(plan.conflictos.map((c) => c.tipo).sort()).toEqual(["duplicado", "editadoEnAmbas"]);
     const d = decisionesIniciales(plan);
-    expect(d).toEqual({ tasas: {}, saldos: { 10: "mia" }, conflictos: { r9: "mia", r2: "archivo" }, eliminar: new Set(["r7"]), jefes: {} });
+    expect(d).toEqual({
+      tasas: {}, saldos: { 10: "mia" }, conflictos: { r9: "mia", r2: "archivo" }, eliminar: new Set(["r7"]), jefes: {}, entranRepetidos: new Set(),
+    });
   });
 
   it("motivoPendiente en orden", () => {
@@ -594,5 +596,52 @@ describe("jefes del archivo", () => {
     const plan = planDe(remotas, locales, g);
     const nombreDe = (id: number) => locales.find((a) => a.id === id)?.gerenteNombre ?? "";
     expect(agruparJefes(plan, nombreDe).map((x) => [x.desde, x.hacia, x.filas.length])).toEqual([["Karla", "Juan", 2], ["Juan", "sin jefe", 1]]);
+  });
+});
+
+describe("posibles repetidos del Provincial", () => {
+  const prov = (o: Partial<DepositoPaquete> = {}) => rem({ uuid: "p1", banco: "BBVA Provincial", referencia: "V-12.345.678", montoBs: "500", ...o });
+  const provLocal = (o: Partial<DepositoLocal> = {}) => loc({ id: 5, uuid: "q1", banco: "Provincial", referencia: "12345678", montoBs: "500.00", ...o });
+
+  it("uno del archivo igual a uno local (otra uuid, sin equivalencia) va a posibles repetidos, no a nuevos", () => {
+    const plan = clasificar(paq([prov()]), base({ depositos: [provLocal()] }), GER);
+    expect(plan.nuevos).toEqual([]);
+    expect(plan.posiblesRepetidos).toEqual([{ remoto: prov(), locales: [provLocal()], asignacionId: 10, tasa: { fecha: "2026-03-04", accion: "existente" } }]);
+    expect(decisionesIniciales(plan).entranRepetidos).toEqual(new Set());
+    expect(motivoPendiente(plan, GER, decisionesIniciales(plan))).toBeNull();
+  });
+
+  it("otra fecha, otro monto o uno ya reconocido no es posible repetido", () => {
+    const plan = clasificar(paq([prov({ fecha: "2026-03-05", tasaFecha: "2026-03-05" }), prov({ uuid: "p2", montoBs: "501" })]), base({
+      depositos: [provLocal()], tasas: new Map([["2026-03-04", { id: 1, valor: "36.50", usos: 3 }], ["2026-03-05", { id: 2, valor: "37", usos: 0 }]]),
+    }), GER);
+    expect(plan.posiblesRepetidos).toEqual([]);
+    expect(plan.nuevos.map((n) => n.remoto.uuid)).toEqual(["p1", "p2"]);
+    // q1 ya es la copia de p1 (por equivalencia): un segundo igual del archivo es otro pago
+    const reconocido = clasificar(paq([prov(), prov({ uuid: "p2" })]), base({ depositos: [provLocal()], equivalenciasDepositos: new Map([["p1", 5]]) }), GER);
+    expect(reconocido.posiblesRepetidos).toEqual([]);
+    expect(reconocido.nuevos.map((n) => n.remoto.uuid)).toEqual(["p2"]);
+  });
+
+  it("dos iguales en el archivo sin local igual entran los dos; un local eliminado por el archivo no cuenta", () => {
+    expect(clasificar(paq([prov(), prov({ uuid: "p2" })]), base(), GER).nuevos.map((n) => n.remoto.uuid)).toEqual(["p1", "p2"]);
+    const p = paq([prov()], { eliminaciones: [{ uuid: "q1", asignacionUuid: "ra", eliminadoEn: "2026-03-05T00:00:00.000Z" }] });
+    const plan = clasificar(p, base({ depositos: [provLocal()] }), GER);
+    expect(plan.posiblesRepetidos).toEqual([]);
+    expect(plan.nuevos.map((n) => n.remoto.uuid)).toEqual(["p1"]);
+  });
+
+  it("uno de Banesco igual en todo menos la uuid y la referencia no se ve afectado", () => {
+    const plan = clasificar(paq([rem({ uuid: "r2", referencia: "222" })]), base({ depositos: [loc()] }), GER);
+    expect(plan.posiblesRepetidos).toEqual([]);
+    expect(plan.nuevos.map((n) => n.remoto.uuid)).toEqual(["r2"]);
+  });
+
+  it("una corrección que solo cambia el banco a su nombre canónico cuenta como sin cambios", () => {
+    const local = provLocal({ uuid: "p1", banco: "BBVA Provincial", referencia: "V-12.345.678" });
+    const plan = clasificar(paq([prov({ banco: "Provincial", actualizadoEn: "2026-03-05T10:00:00.000Z" })]), base({ depositos: [local] }), GER);
+    expect(plan.sinCambios).toBe(1);
+    expect(plan.correcciones).toEqual([]);
+    expect(plan.conflictos).toEqual([]);
   });
 });

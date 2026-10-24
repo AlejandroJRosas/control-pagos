@@ -26,16 +26,16 @@ import { errorMessage, reportError } from "@/lib/reportError";
 import { rutaConsolidar } from "@/lib/rutaConsolidar";
 import { abrirPaqueteDeDialogo, importarImagenRecibida, leerPaqueteDeCarpeta } from "@/platform/paquete";
 import { respaldoAntesDe } from "@/platform/backup";
-import { Correcciones, Diferencias, Eliminaciones, JefesDistintos, Nuevos, NoIncluidos } from "./Secciones";
+import { Correcciones, Diferencias, Eliminaciones, JefesDistintos, Nuevos, NoIncluidos, PosiblesRepetidos } from "./Secciones";
 
 type Inicial = { campanaId: number | null; estadoCampana: EstadoEmparejamiento; gerentes: Record<string, GerenteEmparejado> };
 
 /** Lo que eligió el usuario sobre las decisiones por defecto del plan (se conserva al volver a clasificar). */
 type Elecciones = {
   tasas: Record<string, Eleccion>; saldos: Record<number, Eleccion>; conflictos: Record<string, Eleccion>; noEliminar: ReadonlySet<string>;
-  jefes: Record<number, Eleccion>;
+  jefes: Record<number, Eleccion>; entranRepetidos: ReadonlySet<string>;
 };
-const SIN_ELECCIONES: Elecciones = { tasas: {}, saldos: {}, conflictos: {}, noEliminar: new Set(), jefes: {} };
+const SIN_ELECCIONES: Elecciones = { tasas: {}, saldos: {}, conflictos: {}, noEliminar: new Set(), jefes: {}, entranRepetidos: new Set() };
 
 const NO_INCLUIR = "no";
 /** "agregar" = con un gerente nuevo; "agregar:<id>" = con ese gerente local. */
@@ -103,6 +103,7 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
       conflictos: { ...ini.conflictos, ...elecciones.conflictos },
       eliminar: new Set([...ini.eliminar].filter((u) => !elecciones.noEliminar.has(u))),
       jefes: { ...ini.jefes, ...elecciones.jefes },
+      entranRepetidos: new Set([...ini.entranRepetidos, ...elecciones.entranRepetidos]),
     };
   }, [plan, elecciones]);
 
@@ -154,6 +155,15 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
         else noEliminar.add(u);
       }
       return { ...x, noEliminar };
+    });
+  }
+
+  function marcarRepetido(uuid: string, entra: boolean) {
+    setElecciones((x) => {
+      const entranRepetidos = new Set(x.entranRepetidos);
+      if (entra) entranRepetidos.add(uuid);
+      else entranRepetidos.delete(uuid);
+      return { ...x, entranRepetidos };
     });
   }
 
@@ -257,6 +267,9 @@ function Consolidar({ carpeta, paquete, campanas, inicial }: { carpeta: string; 
         <>
           {plan.campana.estado === "cerrada" && <Aviso tono="warning">La campaña {plan.campana.nombre} está cerrada: reábrela para consolidar.</Aviso>}
           {plan.nuevos.length > 0 && <Nuevos plan={plan} carpeta={carpeta} nombreDe={nombreDe} tasaDe={(f) => tasaParaFecha(plan, d, datos!.local.tasas, f)} />}
+          {plan.posiblesRepetidos.length > 0 && (
+            <PosiblesRepetidos plan={plan} entran={d.entranRepetidos} nombreDe={nombreDe} onMarcar={marcarRepetido} />
+          )}
           {plan.correcciones.length > 0 && <Correcciones plan={plan} nombreDe={nombreDe} />}
           {plan.eliminaciones.length > 0 && (
             <Eliminaciones plan={plan} origen={paquete.origen} eliminar={d.eliminar} nombreDe={nombreDe} onMarcar={marcarEliminar} />

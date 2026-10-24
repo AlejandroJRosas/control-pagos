@@ -526,4 +526,76 @@ describe("consolidar ida y vuelta entre dos instalaciones", () => {
     expect(await depositos(b.db)).toEqual(antes);
     expect(antes).toEqual(await depositos(a.db));
   });
+
+  describe("posibles repetidos del Provincial", () => {
+    const pago = { banco: "BBVA Provincial", referencia: "V-12.345.678", montoBs: "5000" };
+    const cuantos = async (db: SqlDriver) => (await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM depositos"))[0].n;
+
+    it("dos pagos reales iguales del Provincial: entran los dos y no se pierde ninguno a la vuelta", async () => {
+      const a = await instalacion("A");
+      const b = await instalacion("B");
+      await registrar(a, pago);
+      await registrar(a, pago);
+      reloj("2026-03-05T11:00:00.000Z");
+      const ida = await recibir(b, await enviar(a));
+      expect(ida.plan.posiblesRepetidos).toEqual([]);
+      expect(ida.resultado).toMatchObject({ nuevos: 2 });
+      expect(await cuantos(b.db)).toBe(2);
+      expect((await b.db.select<{ banco: string }>("SELECT banco FROM depositos")).map((x) => x.banco)).toEqual(["Provincial", "Provincial"]);
+      reloj("2026-03-05T12:00:00.000Z");
+      const vuelta = await recibir(a, await enviar(b));
+      expect(vuelta.plan.posiblesRepetidos).toEqual([]);
+      expect(await cuantos(a.db)).toBe(2);
+    });
+
+    it("el mismo pago registrado en las dos apps: por defecto no se duplica y queda vinculado", async () => {
+      const a = await instalacion("A");
+      const b = await instalacion("B");
+      await registrar(a, pago);
+      await registrar(b, { ...pago, referencia: "12345678" });
+      reloj("2026-03-05T11:00:00.000Z");
+      const ida = await recibir(b, await enviar(a));
+      expect(ida.plan.posiblesRepetidos).toHaveLength(1);
+      expect(ida.plan.nuevos).toEqual([]);
+      expect(ida.resultado).toMatchObject({ nuevos: 0, vinculados: 1 });
+      expect(await cuantos(b.db)).toBe(1);
+      reloj("2026-03-05T12:00:00.000Z");
+      const vuelta = await recibir(a, await enviar(b));
+      expect(vuelta.plan.posiblesRepetidos).toEqual([]);
+      expect(vuelta.plan.nuevos).toEqual([]);
+      expect(await cuantos(a.db)).toBe(1);
+      // Segundo intercambio: ya no pregunta en ninguna de las dos.
+      reloj("2026-03-05T13:00:00.000Z");
+      const otra = await recibir(b, await enviar(a));
+      expect(otra.plan.posiblesRepetidos).toEqual([]);
+      expect(otra.motivo).toBe("No hay nada nuevo para consolidar");
+      reloj("2026-03-05T14:00:00.000Z");
+      expect((await recibir(a, await enviar(b))).plan.posiblesRepetidos).toEqual([]);
+      expect([await cuantos(a.db), await cuantos(b.db)]).toEqual([1, 1]);
+    });
+
+    it("Es otro pago: los marcados entran y un nuevo envío no vuelve a preguntar", async () => {
+      const a = await instalacion("A");
+      const b = await instalacion("B");
+      await registrar(a, pago);
+      await registrar(a, pago);
+      await registrar(b, pago);
+      reloj("2026-03-05T11:00:00.000Z");
+      const ida = await recibir(b, await enviar(a), (d, plan) => plan.posiblesRepetidos.forEach((x) => d.entranRepetidos.add(x.remoto.uuid)));
+      expect(ida.plan.posiblesRepetidos).toHaveLength(2);
+      expect(ida.resultado).toMatchObject({ nuevos: 2, vinculados: 0 });
+      expect(await cuantos(b.db)).toBe(3);
+      reloj("2026-03-05T12:00:00.000Z");
+      const otra = await recibir(b, await enviar(a));
+      expect(otra.plan.posiblesRepetidos).toEqual([]);
+      expect(otra.motivo).toBe("No hay nada nuevo para consolidar");
+      expect(await cuantos(b.db)).toBe(3);
+      // A recibe el de B: el suyo también es otro pago (los dos de A ya están en el archivo).
+      reloj("2026-03-05T13:00:00.000Z");
+      const vuelta = await recibir(a, await enviar(b));
+      expect(vuelta.plan.posiblesRepetidos).toEqual([]);
+      expect(vuelta.resultado).toMatchObject({ nuevos: 1 });
+      expect(await cuantos(a.db)).toBe(3);
+    });
+  });
 });

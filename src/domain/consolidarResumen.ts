@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { buildCampanaView, type AsignacionData, type DepositoData, type GerenteResumen } from "./campanaView";
-import type { Decisiones, PlanConsolidacion } from "./consolidar";
+import { nuevosQueEntran, type Decisiones, type PlanConsolidacion } from "./consolidar";
 
 type TasasLocales = ReadonlyMap<string, { id: number; valor: string }>;
 
@@ -16,7 +16,7 @@ export type CambioGerente = { asignacionId: number; gerenteNombre: string; antes
 
 /**
  * Cómo queda cada gerente de la campaña si se consolida con estas decisiones (gerentes agregados, nuevos, correcciones, conflictos del
- * archivo, eliminaciones marcadas, tasas y montos asignados elegidos). Solo los gerentes que cambian (los agregados, siempre).
+ * archivo, posibles repetidos que entran, eliminaciones marcadas, tasas y montos asignados elegidos). Solo los gerentes que cambian (los agregados, siempre).
  */
 export function resumenConsolidacion(
   base: { asignaciones: AsignacionData[]; depositos: DepositoData[] },
@@ -39,7 +39,7 @@ export function resumenConsolidacion(
     if (!c) return [{ ...x, tasaValor: tasaActual }];
     return [{ ...x, asignacionId: c.asignacionId, fecha: c.remoto.fecha, montoBs: c.remoto.montoBs, tasaValor: valor(c.tasa.fecha, tasaActual) }];
   });
-  plan.nuevos.forEach((n, i) => {
+  nuevosQueEntran(plan, d).forEach((n, i) => {
     const tasaValor = tasaParaFecha(plan, d, tasas, n.tasa.fecha);
     if (tasaValor === null) return;
     depositos.push({

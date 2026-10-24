@@ -10,6 +10,7 @@ import {
 } from "../repos/consolidacion";
 import {
   emparejarCampana, emparejarGerentes, gerentesFuera, gerentesRecordados, gerentesRepetidos, jefesAplicados, jefesFinales, motivoCiclo, motivoRepetidos,
+  nuevosQueEntran,
   type AsignacionLocal, type Decisiones, type DepositoLocal, type EstadoEmparejamiento, type GerenteEmparejado, type GerenteLocal, type LocalConsolidar,
   type PlanConsolidacion,
 } from "@/domain/consolidar";
@@ -294,8 +295,8 @@ export async function aplicarConsolidacion(
       }
     }
 
-    // Nuevos, con el uuid y las fechas del origen.
-    for (const n of plan.nuevos) {
+    // Nuevos (y los posibles repetidos que son otro pago), con el uuid y las fechas del origen.
+    for (const n of nuevosQueEntran(plan, d)) {
       const tasaId = await tasaIdPara(n.remoto.fecha);
       const imagenPath = n.remoto.imagen ? await deps.importarImagen(n.remoto.imagen) : null;
       const id = await createDeposito(db, real(n.asignacionId), camposDe(n.remoto, tasaId, imagenPath), {
@@ -316,6 +317,18 @@ export async function aplicarConsolidacion(
     for (const v of [...plan.vinculos, ...plan.conflictos.filter((c) => c.tipo === "duplicado")]) {
       if (eliminado.has(v.local.id) || v.remoto.uuid === v.local.uuid) continue;
       await equivaler("depositos", v.remoto.uuid, v.local.id);
+      r.vinculados++;
+    }
+    // Posibles repetidos que no entran: el mismo pago que uno de aquí. Se vinculan al primero que no se vinculó ya a otro de este archivo,
+    // para que el próximo intercambio no vuelva a preguntar.
+    const vinculadosRepetido = new Set<number>();
+    for (const x of plan.posiblesRepetidos) {
+      if (d.entranRepetidos.has(x.remoto.uuid)) continue;
+      const vivos = x.locales.filter((l) => !eliminado.has(l.id));
+      const local = vivos.find((l) => !vinculadosRepetido.has(l.id)) ?? vivos[0];
+      if (!local) continue;
+      vinculadosRepetido.add(local.id);
+      await equivaler("depositos", x.remoto.uuid, local.id);
       r.vinculados++;
     }
     // Reconocidos por sus equivalentes: el próximo archivo los reconoce por su propio uuid.

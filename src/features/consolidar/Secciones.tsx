@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Casilla } from "@/components/Casilla";
 import { ComprobanteIcono } from "@/components/ComprobanteIcono";
 import { BotonConMotivo } from "@/components/BotonConMotivo";
-import type { Campo, Cambio, Conflicto, Decisiones, Eleccion, GrupoJefe, PlanConsolidacion } from "@/domain/consolidar";
+import type { Campo, Cambio, Conflicto, Decisiones, DepositoLocal, Eleccion, GrupoJefe, PlanConsolidacion } from "@/domain/consolidar";
 import type { DepositoPaquete } from "@/domain/paquete";
 import { formatFecha } from "@/domain/dates";
 import { formatBs, formatTasa, formatUsd, toUsd } from "@/domain/money";
@@ -83,6 +83,75 @@ export function Nuevos({
           ])}
         </TableBody>
       </Table>
+    </Seccion>
+  );
+}
+
+/** Fecha, gerente, cédula y monto de un posible repetido (del archivo o de aquí). */
+function PagoRepetido({ titulo, fecha, gerente, cedula, montoBs }: { titulo: string; fecha: string; gerente: string; cedula: string; montoBs: string }) {
+  return (
+    <div className="rounded-lg border p-3 text-sm">
+      <div className="mb-1 font-medium">{titulo}</div>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3">
+        <dt className="text-muted-foreground">Fecha</dt>
+        <dd className="tabular-nums">{formatFecha(fecha)}</dd>
+        <dt className="text-muted-foreground">Gerente</dt>
+        <dd className="break-words">{gerente}</dd>
+        <dt className="text-muted-foreground">Cédula</dt>
+        <dd className="font-mono">{cedula}</dd>
+        <dt className="text-muted-foreground">Monto</dt>
+        <dd className="tabular-nums">{formatBs(montoBs)}</dd>
+      </dl>
+    </div>
+  );
+}
+
+/**
+ * Del Provincial (la referencia es la cédula), iguales en cédula, fecha y monto a uno de aquí: por defecto es el mismo pago y no entra
+ * (quedan vinculados); "Es otro pago" lo hace entrar como nuevo.
+ */
+export function PosiblesRepetidos({
+  plan,
+  entran,
+  nombreDe,
+  onMarcar,
+}: {
+  plan: PlanConsolidacion;
+  entran: ReadonlySet<string>;
+  nombreDe: (asignacionId: number) => string;
+  onMarcar: (uuid: string, entra: boolean) => void;
+}) {
+  const gerenteLocal = (l: DepositoLocal) => (l.campanaId === plan.campana.id ? nombreDe(l.asignacionId) : `En tu campaña ${l.campanaNombre}`);
+  return (
+    <Seccion
+      titulo="Posibles repetidos"
+      cantidad={plan.posiblesRepetidos.length}
+      descripcion="Del Provincial, con la misma cédula, fecha y monto que uno tuyo: si no los marcas, se toman como el mismo pago y no entran."
+    >
+      <ul className="space-y-4">
+        {plan.posiblesRepetidos.map((x) => (
+          <li key={x.remoto.uuid} className="space-y-2">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PagoRepetido
+                titulo="El del archivo"
+                fecha={x.remoto.fecha}
+                gerente={nombreDe(x.asignacionId)}
+                cedula={x.remoto.referencia}
+                montoBs={x.remoto.montoBs}
+              />
+              <div className="space-y-2">
+                {x.locales.map((l) => (
+                  <PagoRepetido key={l.id} titulo="El tuyo" fecha={l.fecha} gerente={gerenteLocal(l)} cedula={l.referencia} montoBs={l.montoBs} />
+                ))}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <Casilla checked={entran.has(x.remoto.uuid)} onChange={(e) => onMarcar(x.remoto.uuid, e.target.checked)} />
+              Es otro pago: que entre
+            </label>
+          </li>
+        ))}
+      </ul>
     </Seccion>
   );
 }

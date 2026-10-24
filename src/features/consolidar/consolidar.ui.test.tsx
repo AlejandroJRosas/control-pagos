@@ -213,3 +213,23 @@ it("Jefe distinto agrupado por jefe: 'Todos: el del archivo' cambia el grupo", a
   ]);
   expect(filas).toEqual([{ id: ids.P1, jefeId: ids.Juan }, { id: ids.P2, jefeId: ids.Juan }]);
 });
+
+it("un posible repetido del Provincial no entra salvo que se marque como otro pago", async () => {
+  const pago = { banco: "BBVA Provincial", referencia: "V-12.345.678", montoBs: "5000" };
+  await paqueteDeOrigen((db, s) => createDeposito(db, s.asignacionId, depositoBase(s.tasaId, pago)).then(() => undefined));
+  const { db, s } = await destino();
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { ...pago, referencia: "12345678" }));
+  const { user, router } = await renderApp(`/consolidar?carpeta=recibidos/p1&campana=${s.campanaId}`, { db, hoy: "2026-03-06" });
+
+  const repetidos = await seccion(/Posibles repetidos \(1\)/);
+  expect(await seccion(/Nuevos \(1\)/)).toBeInTheDocument();
+  const casilla = within(repetidos).getByRole("checkbox", { name: "Es otro pago: que entre" });
+  expect(casilla).not.toBeChecked();
+  await user.click(casilla);
+  expect(casilla).toBeChecked();
+  await user.click(screen.getByRole("button", { name: "Consolidar" }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe(`/campanas/${s.campanaId}`));
+  const filas = await db.select<{ referencia: string }>("SELECT referencia FROM depositos ORDER BY referencia");
+  expect(filas.map((f) => f.referencia)).toEqual(["12345678", "555", "V-12.345.678"]);
+});
