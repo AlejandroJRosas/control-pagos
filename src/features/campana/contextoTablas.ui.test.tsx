@@ -32,6 +32,7 @@ it("en la campaña, la tabla dice que son todos los depósitos, con el saldo gen
   expect(contexto).toHaveTextContent("Marzo·Todos los depósitos");
   expect(contexto).toHaveTextContent("Saldo general restante$ 30,00");
   expect(pie()).toHaveTextContent("Total campaña (2 depósitos)");
+  expect(contexto.closest("[data-vista-tabla]")).toBeNull();
 });
 
 it("en un gerente, la tabla dice de quién es, con su saldo (en rojo si pagó de más) y su total", async () => {
@@ -42,6 +43,8 @@ it("en un gerente, la tabla dice de quién es, con su saldo (en rojo si pagó de
   expect(contexto).toHaveTextContent("Marzo›Ana");
   expect(within(contexto).getByText("-$ 20,00")).toHaveClass("text-destructive");
   expect(pie()).toHaveTextContent("Total Ana (2 depósitos)");
+  // Con el color de gerente (franja, encabezado, pie y borde), para no confundirla con Todos los depósitos.
+  expect(contexto.closest("[data-vista-tabla]")).toHaveAttribute("data-vista-tabla", "gerente");
 });
 
 it("Por gerente lleva un pie con los totales de los gerentes que se ven", async () => {

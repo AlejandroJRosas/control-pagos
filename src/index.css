@@ -38,6 +38,7 @@
     --color-fila-sel: var(--fila-sel);
     --color-encabezado-tabla: var(--encabezado-tabla);
     --color-contexto-tabla: var(--contexto-tabla);
+    --color-borde-vista-tabla: var(--borde-vista-tabla);
     --color-primary: var(--primary);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
@@ -142,6 +143,7 @@
    --tono es el matiz (hue) del tema, para las filas y el hover. */
 [data-tema="rosa"] {
     --tono: 0;
+    --tono-gerente: 80;
     --primary: oklch(0.84 0.08 0);
     --primary-foreground: oklch(0.3 0.06 0);
     --ring: oklch(0.72 0.12 0);
@@ -149,6 +151,7 @@
 }
 [data-tema="durazno"] {
     --tono: 55;
+    --tono-gerente: 145;
     --primary: oklch(0.86 0.08 55);
     --primary-foreground: oklch(0.32 0.06 55);
     --ring: oklch(0.74 0.12 55);
@@ -156,6 +159,7 @@
 }
 [data-tema="limon"] {
     --tono: 100;
+    --tono-gerente: 190;
     --primary: oklch(0.92 0.1 100);
     --primary-foreground: oklch(0.32 0.06 100);
     --ring: oklch(0.78 0.13 100);
@@ -163,6 +167,7 @@
 }
 [data-tema="menta"] {
     --tono: 165;
+    --tono-gerente: 75;
     --primary: oklch(0.87 0.08 165);
     --primary-foreground: oklch(0.3 0.06 165);
     --ring: oklch(0.72 0.12 165);
@@ -170,6 +175,7 @@
 }
 [data-tema="cielo"] {
     --tono: 235;
+    --tono-gerente: 145;
     --primary: oklch(0.85 0.07 235);
     --primary-foreground: oklch(0.3 0.06 235);
     --ring: oklch(0.7 0.11 235);
@@ -177,6 +183,7 @@
 }
 [data-tema="lavanda"] {
     --tono: 295;
+    --tono-gerente: 205;
     --primary: oklch(0.84 0.08 295);
     --primary-foreground: oklch(0.3 0.07 295);
     --ring: oklch(0.7 0.12 295);
@@ -205,6 +212,19 @@
     --encabezado-tabla: oklch(0.23 0.03 calc(var(--tono) + 180));
     --contexto-tabla: oklch(0.29 0.05 calc(var(--tono) + 180));
     --primary-intenso: oklch(0.78 0.12 var(--tono));
+}
+/* Tabla de depósitos de un gerente (DepositosTable): franja, encabezado, pie y borde izquierdo en el "color de gerente",
+   igual para todos los gerentes, para no confundirla al bajar con Todos los depósitos. --tono-gerente (por tema) queda
+   lejos del tono del tema y de su complementario (el de la campaña) y evita el rojo de los saldos negativos; ámbar en Neutro. */
+[data-vista-tabla="gerente"] {
+    --encabezado-tabla: oklch(0.94 0.05 var(--tono-gerente, 75));
+    --contexto-tabla: oklch(0.87 0.1 var(--tono-gerente, 75));
+    --borde-vista-tabla: oklch(0.72 0.14 var(--tono-gerente, 75));
+}
+.dark [data-vista-tabla="gerente"] {
+    --encabezado-tabla: oklch(0.25 0.04 var(--tono-gerente, 75));
+    --contexto-tabla: oklch(0.33 0.07 var(--tono-gerente, 75));
+    --borde-vista-tabla: oklch(0.65 0.13 var(--tono-gerente, 75));
 }
 
 @layer base {

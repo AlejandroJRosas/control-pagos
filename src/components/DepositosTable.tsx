@@ -253,8 +253,9 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
     );
   }
 
+  // La tabla de un gerente lleva su propio color (franja, encabezado, pie y borde; index.css) para no confundirla al bajar con Todos los depósitos.
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-vista-tabla={mostrarGerente ? undefined : "gerente"}>
       <div className="flex min-h-9 items-center gap-3">
         {!soloLectura && elegidos.length > 0 && (
           <div className="flex flex-1 items-center gap-3 rounded-md border bg-fila-hover px-3 py-1 text-sm">
@@ -301,7 +302,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
           />
         </div>
       </div>
-      <Table>
+      <Table contenedorClassName={cn(!mostrarGerente && "border-l-4 border-l-borde-vista-tabla")}>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <td colSpan={visibles.length + extra.length * 2} data-testid="contexto-tabla" className="h-8 bg-contexto-tabla px-2 py-0 text-xs">
