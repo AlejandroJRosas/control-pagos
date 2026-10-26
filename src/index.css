@@ -36,6 +36,8 @@
     --color-fila-par: var(--fila-par);
     --color-fila-hover: var(--fila-hover);
     --color-fila-sel: var(--fila-sel);
+    --color-encabezado-tabla: var(--encabezado-tabla);
+    --color-contexto-tabla: var(--contexto-tabla);
     --color-primary: var(--primary);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
@@ -66,6 +68,9 @@
     --fila-par: oklch(0.985 0 0);
     --fila-hover: oklch(0.94 0 0);
     --fila-sel: oklch(0.9 0 0);
+    /* Encabezado y pie de las tablas, y la franja de contexto (campaña › gerente) encima del encabezado. */
+    --encabezado-tabla: oklch(0.93 0 0);
+    --contexto-tabla: oklch(0.88 0 0);
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
     --muted: oklch(0.97 0 0);
@@ -105,6 +110,8 @@
     --fila-par: oklch(0.175 0 0);
     --fila-hover: oklch(0.25 0 0);
     --fila-sel: oklch(0.31 0 0);
+    --encabezado-tabla: oklch(0.24 0 0);
+    --contexto-tabla: oklch(0.3 0 0);
     --secondary: oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.269 0 0);
@@ -182,6 +189,9 @@
     --fila-par: oklch(0.985 0.012 var(--tono));
     --fila-hover: oklch(0.93 0.055 var(--tono));
     --fila-sel: oklch(0.88 0.08 var(--tono));
+    /* Encabezado, pie y franja de contexto en el tono complementario del tema, para que no se confundan con el fondo. */
+    --encabezado-tabla: oklch(0.94 0.035 calc(var(--tono) + 180));
+    --contexto-tabla: oklch(0.89 0.06 calc(var(--tono) + 180));
     /* Hover de botones, menús y listas (hover:bg-accent) con el color del tema. */
     --accent: var(--fila-hover);
     --sidebar-accent: var(--fila-hover);
@@ -192,6 +202,8 @@
     --fila-par: oklch(0.175 0.01 var(--tono));
     --fila-hover: oklch(0.26 0.035 var(--tono));
     --fila-sel: oklch(0.32 0.055 var(--tono));
+    --encabezado-tabla: oklch(0.23 0.03 calc(var(--tono) + 180));
+    --contexto-tabla: oklch(0.29 0.05 calc(var(--tono) + 180));
     --primary-intenso: oklch(0.78 0.12 var(--tono));
 }
 

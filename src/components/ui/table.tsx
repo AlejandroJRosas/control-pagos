@@ -3,8 +3,8 @@
 import * as React from "react"
 import { cn } from "cn"
 
-// Sin overflow propio: así el encabezado (sticky) se pega arriba al bajar por la página. Dentro de una Card el fondo
-// del encabezado es el de la tarjeta (--fondo-tabla).
+// Sin overflow propio: así el encabezado (sticky) se pega arriba al bajar por la página. El encabezado y el pie llevan
+// su propio fondo (--encabezado-tabla, el tono complementario del tema) para no confundirse con el de la tarjeta.
 function Table({ className, contenedorClassName, ...props }: React.ComponentProps<"table"> & { contenedorClassName?: string }) {
   return (
     <div
@@ -25,7 +25,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
     <thead
       data-slot="table-header"
       className={cn(
-        "sticky top-0 z-20 bg-[var(--fondo-tabla,var(--background))] shadow-[inset_0_-1px_0_var(--border)] [&_tr]:border-b",
+        "sticky top-0 z-20 bg-encabezado-tabla shadow-[inset_0_-1px_0_var(--border)] [&_tr]:border-b",
         className
       )}
       {...props}
@@ -35,7 +35,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
 
 // Pie de totales pegado abajo, con el total a la vista; data-barra-inferior en el tfoot sube el botón de volver arriba
 // para no taparlo.
-const STICKY_PIE = "sticky bottom-0 z-20 border-t-0 bg-[var(--fondo-tabla,var(--background))] shadow-[inset_0_1px_0_var(--border)]"
+const STICKY_PIE = "sticky bottom-0 z-20 border-t-0 bg-encabezado-tabla shadow-[inset_0_1px_0_var(--border)]"
 
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
@@ -52,7 +52,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
     <tfoot
       data-slot="table-footer"
       className={cn(
-        "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+        "border-t bg-encabezado-tabla font-medium [&>tr]:last:border-b-0",
         className
       )}
       {...props}

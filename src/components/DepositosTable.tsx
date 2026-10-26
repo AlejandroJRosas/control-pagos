@@ -304,7 +304,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <td colSpan={visibles.length + extra.length * 2} data-testid="contexto-tabla" className="h-8 px-2 py-0 text-xs">
+            <td colSpan={visibles.length + extra.length * 2} data-testid="contexto-tabla" className="h-8 bg-contexto-tabla px-2 py-0 text-xs">
               <div className="flex items-center justify-between gap-4">
                 <span className="truncate">
                   <span className="text-muted-foreground">{contexto.campana}</span>
