@@ -5,6 +5,8 @@ import { cn } from "cn"
 
 // Sin overflow propio: así el encabezado (sticky) se pega arriba al bajar por la página. El encabezado y el pie llevan
 // su propio fondo (--encabezado-tabla, el tono complementario del tema) para no confundirse con el de la tarjeta.
+// Sus filas llevan además el mismo velo (FILA_BARRA, con ! para ganarle al color de fila par y al hover): así se ven iguales.
+const FILA_BARRA = "[&>tr]:bg-muted/50! [&>tr]:hover:bg-muted/50!"
 function Table({ className, contenedorClassName, ...props }: React.ComponentProps<"table"> & { contenedorClassName?: string }) {
   return (
     <div
@@ -26,6 +28,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
       data-slot="table-header"
       className={cn(
         "sticky top-0 z-20 bg-encabezado-tabla shadow-[inset_0_-1px_0_var(--border)] [&_tr]:border-b",
+        FILA_BARRA,
         className
       )}
       {...props}
@@ -53,6 +56,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
       data-slot="table-footer"
       className={cn(
         "border-t bg-encabezado-tabla font-medium [&>tr]:last:border-b-0",
+        FILA_BARRA,
         className
       )}
       {...props}

@@ -394,7 +394,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
         </TableBody>
         {totales && (
           <TableFooter data-barra-inferior className={STICKY_PIE}>
-            <TableRow className="bg-muted/50 hover:bg-muted/50">
+            <TableRow>
               {pie.map((c, i) =>
                 c.tipo === "total" ? (
                   <TableCell key={i} className={num}>

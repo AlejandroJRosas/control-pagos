@@ -270,7 +270,7 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
             ))}
           </TableBody>
           <TableFooter data-barra-inferior className={STICKY_PIE}>
-            <TableRow className="bg-muted/50 hover:bg-muted/50">
+            <TableRow>
               {agruparPie<Key | "acciones">([...columnas.visibles, "acciones"], CON_TOTAL).map((c, i) =>
                 c.tipo === "total" ? (
                   <CeldaTotal key={i} col={c.col as Key} t={total} />
