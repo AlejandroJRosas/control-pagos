@@ -17,6 +17,8 @@ export type DepositoData = {
   tasaValor: string;
   observaciones: string | null;
   imagenPath: string | null;
+  /** Captura de la tasa del depósito (si se adjuntó). */
+  tasaImagenPath?: string | null;
 };
 
 export type DepositoCalculado = DepositoData & {

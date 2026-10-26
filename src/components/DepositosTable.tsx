@@ -74,6 +74,11 @@ const num = "text-right tabular-nums";
 // porque con border-collapse los bordes de una celda sticky no la acompañan.
 const STICKY_DIA = "sticky top-18 z-10 bg-muted py-1.5 shadow-[inset_0_-1px_0_var(--border)]";
 
+/** La captura de la tasa junto a su valor (en la columna Tasa o en la fila del día), como el comprobante del depósito. */
+function CapturaTasa({ path }: { path: string }) {
+  return <ComprobanteIcono path={path} label="Ver la captura de la tasa" className="size-6" />;
+}
+
 function Celda({ col, d }: { col: Col; d: FilaDeposito }) {
   switch (col) {
     case "fecha":
@@ -89,7 +94,14 @@ function Celda({ col, d }: { col: Col; d: FilaDeposito }) {
     case "montoBs":
       return <TableCell className={num}>{formatNumberVE(d.montoBs)}</TableCell>;
     case "tasa":
-      return <TableCell className={num}>{formatTasa(d.tasaValor)}</TableCell>;
+      return (
+        <TableCell className={cn(num, "py-0")}>
+          <span className="inline-flex items-center gap-0.5">
+            {d.tasaImagenPath && <CapturaTasa path={d.tasaImagenPath} />}
+            {formatTasa(d.tasaValor)}
+          </span>
+        </TableCell>
+      );
     case "usd":
       return <TableCell className={num}>{formatUsd(d.usd)}</TableCell>;
     case "saldo":
@@ -198,6 +210,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
     const ids = g.filas.map((d) => d.id);
     const dia = nombreDia(g.fecha);
     const Chevron = plegado(g.fecha) ? ChevronRight : ChevronDown;
+    const tasaImagen = g.filas[0].tasaImagenPath;
     const texto = (
       <span className="text-xs">
         <span className="font-semibold">
@@ -228,24 +241,29 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
             </TableCell>
           ) : (
             <TableCell key={i} colSpan={c.span} className={cn(STICKY_DIA, "whitespace-nowrap")}>
-              {c.tipo === "etiqueta" &&
-                (plegable ? (
-                  // El clic lo atiende la fila; el botón da el foco con el teclado y el estado al lector de pantalla.
-                  <button
-                    type="button"
-                    aria-expanded={!plegado(g.fecha)}
-                    className="-ml-1 flex items-center gap-1 rounded-sm px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      dias.alternar(g.fecha);
-                    }}
-                  >
-                    <Chevron className="size-3.5 shrink-0 text-muted-foreground" />
-                    {texto}
-                  </button>
-                ) : (
-                  texto
-                ))}
+              {c.tipo === "etiqueta" && (
+                <div className="flex items-center gap-0.5">
+                  {plegable ? (
+                    // El clic lo atiende la fila; el botón da el foco con el teclado y el estado al lector de pantalla.
+                    <button
+                      type="button"
+                      aria-expanded={!plegado(g.fecha)}
+                      className="-ml-1 flex items-center gap-1 rounded-sm px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        dias.alternar(g.fecha);
+                      }}
+                    >
+                      <Chevron className="size-3.5 shrink-0 text-muted-foreground" />
+                      {texto}
+                    </button>
+                  ) : (
+                    texto
+                  )}
+                  {/* Fuera del botón de plegar: un botón no puede ir dentro de otro. */}
+                  {tasaImagen && <CapturaTasa path={tasaImagen} />}
+                </div>
+              )}
             </TableCell>
           ),
         )}

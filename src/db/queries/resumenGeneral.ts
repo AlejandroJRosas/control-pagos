@@ -17,7 +17,7 @@ export async function loadResumenGeneral(db: SqlDriver): Promise<CampanaConDatos
   const depositos = await db.select<DepositoData & { campanaId: number }>(
     `SELECT d.id, a.campana_id AS campanaId, d.asignacion_id AS asignacionId, d.fecha, d.creado_en AS creadoEn, d.banco, d.referencia,
             d.cuenta_destino AS cuentaDestino, d.monto_bs AS montoBs, d.tasa_id AS tasaId, t.valor AS tasaValor,
-            d.observaciones, d.imagen_path AS imagenPath
+            d.observaciones, d.imagen_path AS imagenPath, t.imagen_path AS tasaImagenPath
      FROM depositos d
      JOIN asignaciones a ON a.id = d.asignacion_id
      JOIN campanas c ON c.id = a.campana_id

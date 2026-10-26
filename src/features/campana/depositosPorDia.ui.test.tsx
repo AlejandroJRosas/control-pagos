@@ -136,3 +136,25 @@ it("agrupada, el menú de columnas no deja mostrar la fecha ni la tasa", async (
   expect(screen.getByRole("checkbox", { name: /Tasa/ })).toBeDisabled();
   expect(screen.getByRole("checkbox", { name: /Banco/ })).toBeEnabled();
 });
+
+it("la captura de la tasa va en la fila del día y, en lista, en la columna Tasa", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  const tasaMartes = await createTasa(db, { fecha: "2026-03-03", valor: "36.5", notas: null, imagenPath: "imagenes/tasa.png" });
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "111", montoBs: "3650" }));
+  await createDeposito(db, s.asignacionId, depositoBase(tasaMartes, { fecha: "2026-03-03", referencia: "222", montoBs: "730" }));
+  await createDeposito(db, s.asignacionId, depositoBase(tasaMartes, { fecha: "2026-03-03", referencia: "333", montoBs: "1825" }));
+  const { user } = await renderApp(`/campanas/${s.campanaId}`, { db });
+  await screen.findByText("Martes 03/03/2026");
+  // Solo el martes tiene captura, y abrirla no pliega el día.
+  expect(screen.getAllByRole("button", { name: "Ver la captura de la tasa" })).toHaveLength(1);
+  await user.click(screen.getByRole("button", { name: "Ver la captura de la tasa" }));
+  expect(screen.getByText("222")).toBeInTheDocument();
+  await user.keyboard("{Escape}");
+
+  await user.click(screen.getByRole("button", { name: /Monto Bs/ }));
+  await user.click(screen.getByRole("button", { name: /Columnas/ }));
+  await user.click(await screen.findByRole("checkbox", { name: /Tasa/ }));
+  await user.keyboard("{Escape}");
+  expect(screen.getAllByRole("button", { name: "Ver la captura de la tasa" })).toHaveLength(2);
+});
