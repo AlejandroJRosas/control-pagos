@@ -64,9 +64,9 @@ it("con la campaña cerrada los botones deshabilitados dicen por qué", async ()
   const s = await seedBasico(db);
   await setEstadoCampana(db, s.campanaId, "cerrada");
   const { user } = await renderApp(`/campanas/${s.campanaId}`, { db });
-  const subir = await screen.findByRole("button", { name: /Subir lote/ });
-  expect(subir).toBeDisabled();
-  await user.hover(subir.parentElement!);
+  const agregar = await screen.findByRole("button", { name: "Agregar gerentes" });
+  expect(agregar).toBeDisabled();
+  await user.hover(agregar.parentElement!);
   expect(await screen.findByText("La campaña está cerrada: reábrela para hacer cambios")).toBeInTheDocument();
 });
 

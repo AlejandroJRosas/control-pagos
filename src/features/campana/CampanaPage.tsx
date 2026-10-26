@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { ChevronDown, CopyX, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Merge, Pencil, Plus, MessageCircle, Settings2, Share2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando, Vacio } from "@/components/Feedback";
@@ -207,10 +207,6 @@ export function CampanaPage() {
                   </DropdownMenuItem>
                 </BotonConMotivo>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem disabled={cerrada} onClick={() => setAgregar(true)}>
-                  <UserPlus />
-                  Agregar gerentes
-                </DropdownMenuItem>
                 <DropdownMenuItem disabled={cerrada} onClick={() => setEditar(true)}>
                   <Pencil />
                   Editar datos
@@ -227,14 +223,9 @@ export function CampanaPage() {
               </DropdownMenuContent>
             </DropdownMenu>
             <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
-              <Button
-                variant="outline"
-                disabled={cerrada}
-                title="L · también puedes soltar las imágenes en cualquier parte"
-                onClick={() => navigate(`/campanas/${campanaId}/lote`)}
-              >
-                <Images />
-                Subir lote
+              <Button variant="outline" disabled={cerrada} onClick={() => setAgregar(true)}>
+                <UserPlus />
+                Agregar gerentes
               </Button>
             </BotonConMotivo>
             <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
@@ -253,6 +244,11 @@ export function CampanaPage() {
                     <ChevronDown />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-auto min-w-48">
+                    <DropdownMenuItem title="También puedes soltar las imágenes en cualquier parte" onClick={() => navigate(`/campanas/${campanaId}/lote`)}>
+                      <Images />
+                      Subir lote
+                      <DropdownMenuShortcut>L</DropdownMenuShortcut>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate(`/campanas/${campanaId}/importar`)}>
                       <FileUp />
                       Importar Excel

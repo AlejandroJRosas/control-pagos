@@ -31,7 +31,7 @@ it("una imagen soltada en la campaña abre el registro del depósito con ella", 
   const db = await createTestDb();
   const s = await seedBasico(db);
   const { router } = await renderApp(`/campanas/${s.campanaId}`, { db });
-  await screen.findByRole("button", { name: /Subir lote/ });
+  await screen.findByRole("button", { name: "Más formas de cargar depósitos" });
   await soltar(imagenes(1), "Suelta para registrar un depósito en Marzo");
   await waitFor(() => expect(router.state.location.pathname).toBe(`/campanas/${s.campanaId}/depositos/nuevo`));
   expect(await screen.findByRole("img", { name: "Comprobante" })).toHaveAttribute("src", "blob:prueba");
@@ -64,7 +64,7 @@ it("L abre la subida en lote de la campaña", async () => {
   const db = await createTestDb();
   const s = await seedBasico(db);
   const { user, router } = await renderApp(`/campanas/${s.campanaId}`, { db });
-  await screen.findByRole("button", { name: /Subir lote/ });
+  await screen.findByRole("button", { name: "Más formas de cargar depósitos" });
   await user.keyboard("l");
   await waitFor(() => expect(router.state.location.pathname).toBe(`/campanas/${s.campanaId}/lote`));
 });
