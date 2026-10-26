@@ -7,6 +7,7 @@ export const BANCOS_SUGERIDOS = [
   "Bancamiga",
   "Bancaribe",
   "Banco del Tesoro",
+  "Banco Digital de los Trabajadores",
   "Bancrecer",
   "Banesco",
   "Banfanb",
@@ -51,6 +52,8 @@ const ALIAS: Record<string, string> = {
   "Banco Exterior": "Exterior",
   "Banco Activo": "Activo",
   "Banco Plaza": "Plaza",
+  BDT: "Banco Digital de los Trabajadores",
+  "Digital de los Trabajadores": "Banco Digital de los Trabajadores",
 };
 
 const CANONICO = new Map(Object.entries(ALIAS).map(([alias, banco]) => [claveComparacion(alias), claveComparacion(banco)]));

@@ -17,6 +17,7 @@ it("claveBanco reconoce los alias de un mismo banco", () => {
   expect(claveBanco("Banco Nacional de Crédito")).toBe(claveBanco("BNC"));
   expect(claveBanco("BBVA Provincial")).toBe(claveBanco("Provincial"));
   expect(claveBanco("Tesoro")).toBe(claveBanco("Banco del Tesoro"));
+  expect(claveBanco("BDT")).toBe(claveBanco("Banco Digital de los Trabajadores"));
   expect(claveBanco("Banesco")).not.toBe(claveBanco("Mercantil"));
 });
 
