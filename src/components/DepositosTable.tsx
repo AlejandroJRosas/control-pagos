@@ -211,15 +211,9 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
     const dia = nombreDia(g.fecha);
     const Chevron = plegado(g.fecha) ? ChevronRight : ChevronDown;
     const tasaImagen = g.filas[0].tasaImagenPath;
-    const texto = (
-      <span className="text-xs">
-        <span className="font-semibold">
-          {dia[0].toUpperCase() + dia.slice(1)} {formatFecha(g.fecha)}
-        </span>
-        <span className="text-muted-foreground">
-          {" "}
-          · {g.filas.length === 1 ? "1 depósito" : `${g.filas.length} depósitos`} · Tasa {formatTasa(g.filas[0].tasaValor)}
-        </span>
+    const fecha = (
+      <span className="text-xs font-semibold">
+        {dia[0].toUpperCase() + dia.slice(1)} {formatFecha(g.fecha)}
       </span>
     );
     return (
@@ -255,13 +249,16 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
                       }}
                     >
                       <Chevron className="size-3.5 shrink-0 text-muted-foreground" />
-                      {texto}
+                      {fecha}
                     </button>
                   ) : (
-                    texto
+                    fecha
                   )}
-                  {/* Fuera del botón de plegar: un botón no puede ir dentro de otro. */}
+                  {/* Junto a la fecha, pero fuera del botón de plegar: un botón no puede ir dentro de otro. */}
                   {tasaImagen && <CapturaTasa path={tasaImagen} />}
+                  <span className="text-xs text-muted-foreground">
+                    · {g.filas.length === 1 ? "1 depósito" : `${g.filas.length} depósitos`} · Tasa {formatTasa(g.filas[0].tasaValor)}
+                  </span>
                 </div>
               )}
             </TableCell>
