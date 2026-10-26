@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Trash2 } from "lucide-react";
+import { CalendarX2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,11 @@ import { getDb } from "@/db";
 import { createTasa, deleteTasa, getTasa, updateTasa, type Tasa, type TasaConUsos } from "@/db/repos/tasas";
 import { validateTasa, type TasaDraft } from "@/domain/validation";
 import { parseTasa, toInputVE } from "@/domain/money";
-import { formatFecha, todayIso } from "@/domain/dates";
+import { createFeriado } from "@/db/repos/feriados";
+import { esFinDeSemana, formatFecha, isValidIsoDate, todayIso } from "@/domain/dates";
 import { persistImagen, type ImagenValue } from "@/platform/images";
 import { invalidate } from "@/hooks/useData";
+import { useFeriados } from "@/hooks/useFeriados";
 import { reportError } from "@/lib/reportError";
 import { useDialogoSinGuardar } from "@/hooks/useAvisoSinGuardar";
 import { extractor, type CampoPropuesto, type CamposTasa } from "@/extraction/extractor";
@@ -44,6 +46,8 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
   const [errors, setErrors] = useState<Partial<Record<keyof TasaDraft, string>>>({});
   const [saving, setSaving] = useState(false);
   const [borrar, setBorrar] = useState(false);
+  const [feriado, setFeriado] = useState(false);
+  const feriados = useFeriados();
   const [huellaInicial, setHuellaInicial] = useState("");
   const huella = (d: TasaDraft, img: ImagenValue) => JSON.stringify({ d, img: img?.kind === "stored" ? img.path : img ? img.previewUrl : null });
   const aviso = useDialogoSinGuardar(open && huella(draft, imagen) !== huellaInicial, onOpenChange);
@@ -134,6 +138,22 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
     }
   }
 
+  // Por si se cerró el aviso de tasa faltante (que ofrece "Hoy es feriado"): el día se marca feriado desde aquí.
+  const puedeSerFeriado = !tasa && isValidIsoDate(draft.fecha) && !esFinDeSemana(draft.fecha) && !feriados.has(draft.fecha);
+
+  async function marcarFeriado() {
+    try {
+      await createFeriado(await getDb(), { fecha: draft.fecha, nombre: null });
+      toast.success(`El ${formatFecha(draft.fecha)} quedó como feriado`);
+      invalidate();
+      onOpenChange(false);
+    } catch (err) {
+      reportError(err);
+    } finally {
+      setFeriado(false);
+    }
+  }
+
   async function eliminar() {
     if (!tasa) return;
     try {
@@ -181,6 +201,12 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
                   </BotonConMotivo>
                 </div>
               )}
+              {puedeSerFeriado && (
+                <Button type="button" variant="ghost" className="sm:mr-auto" onClick={() => setFeriado(true)}>
+                  <CalendarX2 />
+                  Es feriado
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={() => aviso.onOpenChange(false)}>
                 Cancelar
               </Button>
@@ -192,6 +218,14 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
           {aviso.dialogo}
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={feriado}
+        onOpenChange={setFeriado}
+        title="Marcar el día como feriado"
+        description={`El ${formatFecha(draft.fecha)} no llevará tasa propia: sus depósitos usarán la del siguiente día hábil.`}
+        confirmLabel="Es feriado"
+        onConfirm={marcarFeriado}
+      />
       <ConfirmDialog
         open={borrar}
         onOpenChange={setBorrar}
