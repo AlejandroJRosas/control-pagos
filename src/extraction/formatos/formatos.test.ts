@@ -14,6 +14,7 @@ import { bdvPagomovil } from "./bdvPagomovil";
 import { provincialDineroRapido } from "./provincialDineroRapido";
 import { caroniPagos } from "./caroniPagos";
 import { bancamigaTransaccion } from "./bancamigaTransaccion";
+import { bdvOtrosBancos } from "./bdvOtrosBancos";
 import { reconocedoresDeposito, reconocedoresTasa } from "./index";
 import bdvOscuro from "./__fixtures__/bdv-oscuro.json";
 import bdvClaro from "./__fixtures__/bdv-claro.json";
@@ -35,6 +36,7 @@ import pagomovilOtrosBancos from "./__fixtures__/bdv-pagomovil-otros-bancos.json
 import provincialFixture from "./__fixtures__/provincial.json";
 import caroniFixture from "./__fixtures__/caroni.json";
 import bancamigaFixture from "./__fixtures__/bancamiga.json";
+import bdvOtrosBancosFixture from "./__fixtures__/bdv-otros-bancos.json";
 
 const HOY = "2026-10-18";
 const filasDe = (r: OcrResultado) => agruparFilas(r);
@@ -303,6 +305,33 @@ describe("provincial, caroní, bancamiga y pagomóvil con texto sintético", () 
   });
 });
 
+describe("bdv-otros-bancos", () => {
+  it("captura real: el OCR pierde la etiqueta Fecha y el destino; el nombre va como destino", () => {
+    const f = filasDe(bdvOtrosBancosFixture);
+    expect(bdvOtrosBancos.detecta(f)).toBe(true);
+    const r = bdvOtrosBancos.extrae(f);
+    expect(valores(normalizarDeposito(r, HOY))).toEqual({
+      montoBs: "62.000,00",
+      fecha: "2026-10-15",
+      referencia: "3701128377781",
+      banco: BANCO,
+      cuentaDestino: "Inversiones",
+    });
+    expect(r.fecha?.certeza).toBe("heuristica");
+    expect(r.referencia?.certeza).toBe("etiqueta");
+  });
+
+  it("con la etiqueta Fecha leída la fecha es segura", () => {
+    const f = filas("Transferencias a otros bancos", "62.000,00 Bs", "Fecha: 15/10/2026", "Operación: 3701128377781", "Nombre: Inversiones");
+    expect(bdvOtrosBancos.extrae(f).fecha).toEqual({ texto: "15/10/2026", certeza: "etiqueta" });
+  });
+
+  it("una operación de otro largo queda para revisar", () => {
+    const f = filas("Transferencias a otros bancos", "Operación: 37011283777", "Nombre: Inversiones");
+    expect(bdvOtrosBancos.extrae(f).referencia).toEqual({ texto: "37011283777", certeza: "heuristica" });
+  });
+});
+
 describe("detección", () => {
   it("cada reconocedor detecta solo sus imágenes", () => {
     const propias = new Map<Reconocedor<string>, OcrResultado[]>([
@@ -316,6 +345,7 @@ describe("detección", () => {
       [provincialDineroRapido, [provincialFixture]],
       [caroniPagos, [caroniFixture]],
       [bancamigaTransaccion, [bancamigaFixture]],
+      [bdvOtrosBancos, [bdvOtrosBancosFixture]],
       [tasaMariandres, [tasaFixture]],
     ]);
     const todas = [...propias.values()].flat();
@@ -335,6 +365,7 @@ describe("detección", () => {
     expect(provincialDineroRapido.detecta(f)).toBe(false);
     expect(caroniPagos.detecta(f)).toBe(false);
     expect(bancamigaTransaccion.detecta(f)).toBe(false);
+    expect(bdvOtrosBancos.detecta(f)).toBe(false);
   });
 
   it("el registro incluye los formatos", () => {
@@ -350,6 +381,7 @@ describe("detección", () => {
         provincialDineroRapido,
         caroniPagos,
         bancamigaTransaccion,
+        bdvOtrosBancos,
       ]),
     );
     expect(reconocedoresTasa).toContain(tasaMariandres);
