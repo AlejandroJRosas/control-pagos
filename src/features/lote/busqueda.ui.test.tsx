@@ -52,3 +52,14 @@ it("busca en la cola por número de referencia o por monto, con o sin separadore
   await user.clear(buscar);
   expect(visibles()).toEqual(["Banco 1", "Banco 2", "Banco 3"]);
 });
+
+it("Enter en el buscador abre el primero que coincide", async () => {
+  const { db, s } = await conCola();
+  const { user } = await renderApp(`/campanas/${s.campanaId}/revision`, { db, hoy: "2026-03-02" });
+  await screen.findByText(/Banco 3/);
+  const abierto = () => screen.getAllByRole("listitem").find((li) => li.getAttribute("aria-current") === "true")?.textContent?.match(/Banco \d/)?.[0];
+  expect(abierto()).toBe("Banco 1");
+
+  await user.type(screen.getByRole("searchbox", { name: "Buscar en la cola" }), "800{Enter}");
+  expect(abierto()).toBe("Banco 3");
+});

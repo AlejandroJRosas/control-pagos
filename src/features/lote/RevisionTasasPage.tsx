@@ -6,7 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Aviso, Cargando, Vacio } from "@/components/Feedback";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { getDb } from "@/db";
-import { descartarTasa, guardarBorradorTasa, listColaTasas, quitarHechosTasas, type BorradorTasa, type ItemColaTasa } from "@/db/repos/cola";
+import { descartarTasa, guardarBorradorTasa, listColaTasas, quitarHechoTasa, quitarHechosTasas, type BorradorTasa, type ItemColaTasa } from "@/db/repos/cola";
 import { completarTasa } from "@/db/operaciones/revision";
 import { siguientePendiente } from "@/domain/cola";
 import { formatFecha, isValidIsoDate } from "@/domain/dates";
@@ -34,6 +34,16 @@ function Revision({ items }: { items: ItemColaTasa[] }) {
   const [filtro, setFiltro] = useState<Filtro>("pendientes");
   const actual = items.find((i) => i.id === actualId) ?? null;
   const hechos = items.filter((i) => i.estado === "hecho").length;
+
+  async function quitarHecho(id: number) {
+    try {
+      await quitarHechoTasa(await getDb(), id);
+      if (actualId === id) setActualId(siguientePendiente(items, id));
+      invalidate();
+    } catch (e) {
+      reportError(e);
+    }
+  }
 
   async function quitarHechos() {
     try {
@@ -75,6 +85,7 @@ function Revision({ items }: { items: ItemColaTasa[] }) {
           onElegir={setActualId}
           filtro={filtro}
           onFiltro={setFiltro}
+          onQuitarHecho={(id) => void quitarHecho(id)}
         />
       }
       imagenPath={actual?.imagenPath ?? null}

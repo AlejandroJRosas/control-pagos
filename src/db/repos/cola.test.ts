@@ -12,6 +12,7 @@ import {
   contarPendientesDepositos,
   contarPendientesTasas,
   descartarDeposito,
+  descartarDepositos,
   descartarTasa,
   encolarDeposito,
   encolarTasa,
@@ -23,6 +24,8 @@ import {
   listColaTasas,
   marcarDepositoHecho,
   marcarTasaHecha,
+  quitarHechoDeposito,
+  quitarHechoTasa,
   quitarHechosDepositos,
   quitarHechosTasas,
   type BorradorDeposito,
@@ -103,6 +106,33 @@ it("descartar devuelve la imagen y borra la fila", async () => {
   const id = await encolar(1);
   expect(await descartarDeposito(db, id)).toBe("imagenes/1.png");
   expect(await getItemColaDeposito(db, id)).toBeNull();
+});
+
+it("descarta varios a la vez y devuelve sus imágenes; si uno ya está hecho no descarta ninguno", async () => {
+  const a = await encolar(1);
+  const b = await encolar(2);
+  const c = await encolar(3);
+  expect(await descartarDepositos(db, [a, c])).toEqual(["imagenes/1.png", "imagenes/3.png"]);
+  expect((await listColaDepositos(db, s.campanaId)).map((i) => i.id)).toEqual([b]);
+
+  const d = await encolar(4);
+  await marcarDepositoHecho(db, d, await createDeposito(db, s.asignacionId, depositoBase(s.tasaId)));
+  await expect(descartarDepositos(db, [b, d])).rejects.toMatchObject({ code: "VALIDACION" });
+  expect((await listColaDepositos(db, s.campanaId)).map((i) => i.id)).toEqual([b, d]);
+});
+
+it("quita un hecho de la cola, pero no un pendiente", async () => {
+  const a = await encolar(1);
+  const b = await encolar(2);
+  await marcarDepositoHecho(db, a, await createDeposito(db, s.asignacionId, depositoBase(s.tasaId)));
+  await expect(quitarHechoDeposito(db, b)).rejects.toMatchObject({ code: "VALIDACION" });
+  await quitarHechoDeposito(db, a);
+  expect((await listColaDepositos(db, s.campanaId)).map((i) => i.id)).toEqual([b]);
+
+  const t = await encolarTasa(db, { imagenPath: "imagenes/t1.png", nombreArchivo: null, borrador: borradorTasaVacio() });
+  await marcarTasaHecha(db, t, await createTasa(db, { fecha: "2026-10-16", valor: "880.12", notas: null, imagenPath: null }));
+  await quitarHechoTasa(db, t);
+  expect(await listColaTasas(db)).toEqual([]);
 });
 
 it("quita los hechos y cuenta pendientes", async () => {

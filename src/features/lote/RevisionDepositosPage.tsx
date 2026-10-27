@@ -1,15 +1,17 @@
 import { useRef, useState } from "react";
 import { Link, useParams } from "react-router";
-import { Images } from "lucide-react";
+import { Images, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Aviso, Cargando, Vacio } from "@/components/Feedback";
 import { BuscadorSelect } from "@/components/BuscadorSelect";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { getDb } from "@/db";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
 import { listBancosUsados } from "@/db/repos/depositos";
 import { listGerentes, type Gerente } from "@/db/repos/gerentes";
-import { asignarGerenteCola, listColaDepositos, quitarHechosDepositos, type ItemColaDeposito } from "@/db/repos/cola";
+import { asignarGerenteCola, descartarDepositos, listColaDepositos, quitarHechoDeposito, quitarHechosDepositos, type ItemColaDeposito } from "@/db/repos/cola";
+import { deleteImage } from "@/platform/images";
 import { siguientePendiente } from "@/domain/cola";
 import { SIN_SELECCION, type Seleccion } from "@/domain/seleccion";
 import { invalidate, useData } from "@/hooks/useData";
@@ -51,6 +53,7 @@ function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
   const [filtro, setFiltro] = useState<Filtro>("pendientes");
   const [seleccion, setSeleccion] = useState<Seleccion>(SIN_SELECCION);
   const [gerenteMasivo, setGerenteMasivo] = useState("");
+  const [confirmDescartar, setConfirmDescartar] = useState(false);
   // El elemento abierto recibe el gerente por su formulario, para que su autoguardado no lo pise.
   const editor = useRef<Editor | null>(null);
   const actual = items.find((i) => i.id === actualId) ?? null;
@@ -99,6 +102,35 @@ function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
     }
   }
 
+  async function descartarMarcados() {
+    const ids = marcados;
+    const conActual = actual !== null && ids.includes(actual.id);
+    // El abierto no debe volver a guardar su borrador una vez borrado.
+    if (conActual) editor.current?.cancelarAutoguardado();
+    try {
+      const imagenes = await descartarDepositos(await getDb(), ids);
+      for (const img of imagenes) await deleteImage(img);
+      toast.success(`${ids.length} comprobante(s) descartados`);
+      setSeleccion(SIN_SELECCION);
+      if (conActual) setActualId(siguientePendiente(elementos.filter((e) => !ids.includes(e.id)), null));
+      invalidate();
+    } catch (e) {
+      reportError(e);
+    } finally {
+      setConfirmDescartar(false);
+    }
+  }
+
+  async function quitarHecho(id: number) {
+    try {
+      await quitarHechoDeposito(await getDb(), id);
+      if (actualId === id) irAlSiguiente(id);
+      invalidate();
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
   async function quitarHechos() {
     try {
       const n = await quitarHechosDepositos(await getDb(), campana.id);
@@ -120,6 +152,7 @@ function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
       onFiltro={setFiltro}
       seleccion={cerrada ? undefined : seleccion}
       onSeleccion={cerrada ? undefined : setSeleccion}
+      onQuitarHecho={(id) => void quitarHecho(id)}
       pie={
         !cerrada && (
           <div className="grid gap-2 border-t pt-2">
@@ -132,6 +165,19 @@ function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
             <Button variant="outline" size="sm" disabled={!gerenteMasivo || marcados.length === 0} onClick={() => void asignar()}>
               Asignar gerente a marcados ({marcados.length})
             </Button>
+            <Button variant="outline" size="sm" className="text-destructive" disabled={marcados.length === 0} onClick={() => setConfirmDescartar(true)}>
+              <Trash2 />
+              Descartar marcados ({marcados.length})
+            </Button>
+            <ConfirmDialog
+              open={confirmDescartar}
+              onOpenChange={setConfirmDescartar}
+              title="Descartar comprobantes"
+              description={`Se quitan de la cola ${marcados.length} comprobante(s) y se borran sus imágenes. No se registra ningún depósito.`}
+              confirmLabel="Descartar"
+              destructive
+              onConfirm={descartarMarcados}
+            />
           </div>
         )
       }

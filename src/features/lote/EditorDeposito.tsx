@@ -30,7 +30,8 @@ import { useReleer } from "./useReleer";
 import { releerBorradorDeposito } from "./leerEnBorrador";
 import { BarraAcciones, BotonReleer, TeclaAtajo } from "./RevisionLayout";
 
-export type Editor = { setDestino: (d: DestinoDraft) => void };
+/** Lo que la lista hace sobre el abierto: asignarle el gerente o cancelar su autoguardado (antes de descartarlo desde afuera). */
+export type Editor = { setDestino: (d: DestinoDraft) => void; cancelarAutoguardado: () => void };
 
 type EditorProps = {
   item: ItemColaDeposito;
@@ -55,7 +56,6 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
     depositoId: hecho ? (item.depositoId ?? undefined) : undefined,
     inicial: () => ({ draft: { ...item.borrador.draft, tasaId: null }, destino: item.borrador.destino, auto: item.borrador.auto }),
   });
-  editor.current = hecho ? null : { setDestino: f.setDestino };
   const [saving, setSaving] = useState(false);
   const [confirmDescartar, setConfirmDescartar] = useState(false);
 
@@ -65,6 +65,7 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
     await guardarBorradorDeposito(await getDb(), item.id, JSON.parse(v) as BorradorDeposito);
     invalidate();
   });
+  editor.current = hecho ? null : { setDestino: f.setDestino, cancelarAutoguardado: auto.cancelar };
 
   const releer = useReleer({
     imagenPath: item.imagenPath,

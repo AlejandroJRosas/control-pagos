@@ -2,7 +2,9 @@ import { expect, it } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { createTestDb } from "@/db/testing/sqljsDriver";
 import { seedBasico } from "@/db/testing/fixtures";
-import { borradorDepositoVacio, encolarDeposito, listColaDepositos } from "@/db/repos/cola";
+import { borradorDepositoVacio, encolarDeposito, listColaDepositos, marcarDepositoHecho } from "@/db/repos/cola";
+import { createDeposito } from "@/db/repos/depositos";
+import { depositoBase } from "@/db/testing/fixtures";
 import { renderApp } from "@/testing/renderApp";
 
 async function conCola(n: number) {
@@ -76,4 +78,34 @@ it("las flechas ↑ y ↓ abren el comprobante anterior o el siguiente de la lis
   await user.keyboard("{ArrowUp}");
   expect(abierto()).toBe("Banco 2");
   expect(marcadas()).toEqual(["Banco 2"]);
+});
+
+it("descarta los marcados de una vez, incluido el abierto", async () => {
+  const { db, s } = await conCola(4);
+  const { user } = await renderApp(`/campanas/${s.campanaId}/revision`, { db, hoy: "2026-03-02" });
+  await screen.findByText("Banco 4");
+
+  await user.click(fila(1));
+  await user.keyboard("{Control>}");
+  await user.click(fila(3));
+  await user.keyboard("{/Control}");
+  await user.click(screen.getByRole("button", { name: "Descartar marcados (2)" }));
+  await user.click(await screen.findByRole("button", { name: "Descartar" }));
+  await screen.findByText("2 comprobante(s) descartados");
+  await waitFor(async () => expect((await listColaDepositos(db, s.campanaId)).map((i) => i.borrador.draft.banco)).toEqual(["Banco 2", "Banco 4"]));
+  await waitFor(() => expect(screen.queryByText("Banco 1")).not.toBeInTheDocument());
+});
+
+it("quita un hecho de la cola desde su fila", async () => {
+  const { db, s } = await conCola(2);
+  const [primero] = await listColaDepositos(db, s.campanaId);
+  await marcarDepositoHecho(db, primero.id, await createDeposito(db, s.asignacionId, depositoBase(s.tasaId)));
+  const { user } = await renderApp(`/campanas/${s.campanaId}/revision`, { db, hoy: "2026-03-02" });
+  await screen.findByText("Banco 2");
+
+  await user.click(screen.getByRole("button", { name: /^Todos/ }));
+  await user.click(screen.getByRole("button", { name: "Quitar Banco 1 de la cola" }));
+  await waitFor(async () => expect((await listColaDepositos(db, s.campanaId)).map((i) => i.borrador.draft.banco)).toEqual(["Banco 2"]));
+  // El depósito registrado queda.
+  expect((await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM depositos"))[0].n).toBeGreaterThan(0);
 });

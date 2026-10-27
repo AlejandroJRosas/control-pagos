@@ -98,6 +98,20 @@ async function descartar(db: SqlDriver, t: Tabla, id: number): Promise<string> {
   return row.imagenPath as string;
 }
 
+/** Varios pendientes de una vez: si alguno ya no se puede descartar no se toca ninguno. Devuelve sus imágenes. */
+async function descartarVarios(db: SqlDriver, t: Tabla, ids: number[]): Promise<string[]> {
+  const filas = [];
+  for (const id of ids) filas.push(await assertPendiente(db, t, id));
+  for (const id of ids) await db.execute(`DELETE FROM ${t.nombre} WHERE id = ? AND estado = 'pendiente'`, [id]);
+  return filas.map((r) => r.imagenPath as string);
+}
+
+/** Saca de la cola un elemento hecho (el registro creado y su imagen quedan). */
+async function quitarHecho(db: SqlDriver, t: Tabla, id: number): Promise<void> {
+  const r = await db.execute(`DELETE FROM ${t.nombre} WHERE id = ? AND estado = 'hecho'`, [id]);
+  if (r.rowsAffected === 0) throw new DomainError("VALIDACION", "Solo se pueden quitar de la cola los elementos hechos");
+}
+
 async function quitarHechos(db: SqlDriver, t: Tabla, campanaId?: number): Promise<number> {
   const r = await db.execute(
     `DELETE FROM ${t.nombre} WHERE estado = 'hecho'${campanaId === undefined ? "" : " AND campana_id = ?"}`,
@@ -150,6 +164,8 @@ export async function asignarGerenteCola(db: SqlDriver, ids: number[], sel: stri
 export const marcarDepositoHecho = (db: SqlDriver, id: number, depositoId: number, borrador?: BorradorDeposito) => marcarHecho(db, DEP, id, depositoId, borrador);
 /** Borra un pendiente y devuelve su imagen (la borra quien llama). */
 export const descartarDeposito = (db: SqlDriver, id: number) => descartar(db, DEP, id);
+export const descartarDepositos = (db: SqlDriver, ids: number[]) => descartarVarios(db, DEP, ids);
+export const quitarHechoDeposito = (db: SqlDriver, id: number) => quitarHecho(db, DEP, id);
 export const quitarHechosDepositos = (db: SqlDriver, campanaId: number) => quitarHechos(db, DEP, campanaId);
 export const contarPendientesDepositos = (db: SqlDriver, campanaId: number) => contarPendientes(db, DEP, campanaId);
 
@@ -170,5 +186,6 @@ export async function getItemColaTasa(db: SqlDriver, id: number): Promise<ItemCo
 export const guardarBorradorTasa = (db: SqlDriver, id: number, borrador: BorradorTasa, formato?: string | null) => guardarBorrador(db, TAS, id, borrador, formato);
 export const marcarTasaHecha = (db: SqlDriver, id: number, tasaId: number, borrador?: BorradorTasa) => marcarHecho(db, TAS, id, tasaId, borrador);
 export const descartarTasa = (db: SqlDriver, id: number) => descartar(db, TAS, id);
+export const quitarHechoTasa = (db: SqlDriver, id: number) => quitarHecho(db, TAS, id);
 export const quitarHechosTasas = (db: SqlDriver) => quitarHechos(db, TAS);
 export const contarPendientesTasas = (db: SqlDriver) => contarPendientes(db, TAS);

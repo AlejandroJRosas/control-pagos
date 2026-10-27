@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, Circle, CircleDot, LoaderCircle, ScanText, Search } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, LoaderCircle, ScanText, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader, type Miga } from "@/components/PageHeader";
@@ -134,6 +134,8 @@ type ListaProps = {
   pie?: ReactNode;
   /** Muestra el filtro "Con incidencias" (los elementos traen `motivos`). */
   conIncidencias?: boolean;
+  /** Saca de la cola un hecho (botón en su fila); sin él no hay botón. */
+  onQuitarHecho?: (id: number) => void;
 };
 
 const FILTROS: { id: Filtro; label: string }[] = [
@@ -152,7 +154,7 @@ export function visiblesDe(items: ElementoLista[], filtro: Filtro, retenidoId: n
   return items.filter((i) => i.estado === "pendiente");
 }
 
-export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, seleccion, onSeleccion, pie, conIncidencias }: ListaProps) {
+export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, seleccion, onSeleccion, pie, conIncidencias, onQuitarHecho }: ListaProps) {
   // Se retiene al abierto que tuvo incidencias mientras sigue abierto: al corregirlas no desaparece de la lista.
   const retenido = useRef<number | null>(null);
   if (actualId !== null && items.some((i) => i.id === actualId && tieneIncidencias(i))) retenido.current = actualId;
@@ -173,14 +175,17 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
   const marcarTodos = () => seleccion && onSeleccion?.(seleccionarTodos(seleccion, marcables));
   useAtajo("a", marcarTodos, { ctrl: true, enCampos: false, activo: conSeleccion });
   const listaRef = useRef<HTMLUListElement>(null);
-  /** ↑ / ↓: abre el anterior o el siguiente de la lista, como un clic simple. */
+  /** Abre `id` como un clic simple y lo trae a la vista. */
+  function abrir(id: number, bloque: ScrollLogicalPosition) {
+    if (conSeleccion) onSeleccion!(clicSeleccion(seleccion!, marcables, id, { ctrl: false, shift: false }));
+    onElegir(id);
+    listaRef.current?.querySelector(`[data-id="${id}"]`)?.scrollIntoView?.({ block: bloque });
+  }
+  /** ↑ / ↓: abre el anterior o el siguiente de la lista. */
   function mover(paso: number) {
     const i = visibles.findIndex((v) => v.id === actualId);
     const sig = visibles[i < 0 ? 0 : i + paso];
-    if (!sig) return;
-    if (conSeleccion) onSeleccion!(clicSeleccion(seleccion!, marcables, sig.id, { ctrl: false, shift: false }));
-    onElegir(sig.id);
-    listaRef.current?.querySelector(`[data-id="${sig.id}"]`)?.scrollIntoView?.({ block: "nearest" });
+    if (sig) abrir(sig.id, "nearest");
   }
   useAtajo("ArrowDown", () => mover(1));
   useAtajo("ArrowUp", () => mover(-1));
@@ -204,6 +209,12 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
             placeholder="Referencia o monto…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            // Enter: abre el primero que coincide y lo centra en la lista.
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || !visibles[0]) return;
+              e.preventDefault();
+              abrir(visibles[0].id, "center");
+            }}
           />
         </div>
       )}
@@ -281,6 +292,19 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
                 </span>
               </button>
               {i.estado === "pendiente" && <IconoIncidencias motivos={i.motivos ?? []} />}
+              {i.estado === "hecho" && onQuitarHecho && (
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  title="Quitar de la cola (lo registrado queda)"
+                  aria-label={`Quitar ${i.titulo} de la cola`}
+                  onClick={() => onQuitarHecho(i.id)}
+                >
+                  <X />
+                </Button>
+              )}
             </li>
           );
         })}
