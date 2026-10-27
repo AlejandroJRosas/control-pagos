@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aplicarExtraccion, autollenadoExistente, autollenadoNuevo, marcarTocado, tasaParaFecha } from "./autollenado";
+import { aplicarExtraccion, type Autollenado, autollenadoExistente, autollenadoNuevo, marcarTocado, reemplazarConExtraccion, tasaParaFecha } from "./autollenado";
 
 type F = "fecha" | "monto";
 const DEFAULTS: Record<F, string> = { fecha: "2026-10-18", monto: "" };
@@ -61,5 +61,23 @@ describe("tasaParaFecha", () => {
   it("no cambia nada si la fecha coincide o si el OCR puede cambiarla", () => {
     expect(tasaParaFecha(leida, "2026-10-16", true)).toEqual(leida);
     expect(tasaParaFecha(leida, "2026-10-15", false)).toEqual(leida);
+  });
+});
+
+describe("reemplazarConExtraccion", () => {
+  it("lo leído reemplaza también lo escrito a mano y dice qué cambió", () => {
+    const a = marcarTocado<F>(autollenadoNuevo(), "monto");
+    const r = reemplazarConExtraccion({ fecha: "2026-10-15", monto: "5" }, a, { fecha: p("2026-10-15"), monto: p("13.186,80", 0.7) });
+    expect(r.valores).toEqual({ fecha: "2026-10-15", monto: "13.186,80" });
+    expect(r.auto).toEqual({ estado: { fecha: "ocr", monto: "ocr" }, confianza: { fecha: 0.9, monto: 0.7 } });
+    expect(r.cambiados).toEqual(["monto"]);
+  });
+
+  it("lo que no se leyó queda como estaba", () => {
+    const a: Autollenado<F> = { estado: { fecha: "ocr" }, confianza: { fecha: 0.9 } };
+    const r = reemplazarConExtraccion({ fecha: "2026-10-15", monto: "5" }, a, {});
+    expect(r.valores).toEqual({ fecha: "2026-10-15", monto: "5" });
+    expect(r.auto).toEqual(a);
+    expect(r.cambiados).toEqual([]);
   });
 });

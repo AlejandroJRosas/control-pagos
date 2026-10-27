@@ -22,8 +22,13 @@ import { DepositoCampos } from "@/features/deposito/DepositoCampos";
 import { BotonConMotivo } from "@/components/BotonConMotivo";
 import { irA, SELECTOR_DUPLICADO } from "@/lib/irAError";
 import { useDepositoForm } from "@/features/deposito/useDepositoForm";
+import { extractor } from "@/extraction/extractor";
+import { ajustarCuentaDestino } from "@/extraction/cuentaConocida";
+import { listCuentasDestinoUsadas } from "@/db/repos/depositos";
 import { useAutoguardado } from "./useAutoguardado";
-import { BarraAcciones, TeclaAtajo } from "./RevisionLayout";
+import { useReleer } from "./useReleer";
+import { releerBorradorDeposito } from "./leerEnBorrador";
+import { BarraAcciones, BotonReleer, TeclaAtajo } from "./RevisionLayout";
 
 export type Editor = { setDestino: (d: DestinoDraft) => void };
 
@@ -59,6 +64,19 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
   const auto = useAutoguardado(hecho ? "" : JSON.stringify(borrador), async (v) => {
     await guardarBorradorDeposito(await getDb(), item.id, JSON.parse(v) as BorradorDeposito);
     invalidate();
+  });
+
+  const releer = useReleer({
+    imagenPath: item.imagenPath,
+    formato: item.formato,
+    borrador,
+    extraer: async (imagen) => {
+      const r = await extractor.extraerDeposito(imagen);
+      return { ...r, fields: ajustarCuentaDestino(r.fields, await listCuentasDestinoUsadas(await getDb())) };
+    },
+    reemplazar: releerBorradorDeposito,
+    aplicar: (b) => f.setForm((s) => ({ ...s, draft: { ...s.draft, ...b.draft }, destino: b.destino, auto: b.auto })),
+    guardar: async (b, formato) => guardarBorradorDeposito(await getDb(), item.id, b, formato),
   });
 
   // Duplicados dentro de la cola, con lo que se está escribiendo en este elemento.
@@ -154,7 +172,8 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
           )}
         </Aviso>
       )}
-      {!hecho && item.formato === null && <Aviso tono="warning">No se leyó el comprobante: completa los datos a mano.</Aviso>}
+      {!hecho && item.formato === null && <Aviso tono="warning">No se leyó el comprobante: completa los datos a mano o vuelve a leerlo.</Aviso>}
+      {!hecho && <BotonReleer leyendo={releer.leyendo} disabled={cerrada || saving} onClick={() => void releer.releer()} />}
       <DepositoCampos
         f={f}
         data={data}

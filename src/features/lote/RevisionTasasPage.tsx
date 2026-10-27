@@ -17,8 +17,11 @@ import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { TasaCampos } from "@/features/tasas/TasaCampos";
-import { BarraAcciones, ListaCola, RevisionLayout, TeclaAtajo, type Filtro } from "./RevisionLayout";
+import { BarraAcciones, BotonReleer, ListaCola, RevisionLayout, TeclaAtajo, type Filtro } from "./RevisionLayout";
+import { extractor } from "@/extraction/extractor";
 import { useAutoguardado } from "./useAutoguardado";
+import { useReleer } from "./useReleer";
+import { releerBorradorTasa } from "./leerEnBorrador";
 
 export function RevisionTasasPage() {
   const { data: items, error } = useData((db) => listColaTasas(db), []);
@@ -108,6 +111,19 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
     invalidate();
   });
 
+  const releer = useReleer({
+    imagenPath: item.imagenPath,
+    formato: item.formato,
+    borrador: form,
+    extraer: (imagen) => extractor.extraerTasa(imagen),
+    reemplazar: releerBorradorTasa,
+    aplicar: (b) => {
+      setForm(b);
+      fechaImagen.current = b.auto.estado.fecha === "ocr" ? b.draft.fecha : null;
+    },
+    guardar: async (b, formato) => guardarBorradorTasa(await getDb(), item.id, b, formato),
+  });
+
   function set(k: keyof TasaDraft, v: string) {
     setForm((f) => ({ draft: { ...f.draft, [k]: v }, auto: k === "notas" ? f.auto : marcarTocado(f.auto, k) }));
     setErrors((e) => ({ ...e, [k]: undefined }));
@@ -160,7 +176,8 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
       }}
     >
       {hecho && <Aviso>Ya está hecho: la tasa quedó registrada.</Aviso>}
-      {!hecho && item.formato === null && <Aviso tono="warning">No se leyó la imagen: completa los datos a mano.</Aviso>}
+      {!hecho && item.formato === null && <Aviso tono="warning">No se leyó la imagen: completa los datos a mano o vuelve a leerla.</Aviso>}
+      {!hecho && <BotonReleer leyendo={releer.leyendo} disabled={saving} onClick={() => void releer.releer()} />}
       <fieldset disabled={hecho || saving} className="grid gap-4">
         <TasaCampos form={form} set={set} errors={errors} fechaBloqueada={false} fechaImagen={fechaImagen.current} />
       </fieldset>

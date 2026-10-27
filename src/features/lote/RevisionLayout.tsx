@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, Circle, CircleDot } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, LoaderCircle, ScanText } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PageHeader, type Miga } from "@/components/PageHeader";
 import { Vacio } from "@/components/Feedback";
 import { Casilla } from "@/components/Casilla";
@@ -82,6 +83,18 @@ function useAltoRestante(ref: React.RefObject<HTMLElement | null>): number | und
 /** Hecho / Saltar / Descartar: siempre a la vista al pie de la columna del formulario, aunque este haga scroll. */
 export function BarraAcciones({ children }: { children: ReactNode }) {
   return <div className="sticky bottom-0 z-10 -mt-1 flex justify-end gap-2 border-t bg-background pt-3 pb-1">{children}</div>;
+}
+
+/** "Volver a leer" la imagen con el OCR (ver `useReleer`), arriba del formulario. */
+export function BotonReleer({ leyendo, disabled, onClick }: { leyendo: boolean; disabled?: boolean; onClick: () => void }) {
+  return (
+    <div className="flex justify-end">
+      <Button type="button" variant="outline" size="sm" disabled={disabled || leyendo} title="Lee la imagen otra vez; lo leído reemplaza lo que haya (con Deshacer)" onClick={onClick}>
+        {leyendo ? <LoaderCircle className="animate-spin" /> : <ScanText />}
+        {leyendo ? "Leyendo…" : "Volver a leer"}
+      </Button>
+    </div>
+  );
 }
 
 /** Atajo que se muestra dentro de un botón (fuera del nombre accesible). */

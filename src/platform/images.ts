@@ -22,8 +22,12 @@ export async function saveImage(file: Blob): Promise<string> {
 }
 
 export async function loadImageUrl(relPath: string): Promise<string> {
-  const bytes = await readFile(relPath, opts);
-  return URL.createObjectURL(new Blob([bytes], { type: mimeForPath(relPath) }));
+  return URL.createObjectURL(await loadImageBlob(relPath));
+}
+
+/** La imagen guardada como `Blob` (con su tipo), p. ej. para volver a leerla con el OCR. */
+export async function loadImageBlob(relPath: string): Promise<Blob> {
+  return new Blob([await readFile(relPath, opts)], { type: mimeForPath(relPath) });
 }
 
 export async function persistImagen(v: ImagenValue): Promise<string | null> {

@@ -51,6 +51,30 @@ export function aplicarExtraccion<F extends string>(
   return { valores: v, auto: { estado, confianza } };
 }
 
+/**
+ * "Volver a leer" a pedido: lo leído reemplaza lo que haya, también lo escrito a mano (se puede deshacer);
+ * lo que no se leyó queda como estaba. `cambiados`: los campos cuyo valor cambió.
+ */
+export function reemplazarConExtraccion<F extends string>(
+  valores: Record<F, string>,
+  a: Autollenado<F>,
+  propuestos: Partial<Record<F, CampoPropuesto>>,
+): { valores: Record<F, string>; auto: Autollenado<F>; cambiados: F[] } {
+  const v = { ...valores };
+  const estado = { ...a.estado };
+  const confianza = { ...a.confianza };
+  const cambiados: F[] = [];
+  for (const k of Object.keys(propuestos) as F[]) {
+    const p = propuestos[k];
+    if (!p) continue;
+    if (v[k] !== p.value) cambiados.push(k);
+    v[k] = p.value;
+    estado[k] = "ocr";
+    confianza[k] = p.confidence;
+  }
+  return { valores: v, auto: { estado, confianza }, cambiados };
+}
+
 const CONFIANZA_TASA_OTRA_FECHA = 0.6;
 
 /** Si la fecha del formulario no la cambia el OCR y la imagen es de otro día, su valor queda para revisar. */
