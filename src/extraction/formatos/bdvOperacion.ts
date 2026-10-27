@@ -39,7 +39,9 @@ export const bdvOperacion: Reconocedor<CamposDeposito> = {
   id: "bdv-operacion",
   detecta(filas) {
     const todo = claveComparacion(filas.map((f) => f.texto).join(" "));
-    if (!todo.includes(claveComparacion("BDVenlínea")) && !todo.includes(claveComparacion("Banco de Venezuela"))) return false;
+    // La captura puede venir recortada sin el título ni el pie: entonces basta la frase de la transferencia.
+    const marca = ["BDVenlínea", "Banco de Venezuela", "Tu transferencia de fondos"].some((t) => todo.includes(claveComparacion(t)));
+    if (!marca) return false;
     return OPERACION.test(filas.map((f) => f.texto).join(" ")) && todo.includes("instrumento");
   },
   extrae(filas) {

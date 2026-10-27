@@ -20,8 +20,8 @@ it("recuerda un alias y lo reemplaza si se guarda de nuevo", async () => {
 });
 
 it("incluye los bancos ya usados apuntando a sí mismos", async () => {
-  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Banco Caroní", referencia: "1" }));
-  expect((await bancosConocidos(db)).get("bancocaroni")).toBe("Banco Caroní");
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { banco: "Banco Inventado", referencia: "1" }));
+  expect((await bancosConocidos(db)).get("bancoinventado")).toBe("Banco Inventado");
 });
 
 it("un alias recordado gana sobre un banco usado con ese nombre", async () => {

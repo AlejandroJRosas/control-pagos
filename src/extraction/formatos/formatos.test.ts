@@ -10,6 +10,10 @@ import { mercantilSolicitud } from "./mercantilSolicitud";
 import { bncMovimiento } from "./bncMovimiento";
 import { bdtTransferencia } from "./bdtTransferencia";
 import { bdvOperacion } from "./bdvOperacion";
+import { bdvPagomovil } from "./bdvPagomovil";
+import { provincialDineroRapido } from "./provincialDineroRapido";
+import { caroniPagos } from "./caroniPagos";
+import { bancamigaTransaccion } from "./bancamigaTransaccion";
 import { reconocedoresDeposito, reconocedoresTasa } from "./index";
 import bdvOscuro from "./__fixtures__/bdv-oscuro.json";
 import bdvClaro from "./__fixtures__/bdv-claro.json";
@@ -22,6 +26,15 @@ import mercantilFixture from "./__fixtures__/mercantil.json";
 import bncFixture from "./__fixtures__/bnc.json";
 import bdtFixture from "./__fixtures__/bdt.json";
 import bdvOperacionFixture from "./__fixtures__/bdv-operacion.json";
+import bdvOperacionSinTitulo from "./__fixtures__/bdv-operacion-sin-titulo.json";
+import pagomovilOscuro from "./__fixtures__/bdv-pagomovil-oscuro.json";
+import pagomovilOscuro2 from "./__fixtures__/bdv-pagomovil-oscuro-2.json";
+import pagomovilClaro from "./__fixtures__/bdv-pagomovil-claro.json";
+import pagomovilClaro2 from "./__fixtures__/bdv-pagomovil-claro-2.json";
+import pagomovilOtrosBancos from "./__fixtures__/bdv-pagomovil-otros-bancos.json";
+import provincialFixture from "./__fixtures__/provincial.json";
+import caroniFixture from "./__fixtures__/caroni.json";
+import bancamigaFixture from "./__fixtures__/bancamiga.json";
 
 const HOY = "2026-10-18";
 const filasDe = (r: OcrResultado) => agruparFilas(r);
@@ -188,6 +201,108 @@ describe("bdv-operacion", () => {
   });
 });
 
+describe("bdv-operacion sin el título de la página", () => {
+  it("captura recortada sin \"BDVenlínea\": la frase de la transferencia basta", () => {
+    const f = filasDe(bdvOperacionSinTitulo);
+    expect(bdvOperacion.detecta(f)).toBe(true);
+    expect(valores(normalizarDeposito(bdvOperacion.extrae(f), HOY))).toEqual({
+      montoBs: "17.536,00",
+      referencia: "0591321478207",
+      banco: BANCO,
+      cuentaDestino: "0102014542000247",
+    });
+  });
+});
+
+describe("bdv-pagomovil con capturas reales", () => {
+  const TEL = "04141234567";
+  it.each([
+    ["oscuro", pagomovilOscuro, { montoBs: "22.002,75", fecha: "2026-10-16", referencia: "007687628929", banco: BANCO, cuentaDestino: TEL }],
+    ["oscuro sin concepto", pagomovilOscuro2, { montoBs: "20.264,53", fecha: "2026-10-19", referencia: "007731214574", banco: BANCO, cuentaDestino: TEL }],
+    ["claro", pagomovilClaro, { montoBs: "26.432,00", fecha: "2026-10-19", referencia: "007726574923", banco: BANCO, cuentaDestino: TEL }],
+    ["claro 2", pagomovilClaro2, { montoBs: "27.314,00", fecha: "2026-10-17", referencia: "007710762017", banco: BANCO, cuentaDestino: TEL }],
+    // Movimiento "otros banco": el monto va en negativo y no trae destino.
+    ["otros bancos", pagomovilOtrosBancos, { montoBs: "12.335,00", fecha: "2026-10-17", referencia: "0050312423539", banco: BANCO }],
+  ])("%s", (_, fixture, esperado) => {
+    const f = filasDe(fixture);
+    expect(bdvPagomovil.detecta(f)).toBe(true);
+    expect(valores(normalizarDeposito(bdvPagomovil.extrae(f), HOY))).toEqual(esperado);
+  });
+});
+
+describe("provincial, caroní y bancamiga con capturas reales", () => {
+  it("provincial (Dinero Rápido): el destino es el celular y la referencia de la pantalla queda para revisar", () => {
+    const f = filasDe(provincialFixture);
+    expect(provincialDineroRapido.detecta(f)).toBe(true);
+    const r = provincialDineroRapido.extrae(f);
+    expect(valores(normalizarDeposito(r, HOY))).toEqual({
+      montoBs: "12.348,00",
+      fecha: "2026-10-18",
+      referencia: "000000069",
+      banco: "Provincial",
+      cuentaDestino: "04141234567",
+    });
+    // En el Provincial la referencia que se registra es la cédula de quien paga, que el comprobante no trae.
+    expect(r.referencia?.certeza).toBe("heuristica");
+  });
+
+  it("caroní: la fecha va con guiones y el destino es el teléfono sin el código del banco", () => {
+    const f = filasDe(caroniFixture);
+    expect(caroniPagos.detecta(f)).toBe(true);
+    const r = caroniPagos.extrae(f);
+    expect(valores(normalizarDeposito(r, HOY))).toEqual({
+      montoBs: "19.406,56",
+      fecha: "2026-10-16",
+      referencia: "04608804",
+      banco: "Caroní",
+      cuentaDestino: "04141234567",
+    });
+    expect(r.fecha).toEqual({ texto: "16/10/2026", certeza: "etiqueta" });
+  });
+
+  it("bancamiga: año de dos cifras y el ícono de copiar leído como 0 al final de la referencia", () => {
+    const f = filasDe(bancamigaFixture);
+    expect(bancamigaTransaccion.detecta(f)).toBe(true);
+    const r = bancamigaTransaccion.extrae(f);
+    expect(valores(normalizarDeposito(r, HOY))).toEqual({
+      montoBs: "215.862,15",
+      fecha: "2026-10-19",
+      referencia: "1190880946",
+      banco: "Bancamiga",
+      cuentaDestino: "MYA COLECCIONES 2006, C.A",
+    });
+    expect(r.referencia?.certeza).toBe("heuristica");
+  });
+});
+
+describe("provincial, caroní, bancamiga y pagomóvil con texto sintético", () => {
+  it("bancamiga: una referencia de 10 dígitos es segura", () => {
+    const f = filas("Bancamiga", "NUMERO DE REFERENCIA:", "1190880946", "MONTO DE LA OPERACIÓN:", "Bs. 1,00");
+    expect(bancamigaTransaccion.extrae(f).referencia).toEqual({ texto: "1190880946", certeza: "etiqueta" });
+  });
+
+  it("bancamiga: la fecha con el año completo también se lee", () => {
+    const f = filas("Bancamiga", "NUMERO DE REFERENCIA:", "1", "FECHA:", "19/10/2026 07:39 pm");
+    expect(bancamigaTransaccion.extrae(f).fecha).toEqual({ texto: "19/10/2026", certeza: "etiqueta" });
+  });
+
+  it("pagomóvil: un monto con punto en lugar de coma decimal se repara como heurística", () => {
+    const f = filas("PagomóvilBDV Personas", "22.002.75 Bs", "Operación: 007687628929");
+    expect(bdvPagomovil.extrae(f).montoBs).toEqual({ texto: "22.002,75", certeza: "heuristica" });
+  });
+
+  it("caroní: un teléfono escrito con el 0 y sin código de banco queda igual", () => {
+    const f = filas("Caroní Pagos", "Número de Referencia : 04608804", "Cuenta / Tarjeta Destino / Tlf : 04141234567");
+    expect(caroniPagos.extrae(f).cuentaDestino).toEqual({ texto: "04141234567", certeza: "etiqueta" });
+  });
+
+  it("un comprobante de otro banco que nombra a Bancamiga o al Provincial como destino no se confunde", () => {
+    const f = filas("PagomóvilBDV Personas", "Operación: 007687628929", "Banco: 0172 - BANCAMIGA BANCO UNIVERSAL", "Banco: BBVA Provincial");
+    expect(bancamigaTransaccion.detecta(f)).toBe(false);
+    expect(provincialDineroRapido.detecta(f)).toBe(false);
+  });
+});
+
 describe("detección", () => {
   it("cada reconocedor detecta solo sus imágenes", () => {
     const propias = new Map<Reconocedor<string>, OcrResultado[]>([
@@ -196,7 +311,11 @@ describe("detección", () => {
       [mercantilSolicitud, [mercantilFixture]],
       [bncMovimiento, [bncFixture]],
       [bdtTransferencia, [bdtFixture]],
-      [bdvOperacion, [bdvOperacionFixture]],
+      [bdvOperacion, [bdvOperacionFixture, bdvOperacionSinTitulo]],
+      [bdvPagomovil, [pagomovilOscuro, pagomovilOscuro2, pagomovilClaro, pagomovilClaro2, pagomovilOtrosBancos]],
+      [provincialDineroRapido, [provincialFixture]],
+      [caroniPagos, [caroniFixture]],
+      [bancamigaTransaccion, [bancamigaFixture]],
       [tasaMariandres, [tasaFixture]],
     ]);
     const todas = [...propias.values()].flat();
@@ -212,10 +331,27 @@ describe("detección", () => {
     expect(bncMovimiento.detecta(f)).toBe(false);
     expect(bdtTransferencia.detecta(f)).toBe(false);
     expect(bdvOperacion.detecta(f)).toBe(false);
+    expect(bdvPagomovil.detecta(f)).toBe(false);
+    expect(provincialDineroRapido.detecta(f)).toBe(false);
+    expect(caroniPagos.detecta(f)).toBe(false);
+    expect(bancamigaTransaccion.detecta(f)).toBe(false);
   });
 
   it("el registro incluye los formatos", () => {
-    expect(reconocedoresDeposito).toEqual(expect.arrayContaining([bdvTransferenciaTerceros, banescoOperacion, mercantilSolicitud, bncMovimiento, bdtTransferencia, bdvOperacion]));
+    expect(reconocedoresDeposito).toEqual(
+      expect.arrayContaining([
+        bdvTransferenciaTerceros,
+        banescoOperacion,
+        mercantilSolicitud,
+        bncMovimiento,
+        bdtTransferencia,
+        bdvOperacion,
+        bdvPagomovil,
+        provincialDineroRapido,
+        caroniPagos,
+        bancamigaTransaccion,
+      ]),
+    );
     expect(reconocedoresTasa).toContain(tasaMariandres);
   });
 });
