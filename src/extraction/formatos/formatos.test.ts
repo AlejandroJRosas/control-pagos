@@ -9,6 +9,7 @@ import { banescoOperacion } from "./banescoOperacion";
 import { mercantilSolicitud } from "./mercantilSolicitud";
 import { bncMovimiento } from "./bncMovimiento";
 import { bdtTransferencia } from "./bdtTransferencia";
+import { bdtOperacion } from "./bdtOperacion";
 import { bdvOperacion } from "./bdvOperacion";
 import { bdvPagomovil } from "./bdvPagomovil";
 import { provincialDineroRapido } from "./provincialDineroRapido";
@@ -26,6 +27,8 @@ import banescoFixture from "./__fixtures__/banesco.json";
 import mercantilFixture from "./__fixtures__/mercantil.json";
 import bncFixture from "./__fixtures__/bnc.json";
 import bdtFixture from "./__fixtures__/bdt.json";
+import bdtDetalleFixture from "./__fixtures__/bdt-detalle.json";
+import bdtExitosaFixture from "./__fixtures__/bdt-exitosa.json";
 import bdvOperacionFixture from "./__fixtures__/bdv-operacion.json";
 import bdvOperacionSinTitulo from "./__fixtures__/bdv-operacion-sin-titulo.json";
 import pagomovilOscuro from "./__fixtures__/bdv-pagomovil-oscuro.json";
@@ -168,6 +171,36 @@ describe("bdt-transferencia", () => {
   it("un monto con punto en lugar de coma decimal se repara como heurística", () => {
     const f = filas("Banco Digital de los Trabajadores", "Número de referencia: 1234", "Monto Bs: 117.125.16");
     expect(bdtTransferencia.extrae(f).montoBs).toEqual({ texto: "117.125,16", certeza: "heuristica" });
+  });
+});
+
+describe("bdt-operacion", () => {
+  it("captura real del detalle (P2P): fecha de la operación, sin destino", () => {
+    const f = filasDe(bdtDetalleFixture);
+    expect(bdtOperacion.detecta(f)).toBe(true);
+    expect(valores(normalizarDeposito(bdtOperacion.extrae(f), HOY))).toEqual({
+      montoBs: "26.457,00",
+      fecha: "2026-10-20",
+      referencia: "237021",
+      banco: "Banco Digital de los Trabajadores",
+    });
+  });
+
+  it("captura real de la operación exitosa: el destino es el celular aunque la etiqueta salga mal leída", () => {
+    const f = filasDe(bdtExitosaFixture);
+    expect(bdtOperacion.detecta(f)).toBe(true);
+    expect(valores(normalizarDeposito(bdtOperacion.extrae(f), HOY))).toEqual({
+      montoBs: "44.312,00",
+      fecha: "2026-10-23",
+      referencia: "0000370678",
+      banco: "Banco Digital de los Trabajadores",
+      cuentaDestino: "04141234567",
+    });
+  });
+
+  it("un monto con punto en lugar de coma decimal se repara como heurística", () => {
+    const f = filas("de los Trabajadores", "Referencia:", "237021", "Monto:", "26.457.00 Bs");
+    expect(bdtOperacion.extrae(f).montoBs).toEqual({ texto: "26.457,00", certeza: "heuristica" });
   });
 });
 
@@ -340,6 +373,7 @@ describe("detección", () => {
       [mercantilSolicitud, [mercantilFixture]],
       [bncMovimiento, [bncFixture]],
       [bdtTransferencia, [bdtFixture]],
+      [bdtOperacion, [bdtDetalleFixture, bdtExitosaFixture]],
       [bdvOperacion, [bdvOperacionFixture, bdvOperacionSinTitulo]],
       [bdvPagomovil, [pagomovilOscuro, pagomovilOscuro2, pagomovilClaro, pagomovilClaro2, pagomovilOtrosBancos]],
       [provincialDineroRapido, [provincialFixture]],
@@ -360,6 +394,7 @@ describe("detección", () => {
     expect(mercantilSolicitud.detecta(f)).toBe(false);
     expect(bncMovimiento.detecta(f)).toBe(false);
     expect(bdtTransferencia.detecta(f)).toBe(false);
+    expect(bdtOperacion.detecta(f)).toBe(false);
     expect(bdvOperacion.detecta(f)).toBe(false);
     expect(bdvPagomovil.detecta(f)).toBe(false);
     expect(provincialDineroRapido.detecta(f)).toBe(false);
@@ -376,6 +411,7 @@ describe("detección", () => {
         mercantilSolicitud,
         bncMovimiento,
         bdtTransferencia,
+        bdtOperacion,
         bdvOperacion,
         bdvPagomovil,
         provincialDineroRapido,

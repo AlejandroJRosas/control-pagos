@@ -4,6 +4,7 @@ import { bdvTransferenciaTerceros } from "./bdvTransferenciaTerceros";
 import { mercantilSolicitud } from "./mercantilSolicitud";
 import { bncMovimiento } from "./bncMovimiento";
 import { bdtTransferencia } from "./bdtTransferencia";
+import { bdtOperacion } from "./bdtOperacion";
 import { bdvOperacion } from "./bdvOperacion";
 import { bdvPagomovil } from "./bdvPagomovil";
 import { provincialDineroRapido } from "./provincialDineroRapido";
@@ -13,5 +14,5 @@ import { bdvOtrosBancos } from "./bdvOtrosBancos";
 import { tasaMariandres } from "./tasaMariandres";
 
 /** Formatos soportados, en orden de prueba: se usa el primero que detecta la imagen. Un formato nuevo se agrega aquí. */
-export const reconocedoresDeposito: Reconocedor<CamposDeposito>[] = [bdvTransferenciaTerceros, bdvOperacion, banescoOperacion, mercantilSolicitud, bncMovimiento, bdtTransferencia, bdvPagomovil, provincialDineroRapido, caroniPagos, bancamigaTransaccion, bdvOtrosBancos];
+export const reconocedoresDeposito: Reconocedor<CamposDeposito>[] = [bdvTransferenciaTerceros, bdvOperacion, banescoOperacion, mercantilSolicitud, bncMovimiento, bdtTransferencia, bdtOperacion, bdvPagomovil, provincialDineroRapido, caroniPagos, bancamigaTransaccion, bdvOtrosBancos];
 export const reconocedoresTasa: Reconocedor<CamposTasa>[] = [tasaMariandres];
