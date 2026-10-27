@@ -1,10 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando } from "@/components/Feedback";
+import { Field } from "@/components/Field";
+import { BuscadorSelect } from "@/components/BuscadorSelect";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ImageDrop } from "@/components/ImageDrop";
 import { getDb } from "@/db";
 import { getAsignacion, type AsignacionDetalle } from "@/db/repos/asignaciones";
@@ -14,6 +25,7 @@ import { registrarDepositoEnCampana } from "@/db/operaciones/destino";
 import { actualizarDuplicado } from "@/db/operaciones/revision";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
 import { todayIso } from "@/domain/dates";
+import { destinosPara } from "@/domain/moverDepositos";
 import { DomainError } from "@/domain/errors";
 import { toInputVE } from "@/domain/money";
 import type { DepositoDraft } from "@/domain/validation";
@@ -27,6 +39,7 @@ import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { avisarDepositosEliminados } from "@/lib/deshacer";
 import { leerVolver } from "@/lib/volver";
+import { leerRecorrido, vecinos } from "@/lib/recorrido";
 import { tomarArchivos, useReceptorArchivos } from "@/lib/soltarArchivos";
 import { receptorCampana, receptorCerrada } from "@/components/SoltarImagenes";
 import { sugerenciasBancos } from "@/domain/bancos";
@@ -35,9 +48,9 @@ import { MotivoDuplicado } from "./DuplicadoBloqueo";
 import { camposOcr, conExtraccion, depositoVacio, SIN_DESTINO, useDepositoForm, type DepositoFormState } from "./useDepositoForm";
 
 /** `asignacion` es null al registrar desde la campaña: el gerente se elige (o se crea) en el formulario. */
-/** Lo que el usuario puede cambiar; la tasa no cuenta porque se deriva de la fecha. */
-const huella = (s: DepositoFormState, imagen: ImagenValue) =>
-  JSON.stringify({ ...s.draft, tasaId: null, destino: s.destino, imagen: imagen?.kind === "stored" ? imagen.path : imagen ? imagen.previewUrl : null });
+/** Lo que el usuario puede cambiar; la tasa no cuenta porque se deriva de la fecha. `gerente`: a quién se pasa uno existente. */
+const huella = (s: DepositoFormState, imagen: ImagenValue, gerente?: number) =>
+  JSON.stringify({ ...s.draft, tasaId: null, destino: s.destino, imagen: imagen?.kind === "stored" ? imagen.path : imagen ? imagen.previewUrl : null, gerente });
 
 type Ctx = { deposito: Deposito | null; asignacion: AsignacionDetalle | null; data: CampanaData; bancos: string[]; gerentes: Gerente[] };
 
@@ -65,16 +78,39 @@ export function DepositoPage() {
 
 function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const campana = data.campana;
   // Vuelve a la lista desde la que se abrió (con sus filtros); si no se sabe, al gerente o a la campaña.
   const volver =
-    leerVolver(useLocation().state) ??
+    leerVolver(location.state) ??
     (asignacion ? { to: `/asignaciones/${asignacion.id}`, label: asignacion.gerenteNombre } : { to: `/campanas/${campana.id}`, label: campana.nombre });
   const cerrada = campana.estado === "cerrada";
+  // ← / → recorren la lista desde la que se abrió (fija mientras se recorre: un depósito movido no la corre).
+  const recorrido = leerRecorrido(location.state);
+  const lugar = deposito && recorrido ? vecinos(recorrido, deposito.id) : null;
+  // Uno existente se puede pasar a otro gerente de la campaña: primero la gente de su estructura.
+  const [gerente, setGerente] = useState(deposito ? asignacion?.id : undefined);
+  const opcionesGerente = useMemo(
+    () =>
+      deposito && asignacion
+        ? [
+            { value: String(asignacion.id), label: asignacion.gerenteNombre, detalle: "Actual" },
+            ...destinosPara(data.asignaciones, [asignacion.id]).map((d) => ({
+              value: String(d.id),
+              label: d.gerenteNombre,
+              detalle: d.equipo ? "De su equipo" : undefined,
+            })),
+          ]
+        : [],
+    [deposito, asignacion, data.asignaciones],
+  );
+  const elegido = data.asignaciones.find((a) => a.id === gerente);
+  // Los saldos del formulario son los del gerente elegido.
+  const asignacionForm = asignacion && elegido && elegido.id !== asignacion.id ? { ...asignacion, id: elegido.id, gerenteNombre: elegido.gerenteNombre } : asignacion;
   const f = useDepositoForm({
     data,
-    asignacion,
+    asignacion: asignacionForm,
     depositoId: deposito?.id,
     inicial: () => {
       if (!deposito) return { draft: depositoVacio(todayIso()), auto: autollenadoNuevo(), destino: SIN_DESTINO };
@@ -99,14 +135,31 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
   const [imagen, setImagen] = useState<ImagenValue>(deposito?.imagenPath ? { kind: "stored", path: deposito.imagenPath } : null);
   const [tasaDialog, setTasaDialog] = useState(false);
   const [saving, setSaving] = useState(false);
-  const huellaInicial = useRef(huella(f.form, imagen));
-  const aviso = useAvisoSinGuardar(!cerrada && huella(f.form, imagen) !== huellaInicial.current);
+  const huellaInicial = useRef(huella(f.form, imagen, gerente));
+  const sucio = !cerrada && huella(f.form, imagen, gerente) !== huellaInicial.current;
+  const aviso = useAvisoSinGuardar(sucio);
+  // Al pasar a otro depósito con cambios: a cuál se quería ir.
+  const [preguntarIr, setPreguntarIr] = useState<number | null>(null);
 
   // Mientras se busca la tasa de la fecha no se puede guardar: el depósito saldría sin tasa o con la anterior.
   const buscandoTasa = f.tasa === undefined;
   // Uno nuevo con el banco y la referencia de otro no se guarda: se actualiza el existente o se descarta.
   const duplicado = !deposito && f.duplicados.length > 0;
   useAtajo("Enter", () => void guardar(false), { ctrl: true, activo: !cerrada && !saving && !buscandoTasa && !duplicado });
+  useAtajo("ArrowLeft", () => pedirIr(lugar?.anterior ?? null), { activo: lugar?.anterior != null && !saving });
+  useAtajo("ArrowRight", () => pedirIr(lugar?.siguiente ?? null), { activo: lugar?.siguiente != null && !saving });
+
+  /** Al anterior o siguiente de la lista; con cambios sin guardar, primero pregunta. */
+  function pedirIr(id: number | null) {
+    if (id === null) return;
+    if (sucio) setPreguntarIr(id);
+    else irA(id);
+  }
+
+  function irA(id: number) {
+    aviso.permitirSalida();
+    navigate(`/depositos/${id}`, { state: location.state, replace: true });
+  }
 
   // Una imagen soltada en cualquier parte es el comprobante; varias se van a la subida en lote de la campaña.
   const lote = receptorCampana(navigate, { id: campana.id, nombre: campana.nombre, asignacionId: asignacion?.id });
@@ -192,7 +245,8 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
     }
   }
 
-  async function guardar(yNuevo: boolean) {
+  /** `ir`: después de guardar, el depósito de la lista al que se pasa. */
+  async function guardar(yNuevo: boolean, ir?: number) {
     if (buscandoTasa || duplicado) return;
     const r = f.validar();
     if (!r) return;
@@ -202,16 +256,21 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
       const v = { ...r.deposito, imagenPath: await persistImagen(imagen) };
       let asignacionId: number;
       if (deposito) {
-        await updateDeposito(db, deposito.id, v);
-        asignacionId = deposito.asignacionId;
+        const otro = gerente !== undefined && gerente !== deposito.asignacionId ? gerente : undefined;
+        await updateDeposito(db, deposito.id, v, otro === undefined ? undefined : { asignacionId: otro });
+        asignacionId = otro ?? deposito.asignacionId;
       } else if (r.destino) {
         asignacionId = await registrarDepositoEnCampana(db, campana.id, r.destino, v);
       } else {
         await createDeposito(db, asignacion!.id, v);
         asignacionId = asignacion!.id;
       }
-      toast.success(deposito ? "Depósito actualizado" : "Depósito registrado");
-      if (yNuevo) {
+      const movido = deposito && asignacionId !== deposito.asignacionId ? elegido?.gerenteNombre : undefined;
+      toast.success(movido ? `Depósito movido a ${movido}` : deposito ? "Depósito actualizado" : "Depósito registrado");
+      if (ir !== undefined) {
+        irA(ir);
+        invalidate();
+      } else if (yNuevo) {
         reiniciar(asignacionId);
         invalidate();
       } else {
@@ -250,11 +309,28 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
         title={deposito ? "Editar depósito" : "Registrar depósito"}
         subtitle={asignacion ? `${asignacion.gerenteNombre} · ${asignacion.campanaNombre}` : `Campaña ${campana.nombre}`}
         actions={
-          deposito && !cerrada ? (
-            <Button variant="outline" className="text-destructive" onClick={() => void eliminar()}>
-              <Trash2 />
-              Eliminar
-            </Button>
+          deposito && (lugar || !cerrada) ? (
+            <>
+              {lugar && (
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Button variant="ghost" size="icon" aria-label="Depósito anterior" title="←" disabled={lugar.anterior === null} onClick={() => pedirIr(lugar.anterior)}>
+                    <ChevronLeft />
+                  </Button>
+                  <span className="tabular-nums">
+                    {lugar.posicion} de {lugar.total}
+                  </span>
+                  <Button variant="ghost" size="icon" aria-label="Depósito siguiente" title="→" disabled={lugar.siguiente === null} onClick={() => pedirIr(lugar.siguiente)}>
+                    <ChevronRight />
+                  </Button>
+                </div>
+              )}
+              {!cerrada && (
+                <Button variant="outline" className="text-destructive" onClick={() => void eliminar()}>
+                  <Trash2 />
+                  Eliminar
+                </Button>
+              )}
+            </>
           ) : null
         }
       />
@@ -278,6 +354,17 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
           }}
         >
           {leyendo && <p className="text-sm text-muted-foreground">Leyendo comprobante…</p>}
+          {deposito && asignacion && (
+            <Field id="d-gerente" label="Gerente" hint={gerente !== asignacion.id ? `Al guardar pasa de ${asignacion.gerenteNombre} a ${elegido?.gerenteNombre}` : undefined}>
+              <BuscadorSelect
+                id="d-gerente"
+                value={String(gerente)}
+                onChange={(v) => v && setGerente(Number(v))}
+                opciones={opcionesGerente}
+                disabled={cerrada || saving}
+              />
+            </Field>
+          )}
           <DepositoCampos
             f={f}
             data={data}
@@ -307,6 +394,38 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
       </div>
 
       {aviso.dialogo}
+      <AlertDialog open={preguntarIr !== null} onOpenChange={(o) => !o && setPreguntarIr(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Guardar los cambios?</AlertDialogTitle>
+            <AlertDialogDescription>Este depósito tiene cambios sin guardar. Puedes guardarlos antes de pasar al otro o descartarlos.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const id = preguntarIr;
+                setPreguntarIr(null);
+                if (id !== null) irA(id);
+              }}
+            >
+              No guardar
+            </Button>
+            <Button
+              autoFocus
+              disabled={saving || buscandoTasa || duplicado}
+              onClick={() => {
+                const id = preguntarIr;
+                setPreguntarIr(null);
+                if (id !== null) void guardar(false, id);
+              }}
+            >
+              {saving ? "Guardando…" : "Guardar y seguir"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

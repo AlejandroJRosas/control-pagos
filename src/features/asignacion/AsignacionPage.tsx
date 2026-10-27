@@ -50,7 +50,7 @@ export function AsignacionPage() {
       if (!resumen) throw new DomainError("NO_ENCONTRADO", "El gerente no está en esta campaña");
       // Con un depósito suyo duplicado no se exporta: los totales saldrían inflados.
       const duplicado = (await loadDuplicadosCampana(db, a.campanaId)).some((g) => g.some((dep) => dep.asignacionId === asignacionId));
-      return { a, campana: d.campana, view, duplicado, resumen, r: filtrarDepositos(view.depositos, { gerenteId: a.gerenteId }) };
+      return { a, campana: d.campana, asignaciones: d.asignaciones, view, duplicado, resumen, r: filtrarDepositos(view.depositos, { gerenteId: a.gerenteId }) };
     },
     [asignacionId],
   );
@@ -214,6 +214,7 @@ export function AsignacionPage() {
         volverLabel={a.gerenteNombre}
         clave={`asignacion-${a.id}`}
         filtrando={filtros.activos}
+        asignaciones={data.asignaciones}
         vacio={
           filtros.hayDepositos ? (
             <Vacio texto="Ningún depósito coincide con la búsqueda o los filtros.">

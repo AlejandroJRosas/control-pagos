@@ -49,10 +49,11 @@ export async function getDeposito(db: SqlDriver, id: number): Promise<Deposito |
   return row ?? null;
 }
 
-async function assertEditable(db: SqlDriver, asignacionId: number): Promise<void> {
+async function assertEditable(db: SqlDriver, asignacionId: number): Promise<number> {
   const a = await getAsignacion(db, asignacionId);
   if (!a) throw new DomainError("NO_ENCONTRADO", "La asignación no existe");
   await assertCampanaActiva(db, a.campanaId);
+  return a.campanaId;
 }
 
 async function assertTasaDeLaFecha(db: SqlDriver, v: DepositoGuardar): Promise<void> {
@@ -106,10 +107,13 @@ async function requireDeposito(db: SqlDriver, id: number): Promise<Deposito> {
   return d;
 }
 
-export async function updateDeposito(db: SqlDriver, id: number, v: DepositoGuardar, meta?: { actualizadoEn: string; asignacionId?: number }): Promise<void> {
+/** Con `meta.asignacionId` pasa el depósito a otro gerente, solo de la misma campaña. */
+export async function updateDeposito(db: SqlDriver, id: number, v: DepositoGuardar, meta?: { actualizadoEn?: string; asignacionId?: number }): Promise<void> {
   const actual = await requireDeposito(db, id);
-  await assertEditable(db, actual.asignacionId);
-  if (meta?.asignacionId !== undefined) await assertEditable(db, meta.asignacionId);
+  const campanaId = await assertEditable(db, actual.asignacionId);
+  if (meta?.asignacionId !== undefined && (await assertEditable(db, meta.asignacionId)) !== campanaId) {
+    throw new DomainError("VALIDACION", "Los depósitos solo se pasan a un gerente de la misma campaña");
+  }
   await assertTasaDeLaFecha(db, v);
   v = await conBancoCanonico(db, v);
   // Un duplicado que ya existía (de antes de esta regla) se puede seguir editando mientras no cambie su banco o referencia.

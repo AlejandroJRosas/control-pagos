@@ -305,7 +305,7 @@ export function CampanaPage() {
               <EstructuraTab campanaId={campanaId} gerentes={view.gerentes} jefes={jefes} cerrada={cerrada} />
             </TabsContent>
             <TabsContent value="depositos">
-              <TodosDepositosTab campanaId={campanaId} campanaNombre={campana.nombre} view={view} cerrada={cerrada} />
+              <TodosDepositosTab campanaId={campanaId} campanaNombre={campana.nombre} view={view} cerrada={cerrada} asignaciones={data.asignaciones} />
             </TabsContent>
           </Tabs>
         </>

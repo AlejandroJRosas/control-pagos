@@ -5,10 +5,11 @@ import { DepositosTable } from "@/components/DepositosTable";
 import { FiltrosDepositos, useFiltrosDepositos } from "@/components/FiltrosDepositos";
 import { Vacio } from "@/components/Feedback";
 import type { CampanaView } from "@/domain/campanaView";
+import type { AsignacionDestino } from "@/components/MoverDepositosDialog";
 
-type Props = { campanaId: number; campanaNombre: string; view: CampanaView; cerrada: boolean };
+type Props = { campanaId: number; campanaNombre: string; view: CampanaView; cerrada: boolean; asignaciones: AsignacionDestino[] };
 
-export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: Props) {
+export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada, asignaciones }: Props) {
   const filtros = useFiltrosDepositos(`campana-${campanaId}`, view.depositos);
   const { r, limpiar } = filtros;
 
@@ -51,6 +52,7 @@ export function TodosDepositosTab({ campanaId, campanaNombre, view, cerrada }: P
         volverLabel={campanaNombre}
         clave={`campana-${campanaId}`}
         filtrando={filtros.activos}
+        asignaciones={asignaciones}
       />
     </div>
   );

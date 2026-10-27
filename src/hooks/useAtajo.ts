@@ -46,6 +46,7 @@ export const ATAJOS: { titulo: string; atajos: { teclas: string[]; que: string }
       { teclas: ["Esc"], que: "Volver a la pantalla anterior" },
       { teclas: ["Inicio"], que: "Volver arriba de la página (también el botón que aparece abajo a la derecha al bajar)" },
       { teclas: ["←", "→"], que: "En los calendarios (Tasas y Cumpleaños): mes anterior o siguiente" },
+      { teclas: ["←", "→"], que: "En un depósito abierto desde una tabla: el anterior o el siguiente de esa lista (con cambios, pregunta si guardar)" },
       { teclas: ["←", "→"], que: "En el tutorial: paso anterior o siguiente (Esc lo cierra)" },
       { teclas: ["Ctrl", "B"], que: "Colapsar o expandir la barra lateral" },
       { teclas: ["Ctrl", "Rueda"], que: "Agrandar o achicar la app (también Ctrl + / Ctrl − ; Ctrl 0 vuelve al 100 %)" },

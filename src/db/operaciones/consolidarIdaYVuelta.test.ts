@@ -11,6 +11,7 @@ import { cargarEnvio } from "../queries/envioConsolidar";
 import { armarPaquete, leerPaquete, type Paquete } from "@/domain/paquete";
 import { clasificar, decisionesIniciales, motivoPendiente, type Decisiones, type PlanConsolidacion } from "@/domain/consolidar";
 import { aplicarConsolidacion, cargarLocal, emparejamientoInicial, type Resultado } from "./consolidar";
+import { moverDepositos } from "./moverDepositos";
 
 // Dos instalaciones (A y B) con la misma campaña, que se mandan archivos por el camino real:
 // cargarEnvio → armarPaquete → JSON → leerPaquete → emparejamientoInicial → cargarLocal → clasificar → decisionesIniciales → aplicar.
@@ -502,6 +503,33 @@ describe("consolidar ida y vuelta entre dos instalaciones", () => {
       expect(r.resultado).toMatchObject({ nuevos: 1, jefesCambiados: 0 });
       expect((await arbol(b.db)).filter((x) => x.jefe !== null)).toEqual([]);
     });
+  });
+
+  it("un depósito pasado a otro gerente llega como corrección de gerente, no como nuevo, y no rebota", async () => {
+    const a = await instalacion("A");
+    const b = await instalacion("B");
+    const luis = await createGerente(a.db, { nombre: "Luis", telefono: null });
+    const asigLuis = await createAsignacion(a.db, { campanaId: a.s.campanaId, gerenteId: luis, saldoUsd: "40" });
+    await registrar(a, { referencia: "111" });
+    reloj("2026-03-05T11:00:00.000Z");
+    expect((await recibir(b, await enviar(a))).resultado).toMatchObject({ gerentesAgregados: 1, nuevos: 1 });
+
+    reloj("2026-03-06T09:00:00.000Z");
+    await moverDepositos(a.db, [await idDe(a.db, "111")], asigLuis);
+    reloj("2026-03-06T10:00:00.000Z");
+    const r = await recibir(b, await enviar(a, true));
+    expect(r.plan.nuevos).toEqual([]);
+    expect(r.plan.correcciones.map((c) => c.cambios.map((x) => [x.campo, x.antes, x.despues]))).toEqual([[["gerente", "Ana", "Luis"]]]);
+    expect(r.resultado).toMatchObject({ corregidos: 1 });
+    const gerenteDe = (db: SqlDriver) =>
+      db.select<{ nombre: string }>(
+        "SELECT g.nombre FROM depositos d JOIN asignaciones a ON a.id = d.asignacion_id JOIN gerentes g ON g.id = a.gerente_id WHERE d.referencia = '111'",
+      );
+    expect(await gerenteDe(b.db)).toEqual([{ nombre: "Luis" }]);
+
+    reloj("2026-03-06T11:00:00.000Z");
+    expect((await recibir(a, await enviar(b, true))).motivo).toBe("No hay nada nuevo para consolidar");
+    expect(await gerenteDe(a.db)).toEqual([{ nombre: "Luis" }]);
   });
 
   it("aplicar el mismo archivo dos veces no cambia nada la segunda", async () => {

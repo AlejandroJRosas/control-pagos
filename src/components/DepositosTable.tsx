@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import Decimal from "decimal.js";
 import { useLocation, useNavigate } from "react-router";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { STICKY_PIE, Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { agruparPorDia, compareRecientePrimero, type FilaDeposito, type GrupoDia } from "@/domain/campanaView";
@@ -13,6 +13,7 @@ import { invalidate } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
 import { avisarDepositosEliminados } from "@/lib/deshacer";
 import { conVolver } from "@/lib/volver";
+import { conRecorrido } from "@/lib/recorrido";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { agruparPie, useColumnas } from "@/lib/columnas";
 import { useDiasPlegados } from "@/lib/diasPlegados";
@@ -22,6 +23,7 @@ import { ColumnasMenu } from "./ColumnasMenu";
 import { ComprobanteIcono } from "./ComprobanteIcono";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Vacio } from "./Feedback";
+import { MoverDepositosDialog, type AsignacionDestino } from "./MoverDepositosDialog";
 import { SortableHead, useOrden } from "./SortableHead";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +46,8 @@ type Props = {
   clave: string;
   /** Con búsqueda o filtros se ve todo, aunque haya días plegados. */
   filtrando?: boolean;
+  /** Los gerentes de la campaña (con su jefe): a quién se pueden pasar los depósitos marcados. */
+  asignaciones: AsignacionDestino[];
 };
 
 type Ordenable = "fecha" | "gerente" | "banco" | "referencia" | "cuenta" | "montoBs" | "tasa" | "usd" | "saldo" | "observaciones";
@@ -123,7 +127,7 @@ function Celda({ col, d }: { col: Col; d: FilaDeposito }) {
   }
 }
 
-export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, totalDe, totales, soloLectura = false, vacio, volverLabel, clave, filtrando = false }: Props) {
+export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, totalDe, totales, soloLectura = false, vacio, volverLabel, clave, filtrando = false, asignaciones }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const { orden, setOrden, alternar } = useOrden<Ordenable>();
@@ -131,6 +135,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
   const columnas = useColumnas(mostrarGerente ? "depositos-campana" : "depositos-gerente", mostrarGerente ? TODAS : SIN_GERENTE, OCULTAS_POR_DEFECTO);
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
   const [borrar, setBorrar] = useState<number[] | null>(null);
+  const [mover, setMover] = useState<{ ids: number[]; origenes: number[] } | null>(null);
   // Sobre el orden base, para que los empates de cualquier columna (p. ej. la fecha) respeten el orden de registro.
   const ordenadas = useMemo(() => ordenar([...filas].sort(compareRecientePrimero), COLUMNAS, orden), [filas, orden]);
   // En orden de fecha (el de siempre o al ordenar por ella) se agrupa por día; ordenada por otra columna, lista plana.
@@ -188,6 +193,11 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
       }
       return n;
     });
+  }
+
+  function moverElegidos() {
+    const origenes = [...new Set(filas.filter((d) => marcados.has(d.id)).map((d) => d.asignacionId))];
+    setMover({ ids: elegidos, origenes });
   }
 
   async function eliminar(ids: number[]) {
@@ -279,6 +289,10 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
               <Trash2 />
               Eliminar seleccionados
             </Button>
+            <Button size="sm" variant="outline" onClick={moverElegidos}>
+              <ArrowRightLeft />
+              Mover a otro gerente…
+            </Button>
             <Button size="sm" variant="ghost" onClick={() => setMarcados(new Set())}>
               Quitar selección
             </Button>
@@ -362,7 +376,11 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
                   data-state={marcados.has(d.id) ? "selected" : undefined}
                   onClick={() =>
                     navigate(`/depositos/${d.id}`, {
-                      state: conVolver(location, volverLabel),
+                      // ← / → en el depósito recorren esta lista, en este orden y con estos filtros.
+                      state: conRecorrido(
+                        conVolver(location, volverLabel),
+                        ordenadas.map((x) => x.id),
+                      ),
                     })
                   }
                 >
@@ -407,6 +425,12 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
           </TableFooter>
         )}
       </Table>
+      <MoverDepositosDialog
+        mover={mover}
+        asignaciones={asignaciones}
+        onOpenChange={(o) => !o && setMover(null)}
+        onMovidos={(ids) => setMarcados((m) => new Set([...m].filter((id) => !ids.includes(id))))}
+      />
       <ConfirmDialog
         open={borrar !== null}
         onOpenChange={(o) => !o && setBorrar(null)}
