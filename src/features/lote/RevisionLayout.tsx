@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, Circle, CircleDot, LoaderCircle, ScanText, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +42,9 @@ export function RevisionLayout({ migas, titulo, hechos, total, acciones, lista, 
           )}
         </div>
         {/* Sin padding abajo: la barra de acciones (BarraAcciones) queda pegada al pie de esta columna. */}
-        <div className="min-h-0 overflow-y-auto pr-1">{children}</div>
+        <div data-formulario-revision className="min-h-0 overflow-y-auto pr-1">
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -144,7 +146,10 @@ const FILTROS: { id: Filtro; label: string }[] = [
   { id: "todos", label: "Todos" },
 ];
 
-const tieneIncidencias = (i: ElementoLista) => i.estado === "pendiente" && !!i.motivos?.length;
+/** Primer campo editable del formulario de la revisión (columna derecha de `RevisionLayout`). */
+const enfocarCampo = () => document.querySelector<HTMLElement>("[data-formulario-revision] fieldset :is(input, textarea):not(:disabled)")?.focus();
+
+const tieneIncidencias =(i: ElementoLista) => i.estado === "pendiente" && !!i.motivos?.length;
 
 /** Lo que muestra cada filtro; el que se está revisando se queda en "incidencias" aunque ya no las tenga, hasta pasar a otro. */
 export function visiblesDe(items: ElementoLista[], filtro: Filtro, retenidoId: number | null = null): ElementoLista[] {
@@ -189,6 +194,13 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
   }
   useAtajo("ArrowDown", () => mover(1));
   useAtajo("ArrowUp", () => mover(-1));
+  // Tras Enter en el buscador, el foco pasa al primer campo del abierto (ya montado): Tab recorre sus campos y Ctrl+Enter lo da por hecho.
+  const enfocarFormulario = useRef(false);
+  useEffect(() => {
+    if (!enfocarFormulario.current) return;
+    enfocarFormulario.current = false;
+    enfocarCampo();
+  });
 
   /** Clic simple: abre y marca solo ese. Con Ctrl o Shift solo cambia la selección. */
   function clic(e: React.MouseEvent, id: number) {
@@ -209,11 +221,15 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
             placeholder="Referencia o monto…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            // Enter: abre el primero que coincide y lo centra en la lista.
+            // Enter: abre el primero que coincide, lo centra en la lista y pasa al formulario.
             onKeyDown={(e) => {
               if (e.key !== "Enter" || !visibles[0]) return;
               e.preventDefault();
+              const yaAbierto = visibles[0].id === actualId;
               abrir(visibles[0].id, "center");
+              // Si ya era el abierto su formulario está a la vista; si no, se enfoca cuando se monte.
+              if (yaAbierto) enfocarCampo();
+              else enfocarFormulario.current = true;
             }}
           />
         </div>

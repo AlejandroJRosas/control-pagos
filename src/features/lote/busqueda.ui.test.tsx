@@ -62,4 +62,15 @@ it("Enter en el buscador abre el primero que coincide", async () => {
 
   await user.type(screen.getByRole("searchbox", { name: "Buscar en la cola" }), "800{Enter}");
   expect(abierto()).toBe("Banco 3");
+  // El foco pasa al formulario del abierto: Tab recorre sus campos y Ctrl+Enter lo da por hecho.
+  expect(document.activeElement?.closest("[data-formulario-revision]")).not.toBeNull();
+  expect(document.activeElement?.tagName).toBe("INPUT");
+});
+
+it("Enter sobre el que ya está abierto también lleva el foco al formulario", async () => {
+  const { db, s } = await conCola();
+  const { user } = await renderApp(`/campanas/${s.campanaId}/revision`, { db, hoy: "2026-03-02" });
+  await screen.findByText(/Banco 3/);
+  await user.type(screen.getByRole("searchbox", { name: "Buscar en la cola" }), "1500{Enter}");
+  expect(document.activeElement?.closest("[data-formulario-revision]")).not.toBeNull();
 });
