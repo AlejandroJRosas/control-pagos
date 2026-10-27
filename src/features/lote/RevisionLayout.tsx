@@ -1,12 +1,14 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, Circle, CircleDot, LoaderCircle, ScanText } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, LoaderCircle, ScanText, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PageHeader, type Miga } from "@/components/PageHeader";
 import { Vacio } from "@/components/Feedback";
 import { Casilla } from "@/components/Casilla";
 import { IconoIncidencias } from "@/components/IconoIncidencias";
 import { ZoomableImage } from "@/components/ZoomableImage";
 import type { EstadoCola } from "@/db/repos/cola";
+import { coincideBusqueda } from "@/domain/busqueda";
 import { clicSeleccion, seleccionarTodos, type Seleccion } from "@/domain/seleccion";
 import { useAtajo } from "@/hooks/useAtajo";
 import { cn } from "@/lib/utils";
@@ -107,8 +109,18 @@ export function TeclaAtajo({ children }: { children: ReactNode }) {
 }
 
 export type Filtro = "pendientes" | "hechos" | "todos" | "incidencias";
-/** `motivos`: por qué merece una mirada (el ícono va en la fila); solo los pendientes de depósitos los traen. */
-export type ElementoLista = { id: number; estado: EstadoCola; titulo: string; detalle: string; motivos?: string[] };
+/**
+ * `motivos`: por qué merece una mirada (el ícono va en la fila); solo los pendientes de depósitos los traen.
+ * `busqueda`: lo que encuentra el buscador de la lista (referencia en `textos`, monto en `montos`); sin él no hay buscador.
+ */
+export type ElementoLista = {
+  id: number;
+  estado: EstadoCola;
+  titulo: string;
+  detalle: string;
+  motivos?: string[];
+  busqueda?: { textos: string[]; montos: string[] };
+};
 
 type ListaProps = {
   items: ElementoLista[];
@@ -145,7 +157,11 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
   const retenido = useRef<number | null>(null);
   if (actualId !== null && items.some((i) => i.id === actualId && tieneIncidencias(i))) retenido.current = actualId;
   else if (retenido.current !== actualId) retenido.current = null;
-  const visibles = visiblesDe(items, filtro, retenido.current);
+  const [q, setQ] = useState("");
+  const conBuscador = items.some((i) => i.busqueda);
+  const buscando = conBuscador && q.trim() !== "";
+  // La búsqueda se aplica dentro del filtro elegido; las cuentas de los filtros no cambian.
+  const visibles = visiblesDe(items, filtro, retenido.current).filter((i) => !buscando || coincideBusqueda(i.busqueda?.textos ?? [], i.busqueda?.montos ?? [], q));
   const nHechos = items.filter((i) => i.estado === "hecho").length;
   const nIncidencias = items.filter(tieneIncidencias).length;
   const cuentas: Record<Filtro, number> = { pendientes: items.length - nHechos, hechos: nHechos, todos: items.length, incidencias: nIncidencias };
@@ -177,6 +193,20 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
   }
   return (
     <>
+      {conBuscador && (
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            data-buscar-tabla
+            type="search"
+            aria-label="Buscar en la cola"
+            className="pl-8"
+            placeholder="Referencia o monto…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+      )}
       <div className="flex flex-wrap gap-1 rounded-lg border bg-muted p-1 text-sm">
         {filtros.map((f) => (
           <button
@@ -211,7 +241,9 @@ export function ListaCola({ items, actualId, onElegir, filtro, onFiltro, selecci
         </label>
       )}
       <ul ref={listaRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto select-none">
-        {visibles.length === 0 && <li className="py-6 text-center text-sm text-muted-foreground">Nada por aquí.</li>}
+        {visibles.length === 0 && (
+          <li className="py-6 text-center text-sm text-muted-foreground">{buscando ? "Ningún comprobante coincide con la búsqueda." : "Nada por aquí."}</li>
+        )}
         {visibles.map((i) => {
           const actual = i.id === actualId;
           const marcado = marcados.has(i.id) && i.estado === "pendiente";

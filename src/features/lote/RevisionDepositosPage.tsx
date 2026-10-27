@@ -63,6 +63,7 @@ function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
     titulo: [i.borrador.draft.banco || "Sin banco", i.borrador.draft.montoBs].filter(Boolean).join(" · "),
     detalle: `${nombreDestino(i.borrador.destino, data, gerentes)} · ${i.nombreArchivo ?? `#${i.orden}`}`,
     motivos: i.estado === "pendiente" ? motivosBorrador(i.formato, i.borrador, contexto.get(i.id) ?? LIMPIO) : undefined,
+    busqueda: { textos: [i.borrador.draft.referencia], montos: [i.borrador.draft.montoBs] },
   }));
   // "Siguiente" recorre lo que se ve: con el filtro de incidencias, solo los pendientes con incidencias.
   const recorrido = filtro === "incidencias" ? visiblesDe(elementos, filtro, actualId) : elementos;
