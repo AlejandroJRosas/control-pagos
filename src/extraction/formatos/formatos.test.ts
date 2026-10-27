@@ -8,6 +8,8 @@ import { tasaMariandres } from "./tasaMariandres";
 import { banescoOperacion } from "./banescoOperacion";
 import { mercantilSolicitud } from "./mercantilSolicitud";
 import { bncMovimiento } from "./bncMovimiento";
+import { bdtTransferencia } from "./bdtTransferencia";
+import { bdvOperacion } from "./bdvOperacion";
 import { reconocedoresDeposito, reconocedoresTasa } from "./index";
 import bdvOscuro from "./__fixtures__/bdv-oscuro.json";
 import bdvClaro from "./__fixtures__/bdv-claro.json";
@@ -18,6 +20,8 @@ import tasaFixture from "./__fixtures__/tasa-mariandres.json";
 import banescoFixture from "./__fixtures__/banesco.json";
 import mercantilFixture from "./__fixtures__/mercantil.json";
 import bncFixture from "./__fixtures__/bnc.json";
+import bdtFixture from "./__fixtures__/bdt.json";
+import bdvOperacionFixture from "./__fixtures__/bdv-operacion.json";
 
 const HOY = "2026-10-18";
 const filasDe = (r: OcrResultado) => agruparFilas(r);
@@ -131,6 +135,59 @@ describe("bnc-movimiento", () => {
   });
 });
 
+describe("bdt-transferencia", () => {
+  it("captura real: la fecha va con guiones y el destino es el beneficiario", () => {
+    const f = filasDe(bdtFixture);
+    expect(bdtTransferencia.detecta(f)).toBe(true);
+    const r = bdtTransferencia.extrae(f);
+    expect(valores(normalizarDeposito(r, HOY))).toEqual({
+      montoBs: "117.125,16",
+      fecha: "2026-10-15",
+      referencia: "82861657",
+      banco: "Banco Digital de los Trabajadores",
+      cuentaDestino: "ANA PEREZ GOMEZ",
+    });
+    expect(r.fecha).toEqual({ texto: "15/10/2026", certeza: "etiqueta" });
+  });
+
+  it("un monto con punto en lugar de coma decimal se repara como heurística", () => {
+    const f = filas("Banco Digital de los Trabajadores", "Número de referencia: 1234", "Monto Bs: 117.125.16");
+    expect(bdtTransferencia.extrae(f).montoBs).toEqual({ texto: "117.125,16", certeza: "heuristica" });
+  });
+});
+
+describe("bdv-operacion", () => {
+  it("captura real: no trae fecha; la operación va en el texto y el destino es la cuenta", () => {
+    const f = filasDe(bdvOperacionFixture);
+    expect(bdvOperacion.detecta(f)).toBe(true);
+    const r = bdvOperacion.extrae(f);
+    expect(valores(normalizarDeposito(r, HOY))).toEqual({
+      montoBs: "1.235.910,00",
+      referencia: "0591323718037",
+      banco: BANCO,
+      cuentaDestino: "0102014542000247",
+    });
+    // La app corta la cuenta destino: queda para revisar.
+    expect(r.cuentaDestino?.certeza).toBe("heuristica");
+  });
+
+  it("en pantalla ancha las etiquetas van en una fila con su valor", () => {
+    const f = filas(
+      "BDVenlínea personas",
+      "Tu transferencia de fondos ha sido realizada con éxito. El número de operación es 059132371803",
+      "Instrumento Origen: 0102***0493",
+      "Instrumento Destino: 01020145420002478546",
+      "Monto Operación: 1.235.910,00",
+    );
+    expect(bdvOperacion.extrae(f)).toEqual({
+      banco: { texto: "Venezuela", certeza: "constante" },
+      montoBs: { texto: "1.235.910,00", certeza: "etiqueta" },
+      referencia: { texto: "059132371803", certeza: "etiqueta" },
+      cuentaDestino: { texto: "01020145420002478546", certeza: "etiqueta" },
+    });
+  });
+});
+
 describe("detección", () => {
   it("cada reconocedor detecta solo sus imágenes", () => {
     const propias = new Map<Reconocedor<string>, OcrResultado[]>([
@@ -138,6 +195,8 @@ describe("detección", () => {
       [banescoOperacion, [banescoFixture]],
       [mercantilSolicitud, [mercantilFixture]],
       [bncMovimiento, [bncFixture]],
+      [bdtTransferencia, [bdtFixture]],
+      [bdvOperacion, [bdvOperacionFixture]],
       [tasaMariandres, [tasaFixture]],
     ]);
     const todas = [...propias.values()].flat();
@@ -151,10 +210,12 @@ describe("detección", () => {
     expect(banescoOperacion.detecta(f)).toBe(false);
     expect(mercantilSolicitud.detecta(f)).toBe(false);
     expect(bncMovimiento.detecta(f)).toBe(false);
+    expect(bdtTransferencia.detecta(f)).toBe(false);
+    expect(bdvOperacion.detecta(f)).toBe(false);
   });
 
   it("el registro incluye los formatos", () => {
-    expect(reconocedoresDeposito).toEqual(expect.arrayContaining([bdvTransferenciaTerceros, banescoOperacion, mercantilSolicitud, bncMovimiento]));
+    expect(reconocedoresDeposito).toEqual(expect.arrayContaining([bdvTransferenciaTerceros, banescoOperacion, mercantilSolicitud, bncMovimiento, bdtTransferencia, bdvOperacion]));
     expect(reconocedoresTasa).toContain(tasaMariandres);
   });
 });
