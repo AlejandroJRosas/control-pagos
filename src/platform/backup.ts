@@ -8,6 +8,7 @@ import { precargarFeriados } from "@/db/repos/feriados";
 import { copiarAlEspejo } from "./espejo";
 import { huboEscrituras, reiniciarEscrituras } from "@/db/tauriDriver";
 import { unificarBancos } from "@/db/operaciones/unificarBancos";
+import { unificarCuentas } from "@/db/operaciones/unificarCuentas";
 import { reportError } from "@/lib/reportError";
 import { getAjuste, setAjuste } from "@/db/repos/ajustes";
 
@@ -82,6 +83,11 @@ export async function mantenimientoAlIniciar(db: SqlDriver): Promise<void> {
     await unificarBancos(db);
   } catch (e) {
     reportError(e, "No se pudieron unificar los nombres de banco");
+  }
+  try {
+    await unificarCuentas(db);
+  } catch (e) {
+    reportError(e, "No se pudieron unificar las cuentas destino");
   }
   await invoke("prune_safety_backups");
   await invoke("clean_orphan_images", { usadas: await imagenesUsadas(db) });

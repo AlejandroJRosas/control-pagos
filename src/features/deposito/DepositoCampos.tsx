@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { FechaInput } from "@/components/FechaInput";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,8 @@ import { BuscadorTexto } from "@/components/BuscadorTexto";
 import type { AsignacionDetalle } from "@/db/repos/asignaciones";
 import type { Gerente } from "@/db/repos/gerentes";
 import type { CampanaData } from "@/db/queries/campanaData";
-import { fechaDeTasa, formatFecha, isValidIsoDate, nombreDia } from "@/domain/dates";
+import { cuentasDeCampana } from "@/domain/cuentasDestino";
+import { fechaDeTasa,formatFecha, isValidIsoDate, nombreDia } from "@/domain/dates";
 import { useFeriados } from "@/hooks/useFeriados";
 import { MontoInput } from "@/components/MontoInput";
 import { formatBs, formatTasa, formatUsd, parseMonto, toInputVE } from "@/domain/money";
@@ -49,6 +50,8 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
   const { usd, restanteGerente, restanteGeneral } = f.calculo;
   const fechaValida = isValidIsoDate(draft.fecha);
   const feriados = useFeriados();
+  // Solo las de la campaña: el autocompletado del navegador traía variantes viejas de otras.
+  const cuentas = useMemo(() => cuentasDeCampana(data.depositos), [data.depositos]);
   // Día cuya tasa rige: sábado, domingo y feriados usan la del siguiente día hábil.
   const fechaTasa = fechaValida ? fechaDeTasa(draft.fecha, feriados) : draft.fecha;
   const motivo = feriados.has(draft.fecha) ? "Feriado: " : "";
@@ -132,11 +135,13 @@ export function DepositoCampos({ f, data, asignacion, gerentes, bancos, disabled
           </Field>
         </div>
         <Field id="d-cuenta" label="Cuenta destino" error={errors.cuentaDestino}>
-          <Input
+          <BuscadorTexto
             id="d-cuenta"
             className={cn("font-mono", confClass(form.auto.confianza.cuentaDestino))}
             value={draft.cuentaDestino}
-            onChange={(e) => set("cuentaDestino", e.target.value)}
+            onChange={(v) => set("cuentaDestino", v)}
+            sugerencias={cuentas}
+            disabled={disabled}
           />
         </Field>
         <Field id="d-obs" label="Observaciones">

@@ -4,6 +4,7 @@ import { createTestDb } from "@/db/testing/sqljsDriver";
 import { depositoBase, seedBasico } from "@/db/testing/fixtures";
 import { createDeposito } from "@/db/repos/depositos";
 import { createTasa } from "@/db/repos/tasas";
+import { aliasCuentas, recordarVariantesCuenta } from "@/db/repos/cuentasAlias";
 import { renderApp } from "@/testing/renderApp";
 
 async function preparar() {
@@ -48,6 +49,29 @@ it("filtra por cuenta destino, marca todos y les cambia la cuenta, el banco y ag
 
   await user.click(screen.getByRole("button", { name: "Deshacer" }));
   await waitFor(async () => expect(await deposito(db, "111")).toEqual({ cuentaDestino: "0414-1234567", banco: "Bco de Vzla", observaciones: null }));
+});
+
+it("al cambiar la cuenta propone recordar los nombres viejos como variantes; las desmarcadas no se recuerdan", async () => {
+  const { db, s } = await preparar();
+  await recordarVariantesCuenta(db, ["Juan P"], "Juan Pérez");
+  const { user } = await renderApp(`/asignaciones/${s.asignacionId}`, { db, hoy: "2026-03-02" });
+  await user.click(await screen.findByLabelText("Seleccionar todos"));
+  await user.click(screen.getByRole("button", { name: "Editar seleccionados…" }));
+  const dialogo = await screen.findByRole("dialog");
+
+  await user.type(within(dialogo).getByLabelText("Cuenta destino"), "M A Colecciones");
+  await user.tab();
+  expect(within(dialogo).getByText("Recordar como variantes de «M A Colecciones»")).toBeInTheDocument();
+  const vieja = within(dialogo).getByRole("checkbox", { name: /0414-1234567 \(2 depósitos\)/ });
+  // "Juan Pérez" ya es el nombre unificado de otra variante: viene desmarcada.
+  const unificada = within(dialogo).getByRole("checkbox", { name: /Juan Pérez \(1 depósito\)/ });
+  expect(vieja).toBeChecked();
+  expect(unificada).not.toBeChecked();
+  expect(within(dialogo).getByText(/¿solo una corrección\?/)).toBeInTheDocument();
+
+  await user.click(within(dialogo).getByRole("button", { name: "Guardar en 3" }));
+  expect(await screen.findByText("3 depósitos actualizados")).toBeInTheDocument();
+  expect(await aliasCuentas(db)).toEqual(new Map([["juanp", "Juan Pérez"], ["0414-1234567", "M A Colecciones"]]));
 });
 
 it("con una fecha nueva muestra cómo cambia el total en USD y sin tasa no deja guardar", async () => {

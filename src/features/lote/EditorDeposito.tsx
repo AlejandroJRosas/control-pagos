@@ -25,6 +25,7 @@ import { useDepositoForm } from "@/features/deposito/useDepositoForm";
 import { extractor } from "@/extraction/extractor";
 import { ajustarCuentaDestino } from "@/extraction/cuentaConocida";
 import { listCuentasDestinoUsadas } from "@/db/repos/depositos";
+import { aliasCuentas } from "@/db/repos/cuentasAlias";
 import { useAutoguardado } from "./useAutoguardado";
 import { useReleer } from "./useReleer";
 import { releerBorradorDeposito } from "./leerEnBorrador";
@@ -73,7 +74,8 @@ export function EditorDeposito({ item, items, data, gerentes, bancos, cerrada, e
     borrador,
     extraer: async (imagen) => {
       const r = await extractor.extraerDeposito(imagen);
-      return { ...r, fields: ajustarCuentaDestino(r.fields, await listCuentasDestinoUsadas(await getDb())) };
+      const db = await getDb();
+      return { ...r, fields: ajustarCuentaDestino(r.fields, await listCuentasDestinoUsadas(db), await aliasCuentas(db)) };
     },
     reemplazar: releerBorradorDeposito,
     aplicar: (b) => f.setForm((s) => ({ ...s, draft: { ...s.draft, ...b.draft }, destino: b.destino, auto: b.auto })),

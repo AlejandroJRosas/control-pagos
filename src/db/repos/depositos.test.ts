@@ -6,6 +6,7 @@ import { createTasa } from "./tasas";
 import { createCampana, setEstadoCampana } from "./campanas";
 import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, findPosiblesRepetidos, getDeposito, listBancosUsados, listCuentasDestinoUsadas, restaurarDepositos, updateDeposito } from "./depositos";
 import { guardarAliasBanco } from "./bancosAlias";
+import { recordarVariantesCuenta } from "./cuentasAlias";
 import { createGerente } from "./gerentes";
 import { createAsignacion } from "./asignaciones";
 import { listEliminaciones, setEquivalencia, uuidsEliminados } from "./consolidacion";
@@ -164,6 +165,16 @@ it("lista las cuentas destino usadas sin repetir", async () => {
   await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: " A ", referencia: "2" }));
   await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: "B", referencia: "3" }));
   expect(await listCuentasDestinoUsadas(db)).toEqual(["A", "B"]);
+});
+
+it("createDeposito y updateDeposito guardan la cuenta destino con su nombre unificado", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  await recordarVariantesCuenta(db, ["MYA Colecciones 2006 ca"], "M A Colecciones 2006 CA");
+  const id = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: "mya colecciones 2006 CA" }));
+  expect((await getDeposito(db, id))!.cuentaDestino).toBe("M A Colecciones 2006 CA");
+  await updateDeposito(db, id, depositoBase(s.tasaId, { cuentaDestino: "MYA Colecciones 2006 ca" }));
+  expect((await getDeposito(db, id))!.cuentaDestino).toBe("M A Colecciones 2006 CA");
 });
 
 it("deleteDepositos registra la eliminación con su campaña y asignación", async () => {

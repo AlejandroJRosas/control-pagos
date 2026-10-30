@@ -177,6 +177,11 @@ const MIGRATIONS: Migration[] = [
     version: 9,
     statements: ["CREATE TABLE IF NOT EXISTS bancos_alias (alias TEXT PRIMARY KEY, banco TEXT NOT NULL)"],
   },
+  {
+    // Variantes de las cuentas destino que el usuario unificó (clave de la variante → cuenta), para guardar siempre el nombre unificado.
+    version: 10,
+    statements: ["CREATE TABLE IF NOT EXISTS cuentas_alias (alias TEXT PRIMARY KEY, variante TEXT NOT NULL, cuenta TEXT NOT NULL)"],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

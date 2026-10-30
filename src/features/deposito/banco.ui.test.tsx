@@ -11,6 +11,7 @@ async function llenarResto(user: Awaited<ReturnType<typeof renderApp>>["user"]) 
   await user.type(screen.getByLabelText("Referencia bancaria"), "123");
   await user.type(screen.getByLabelText("Monto en Bs"), "3650");
   await user.type(screen.getByLabelText("Cuenta destino"), "0102");
+  await user.tab();
   await user.click(screen.getByRole("button", { name: "Guardar" }));
 }
 

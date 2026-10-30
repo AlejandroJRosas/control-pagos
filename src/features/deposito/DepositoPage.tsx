@@ -21,6 +21,7 @@ import { getDb } from "@/db";
 import { getAsignacion, type AsignacionDetalle } from "@/db/repos/asignaciones";
 import { createDeposito, deleteDeposito, getDeposito, listBancosUsados, listCuentasDestinoUsadas, updateDeposito, type Deposito, type Duplicado } from "@/db/repos/depositos";
 import { listGerentes, type Gerente } from "@/db/repos/gerentes";
+import { aliasCuentas } from "@/db/repos/cuentasAlias";
 import { registrarDepositoEnCampana } from "@/db/operaciones/destino";
 import { actualizarDuplicado } from "@/db/operaciones/revision";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
@@ -196,7 +197,8 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
     setLeyendo(true);
     try {
       const r = await extractor.extraerDeposito(file);
-      const fields = ajustarCuentaDestino(r.fields, await listCuentasDestinoUsadas(await getDb()));
+      const db = await getDb();
+      const fields = ajustarCuentaDestino(r.fields, await listCuentasDestinoUsadas(db), await aliasCuentas(db));
       if (imagenVigente.current !== file) return;
       f.setForm((s) => conExtraccion(s, fields, fechaInicial.current));
       if (r.formato === null) toast.info("No se reconoció el formato del comprobante; completa los datos a mano");

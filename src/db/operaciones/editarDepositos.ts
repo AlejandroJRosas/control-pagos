@@ -6,17 +6,22 @@ import { findDuplicados, getDeposito, type Deposito } from "../repos/depositos";
 import { getTasa, getTasaParaFecha } from "../repos/tasas";
 import { feriadosSet } from "../repos/feriados";
 import { bancosConocidos, guardarAliasBanco } from "../repos/bancosAlias";
+import { aliasCuentas, recordarVariantesCuenta, restaurarAliasCuentas, type PrevioAliasCuenta } from "../repos/cuentasAlias";
 import { bancoCanonico, claveDuplicado } from "@/domain/bancos";
+import { cuentaCanonica } from "@/domain/cuentasDestino";
 import { fechaDeTasa, formatFecha } from "@/domain/dates";
 import { DomainError } from "@/domain/errors";
 import { claveComparacion } from "@/domain/texto";
 
-/** Lo que se cambia en todos los marcados; lo que no viene (o viene vacío) queda como estaba. `nota` se agrega a las observaciones. */
-export type CambiosLote = { cuentaDestino?: string; banco?: string; fecha?: string; nota?: string };
+/**
+ * Lo que se cambia en todos los marcados; lo que no viene (o viene vacío) queda como estaba. `nota` se agrega a las observaciones.
+ * `recordarCuentas`: nombres viejos de cuenta destino que el usuario confirmó como variantes de la nueva.
+ */
+export type CambiosLote = { cuentaDestino?: string; banco?: string; fecha?: string; nota?: string; recordarCuentas?: string[] };
 
 type Previo = Pick<Deposito, "id" | "banco" | "cuentaDestino" | "fecha" | "tasaId" | "observaciones" | "actualizadoEn">;
-/** Cómo estaba todo antes (para deshacer con `restaurarEditados`): los depósitos y los alias de banco que se tocaron (null = no había). */
-export type Editados = { depositos: Previo[]; alias: { alias: string; banco: string | null }[] };
+/** Cómo estaba todo antes (para deshacer con `restaurarEditados`): los depósitos y los alias de banco y de cuenta que se tocaron (null = no había). */
+export type Editados = { depositos: Previo[]; alias: { alias: string; banco: string | null }[]; cuentas: PrevioAliasCuenta[] };
 
 async function assertEditable(db: SqlDriver, asignacionId: number): Promise<void> {
   const a = await getAsignacion(db, asignacionId);
@@ -28,10 +33,12 @@ async function assertEditable(db: SqlDriver, asignacionId: number): Promise<void
  * Cambia los mismos campos en varios depósitos. Todo o nada: se comprueba todo antes de escribir (tasa de la fecha nueva,
  * duplicados con el banco nuevo, también entre los marcados). Quedan como editados ahora, así al consolidar llegan como
  * corrección. Si el banco nuevo es conocido, se recuerda que cada nombre viejo (que no sea ya un banco conocido) es ese
- * banco: así lo corrigen las próximas importaciones y `unificarBancos` en las demás campañas.
+ * banco: así lo corrigen las próximas importaciones y `unificarBancos` en las demás campañas. Igual con las cuentas destino,
+ * pero solo los nombres viejos que el usuario confirmó (`recordarCuentas`): un cambio de cuenta puede ser una corrección.
  */
 export async function editarDepositos(db: SqlDriver, ids: number[], cambios: CambiosLote): Promise<Editados> {
-  const cuenta = cambios.cuentaDestino?.trim() || null;
+  const cuentaEscrita = cambios.cuentaDestino?.trim() || null;
+  const cuenta = cuentaEscrita && cuentaCanonica(cuentaEscrita, await aliasCuentas(db));
   const bancoEscrito = cambios.banco?.trim() || null;
   const fecha = cambios.fecha || null;
   const nota = cambios.nota?.trim() || null;
@@ -104,18 +111,20 @@ export async function editarDepositos(db: SqlDriver, ids: number[], cambios: Cam
 
   const ahora = nowIso();
   const hechos: Previo[] = [];
+  let cuentas: PrevioAliasCuenta[] = [];
   try {
     for (const d of nuevos) {
       await escribir(db, { ...d, actualizadoEn: ahora });
       hechos.push(previo(previos.find((p) => p.id === d.id) as Deposito));
     }
     for (const a of alias) await guardarAliasBanco(db, a.alias, banco as string);
+    if (cuenta && cambios.recordarCuentas?.length) cuentas = await recordarVariantesCuenta(db, cambios.recordarCuentas, cuenta);
   } catch (err) {
     for (const p of hechos) await escribir(db, p);
     await restaurarAlias(db, alias);
     throw err;
   }
-  return { depositos: previos.map(previo), alias };
+  return { depositos: previos.map(previo), alias, cuentas };
 }
 
 const previo = ({ id, banco, cuentaDestino, fecha, tasaId, observaciones, actualizadoEn }: Deposito): Previo => ({
@@ -157,4 +166,5 @@ export async function restaurarEditados(db: SqlDriver, e: Editados): Promise<voi
   }
   for (const p of e.depositos) await escribir(db, p);
   await restaurarAlias(db, e.alias);
+  await restaurarAliasCuentas(db, e.cuentas);
 }

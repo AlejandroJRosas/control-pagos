@@ -3,6 +3,8 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { createTestDb } from "@/db/testing/sqljsDriver";
 import { depositoBase, seedBasico } from "@/db/testing/fixtures";
 import { createDeposito } from "@/db/repos/depositos";
+import { createCampana } from "@/db/repos/campanas";
+import { createAsignacion } from "@/db/repos/asignaciones";
 import { renderApp } from "@/testing/renderApp";
 
 it("registrar un depósito actualiza lo pagado del gerente", async () => {
@@ -14,10 +16,25 @@ it("registrar un depósito actualiza lo pagado del gerente", async () => {
   await user.type(screen.getByLabelText("Referencia bancaria"), "123");
   await user.type(screen.getByLabelText("Monto en Bs"), "3650");
   await user.type(screen.getByLabelText("Cuenta destino"), "0102");
+  await user.tab();
   await user.click(screen.getByRole("button", { name: "Guardar" }));
   const pagado = await screen.findByText("Pagado");
   const tarjeta = pagado.closest("[data-slot=card]") as HTMLElement;
   expect(await within(tarjeta).findByText("$ 100,00")).toBeInTheDocument();
+});
+
+it("Cuenta destino sugiere solo las cuentas usadas en la campaña", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: "Cuenta de Marzo" }));
+  const otra = await createCampana(db, { nombre: "Abril", fechaInicio: "2026-04-01", fechaFin: null, notas: null });
+  const asignacionOtra = await createAsignacion(db, { campanaId: otra, gerenteId: s.anaId, saldoUsd: "100" });
+  await createDeposito(db, asignacionOtra, depositoBase(s.tasaId, { referencia: "999", cuentaDestino: "Cuenta vieja" }));
+  const { user } = await renderApp(`/asignaciones/${s.asignacionId}/depositos/nuevo`, { db, hoy: "2026-03-02" });
+  await screen.findByText(/36,50 Bs\/USD/);
+  await user.click(screen.getByLabelText("Cuenta destino"));
+  expect(await screen.findByRole("option", { name: "Cuenta de Marzo" })).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: "Cuenta vieja" })).not.toBeInTheDocument();
 });
 
 it("con cambios sin guardar, volver pide confirmación", async () => {
@@ -40,6 +57,7 @@ it("un duplicado no se guarda: se actualiza el existente o se descarta con Ctrl+
     await user.type(screen.getByLabelText("Referencia bancaria"), "0123");
     await user.type(screen.getByLabelText("Monto en Bs"), "7300");
     await user.type(screen.getByLabelText("Cuenta destino"), "0102");
+    await user.tab();
   };
   await escribir();
   expect(await screen.findByText("Este depósito ya está registrado")).toBeInTheDocument();
@@ -95,6 +113,7 @@ it("un posible repetido del Provincial avisa pero deja guardar", async () => {
   await user.type(screen.getByLabelText("Referencia bancaria"), "V-12.345.678");
   await user.type(screen.getByLabelText("Monto en Bs"), "3650");
   await user.type(screen.getByLabelText("Cuenta destino"), "0102");
+  await user.tab();
   expect(await screen.findByText(/Posible repetido: ya hay un pago del Provincial de esta cédula con la misma fecha y monto/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Guardar" })).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "Guardar" }));

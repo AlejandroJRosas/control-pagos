@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { cicloEn, creaCiclo, descendientes } from "./arbol";
+import { cuentaCanonica, type CuentasAlias } from "./cuentasDestino";
 import { bancoCanonico, claveBanco, claveCedula, claveDuplicado, clavePosibleRepetido, sinReferenciaUnica, type BancosConocidos } from "./bancos";
 import type { EstadoCampana } from "./campana";
 import { fechaDeTasa, formatFecha } from "./dates";
@@ -129,6 +130,7 @@ export type LocalConsolidar = {
   gerentes: GerenteLocal[]; // todos los de esta instalación
   equivalenciasGerentes: Map<string, number>; // uuid remoto → id local
   bancos: BancosConocidos; // los que conoce esta instalación (alias recordados y usados): el banco del archivo se lee con ellos
+  cuentas: CuentasAlias; // variantes de cuenta destino recordadas aquí: la cuenta del archivo se lee con ellas
 };
 export type Campo = "fecha" | "banco" | "referencia" | "cuentaDestino" | "montoBs" | "observaciones" | "gerente";
 export type Cambio = { campo: Campo; antes: string | null; despues: string | null };
@@ -202,8 +204,12 @@ function compararCampos(remoto: DepositoPaquete, local: DepositoLocal, asignacio
  * lo aplica otra parte según el plan y las decisiones del usuario.
  */
 export function clasificar(archivo: Paquete, local: LocalConsolidar, gerentes: Record<string, GerenteEmparejado>): PlanConsolidacion {
-  // El banco del archivo, con el nombre que se le da aquí (como lo guardaría `createDeposito`): así los duplicados se ven antes de aplicar.
-  const p: Paquete = { ...archivo, depositos: archivo.depositos.map((d) => ({ ...d, banco: bancoCanonico(d.banco, local.bancos) ?? d.banco })) };
+  // El banco y la cuenta del archivo, con el nombre que se les da aquí (como los guardaría `createDeposito`): así los duplicados se ven
+  // antes de aplicar y una variante de la cuenta no llega como corrección.
+  const p: Paquete = {
+    ...archivo,
+    depositos: archivo.depositos.map((d) => ({ ...d, banco: bancoCanonico(d.banco, local.bancos) ?? d.banco, cuentaDestino: cuentaCanonica(d.cuentaDestino, local.cuentas) })),
+  };
   const plan: PlanConsolidacion = {
     campana: local.campana, nuevos: [], posiblesRepetidos: [], correcciones: [], conflictos: [], eliminaciones: [], vinculos: [], sinCambios: 0,
     masNuevasAqui: [], noIncluidos: [], tasasNuevas: [], tasasDistintas: [], saldos: [], equivalencias: [], agregadas: [], jefes: [], jefesLocales: new Map(),

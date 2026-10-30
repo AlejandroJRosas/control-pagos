@@ -102,7 +102,7 @@ const base = (o: Partial<LocalConsolidar> = {}): LocalConsolidar => ({
   campana: { id: 1, uuid: "c1", nombre: "Marzo", estado: "activa" },
   asignaciones: [asigLocal(10, "José Pérez", "100"), asigLocal(11, "Ana", "50")],
   depositos: [], tasas: new Map([["2026-03-04", { id: 1, valor: "36.50", usos: 3 }]]), feriados: new Set(), eliminados: new Set(),
-  equivalenciasDepositos: new Map(), gerentes: [], equivalenciasGerentes: new Map(), bancos: new Map(), ...o,
+  equivalenciasDepositos: new Map(), gerentes: [], equivalenciasGerentes: new Map(), bancos: new Map(), cuentas: new Map(), ...o,
 });
 const GER: Record<string, GerenteEmparejado> = {
   ra: { asignacionId: 10, estado: "nombre" }, rb: { asignacionId: 11, estado: "nombre" }, rc: { asignacionId: null, estado: "ninguno" },
@@ -626,6 +626,15 @@ describe("posibles repetidos del Provincial", () => {
     const plan = clasificar(paq([rem({ uuid: "p1", banco: "BANCO XYZ", referencia: "123" })]), local, GER);
     expect(plan.nuevos).toEqual([]);
     expect(plan.vinculos.map((v) => [v.remoto.banco, v.local.id])).toEqual([["Bancamiga", 5]]);
+  });
+
+  it("la cuenta destino del archivo se lee con las variantes recordadas aquí: una variante no es una corrección", () => {
+    const MA = "M A Colecciones 2006 CA";
+    const local = base({ depositos: [loc({ cuentaDestino: MA, actualizadoEn: "2026-03-05T10:00:00.000Z" })], cuentas: new Map([["myacolecciones2006ca", MA]]) });
+    const plan = clasificar(paq([rem({ cuentaDestino: "MYA Colecciones 2006 ca", actualizadoEn: "2026-03-06T10:00:00.000Z" })]), local, GER);
+    expect(plan).toMatchObject({ sinCambios: 1, correcciones: [], conflictos: [] });
+    const nuevo = clasificar(paq([rem({ uuid: "r2", referencia: "222", cuentaDestino: "mya colecciones 2006 CA" })]), local, GER);
+    expect(nuevo.nuevos.map((n) => n.remoto.cuentaDestino)).toEqual([MA]);
   });
 
   it("otra fecha, otro monto o uno ya reconocido no es posible repetido", () => {

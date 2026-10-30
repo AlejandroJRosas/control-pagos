@@ -6,6 +6,7 @@ import { setEstadoCampana } from "../repos/campanas";
 import { createTasa } from "../repos/tasas";
 import { createDeposito, getDeposito } from "../repos/depositos";
 import { bancosConocidos } from "../repos/bancosAlias";
+import { aliasCuentas, recordarVariantesCuenta } from "../repos/cuentasAlias";
 import { editarDepositos, restaurarEditados } from "./editarDepositos";
 
 let db: SqlDriver;
@@ -48,6 +49,20 @@ it("no recuerda un banco que no se conoce ni el nombre de un banco conocido", as
   const d3 = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "3", banco: "Banesco" }));
   await editarDepositos(db, [d3], { banco: "Venezuela" });
   expect(await db.select("SELECT alias FROM bancos_alias")).toEqual([]);
+});
+
+it("recuerda como variantes de la cuenta nueva solo los nombres viejos pedidos; deshacer las olvida", async () => {
+  const d3 = await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { referencia: "3", cuentaDestino: "Cuenta buena" }));
+  const editados = await editarDepositos(db, [d1, d2, d3], { cuentaDestino: "M A Colecciones", recordarCuentas: ["0414-1234567"] });
+  expect(await aliasCuentas(db)).toEqual(new Map([["0414-1234567", "M A Colecciones"]]));
+  await restaurarEditados(db, editados);
+  expect(await aliasCuentas(db)).toEqual(new Map());
+});
+
+it("una cuenta nueva que es una variante recordada se guarda con el nombre unificado", async () => {
+  await recordarVariantesCuenta(db, ["MYA Colecciones"], "M A Colecciones");
+  await editarDepositos(db, [d1], { cuentaDestino: "mya colecciones" });
+  expect((await getDeposito(db, d1))!.cuentaDestino).toBe("M A Colecciones");
 });
 
 it("la fecha nueva toma la tasa que rige ese día (fin de semana = la del siguiente hábil)", async () => {

@@ -5,6 +5,7 @@ import { createGerente } from "../repos/gerentes";
 import { createTasa, deleteTasa, getTasaParaFecha, listTasas, updateTasa } from "../repos/tasas";
 import { feriadosSet } from "../repos/feriados";
 import { bancosConocidos } from "../repos/bancosAlias";
+import { aliasCuentas } from "../repos/cuentasAlias";
 import { createDeposito, deleteDepositos, getDeposito, restaurarDepositos, updateDeposito, type DepositoGuardar } from "../repos/depositos";
 import {
   deleteEquivalencia, getEquivalencias, getIntercambios, marcarIntercambio, setEquivalencia, uuidsEliminados, type TablaEquivalencia,
@@ -47,6 +48,7 @@ export async function cargarLocal(db: SqlDriver, campanaId: number): Promise<Loc
     gerentes: await db.select<GerenteLocal>("SELECT id, uuid, nombre FROM gerentes ORDER BY nombre, id"),
     equivalenciasGerentes: await getEquivalencias(db, "gerentes"),
     bancos: await bancosConocidos(db),
+    cuentas: await aliasCuentas(db),
   };
 }
 

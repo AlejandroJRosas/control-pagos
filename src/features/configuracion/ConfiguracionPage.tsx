@@ -28,6 +28,7 @@ import { abrirTutorial, setTutorialActivado, useTutorialActivado } from "@/lib/t
 import { CopiaDrive } from "./CopiaDrive";
 import { MensajesWhatsApp } from "./MensajesWhatsApp";
 import { AvisoCumpleanosCard } from "./AvisoCumpleanosCard";
+import { CuentasDestinoCard } from "./CuentasDestinoCard";
 
 const tamano = (bytes: number) =>
   bytes < 1024 * 1024 ? `${formatNumberVE(bytes / 1024, 0)} KB` : `${formatNumberVE(bytes / 1024 / 1024, 1)} MB`;
@@ -41,7 +42,7 @@ const COLUMNAS: Columnas<BackupInfo, Col> = {
 
 /** Secciones del menú lateral (al estilo de la Configuración de Windows); la elegida va en `?tab=`. */
 const SECCIONES: { id: string; nombre: string; descripcion: string; icono: LucideIcon }[] = [
-  { id: "general", nombre: "General", descripcion: "Colores de la app y el tutorial.", icono: SlidersHorizontal },
+  { id: "general", nombre: "General", descripcion: "Colores de la app, el tutorial y las variantes de las cuentas destino.", icono: SlidersHorizontal },
   { id: "datos", nombre: "Datos y respaldos", descripcion: "Dónde se guardan los datos, los respaldos y la copia en Google Drive.", icono: Database },
   { id: "mensajes", nombre: "Mensajes y avisos", descripcion: "Mensajes de WhatsApp y aviso de cumpleaños.", icono: MessageSquare },
   { id: "acerca", nombre: "Acerca de", descripcion: "Versión instalada, actualizaciones e historial de cambios.", icono: Info },
@@ -115,6 +116,7 @@ export function ConfiguracionPage() {
           <Encabezado id="general" />
           <Apariencia />
           <TutorialCard />
+          <CuentasDestinoCard />
         </TabsContent>
         <TabsContent value="datos" className="min-w-0 space-y-6">
           <Encabezado id="datos" />

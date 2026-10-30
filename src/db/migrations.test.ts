@@ -10,7 +10,7 @@ it("crea el esquema y fija user_version", async () => {
   const tablas = await db.select<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite%' ORDER BY name",
   );
-  expect(tablas.map((t) => t.name)).toEqual(["ajustes", "asignaciones", "bancos_alias", "campanas", "cola_depositos", "cola_tasas", "consolidaciones", "depositos", "eliminaciones", "equivalencias", "etiquetas", "feriados", "gerente_etiquetas", "gerentes", "tasas"]);
+  expect(tablas.map((t) => t.name)).toEqual(["ajustes", "asignaciones", "bancos_alias", "campanas", "cola_depositos", "cola_tasas", "consolidaciones", "cuentas_alias", "depositos", "eliminaciones", "equivalencias", "etiquetas", "feriados", "gerente_etiquetas", "gerentes", "tasas"]);
 });
 
 it("es idempotente", async () => {

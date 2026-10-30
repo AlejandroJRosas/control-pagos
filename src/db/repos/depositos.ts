@@ -9,7 +9,9 @@ import { DomainError } from "@/domain/errors";
 import { fechaDeTasa, formatFecha } from "@/domain/dates";
 import { claveComparacion } from "@/domain/texto";
 import { bancoCanonico, claveDuplicado, clavePosibleRepetido } from "@/domain/bancos";
+import { cuentaCanonica } from "@/domain/cuentasDestino";
 import { bancosConocidos } from "./bancosAlias";
+import { aliasCuentas } from "./cuentasAlias";
 
 export type Deposito = {
   id: number;
@@ -64,9 +66,9 @@ async function assertTasaDeLaFecha(db: SqlDriver, v: DepositoGuardar): Promise<v
   }
 }
 
-/** Lo que se guarda es el nombre canónico del banco (o el escrito, si no se reconoce). */
-async function conBancoCanonico(db: SqlDriver, v: DepositoGuardar): Promise<DepositoGuardar> {
-  return { ...v, banco: bancoCanonico(v.banco, await bancosConocidos(db)) ?? v.banco };
+/** Lo que se guarda es el nombre canónico del banco (o el escrito, si no se reconoce) y el unificado de la cuenta destino. */
+async function conNombresCanonicos(db: SqlDriver, v: DepositoGuardar): Promise<DepositoGuardar> {
+  return { ...v, banco: bancoCanonico(v.banco, await bancosConocidos(db)) ?? v.banco, cuentaDestino: cuentaCanonica(v.cuentaDestino, await aliasCuentas(db)) };
 }
 
 /** No puede haber dos depósitos con el mismo banco y referencia (`claveDuplicado`). */
@@ -89,7 +91,7 @@ export async function createDeposito(
 ): Promise<number> {
   await assertEditable(db, asignacionId);
   await assertTasaDeLaFecha(db, v);
-  v = await conBancoCanonico(db, v);
+  v = await conNombresCanonicos(db, v);
   await assertNoDuplicado(db, v);
   const now = nowIso();
   const r = await db.execute(
@@ -115,7 +117,7 @@ export async function updateDeposito(db: SqlDriver, id: number, v: DepositoGuard
     throw new DomainError("VALIDACION", "Los depósitos solo se pasan a un gerente de la misma campaña");
   }
   await assertTasaDeLaFecha(db, v);
-  v = await conBancoCanonico(db, v);
+  v = await conNombresCanonicos(db, v);
   // Un duplicado que ya existía (de antes de esta regla) se puede seguir editando mientras no cambie su banco o referencia.
   if (claveDuplicado(v.banco, v.referencia) !== claveDuplicado(actual.banco, actual.referencia)) await assertNoDuplicado(db, v, id);
   await db.execute(

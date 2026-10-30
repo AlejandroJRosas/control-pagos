@@ -12,6 +12,7 @@ import { asignarGerenteCola, borradorDepositoVacio, encolarDeposito, getItemCola
 import { extractor } from "@/extraction/extractor";
 import { ajustarCuentaDestino } from "@/extraction/cuentaConocida";
 import { listCuentasDestinoUsadas } from "@/db/repos/depositos";
+import { aliasCuentas } from "@/db/repos/cuentasAlias";
 import { deleteImage, saveImage } from "@/platform/images";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
@@ -67,7 +68,7 @@ function SubirLote({ data }: { data: CampanaData }) {
       const db = await getDb();
       const item = await getItemColaDeposito(db, id);
       if (item?.estado !== "pendiente") return r.formato;
-      await guardarBorradorDeposito(db, id, borradorDepositoConOcr(item.borrador, ajustarCuentaDestino(r.fields, await listCuentasDestinoUsadas(db))), r.formato);
+      await guardarBorradorDeposito(db, id, borradorDepositoConOcr(item.borrador, ajustarCuentaDestino(r.fields, await listCuentasDestinoUsadas(db), await aliasCuentas(db))), r.formato);
       invalidate();
       return r.formato;
     },
