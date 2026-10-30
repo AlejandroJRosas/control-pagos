@@ -16,6 +16,8 @@ import { provincialDineroRapido } from "./provincialDineroRapido";
 import { caroniPagos } from "./caroniPagos";
 import { bancamigaTransaccion } from "./bancamigaTransaccion";
 import { bdvOtrosBancos } from "./bdvOtrosBancos";
+import { bancaribePagomovil } from "./bancaribePagomovil";
+import { mercantilDetalle } from "./mercantilDetalle";
 import { reconocedoresDeposito, reconocedoresTasa } from "./index";
 import bdvOscuro from "./__fixtures__/bdv-oscuro.json";
 import bdvClaro from "./__fixtures__/bdv-claro.json";
@@ -40,6 +42,8 @@ import provincialFixture from "./__fixtures__/provincial.json";
 import caroniFixture from "./__fixtures__/caroni.json";
 import bancamigaFixture from "./__fixtures__/bancamiga.json";
 import bdvOtrosBancosFixture from "./__fixtures__/bdv-otros-bancos.json";
+import bancaribeFixture from "./__fixtures__/bancaribe-pagomovil.json";
+import mercantilDetalleFixture from "./__fixtures__/mercantil-detalle.json";
 
 const HOY = "2026-10-18";
 const filasDe = (r: OcrResultado) => agruparFilas(r);
@@ -380,6 +384,8 @@ describe("detección", () => {
       [caroniPagos, [caroniFixture]],
       [bancamigaTransaccion, [bancamigaFixture]],
       [bdvOtrosBancos, [bdvOtrosBancosFixture]],
+      [bancaribePagomovil, [bancaribeFixture]],
+      [mercantilDetalle, [mercantilDetalleFixture]],
       [tasaMariandres, [tasaFixture]],
     ]);
     const todas = [...propias.values()].flat();
@@ -401,6 +407,8 @@ describe("detección", () => {
     expect(caroniPagos.detecta(f)).toBe(false);
     expect(bancamigaTransaccion.detecta(f)).toBe(false);
     expect(bdvOtrosBancos.detecta(f)).toBe(false);
+    expect(bancaribePagomovil.detecta(f)).toBe(false);
+    expect(mercantilDetalle.detecta(f)).toBe(false);
   });
 
   it("el registro incluye los formatos", () => {
@@ -418,6 +426,8 @@ describe("detección", () => {
         caroniPagos,
         bancamigaTransaccion,
         bdvOtrosBancos,
+        bancaribePagomovil,
+        mercantilDetalle,
       ]),
     );
     expect(reconocedoresTasa).toContain(tasaMariandres);
@@ -463,6 +473,70 @@ describe("bdv-transferencia-terceros con texto sintético", () => {
   it("sin la etiqueta Fecha toma la primera fecha como heurística", () => {
     const f = filas("Transferencias a terceros", "15/10/2026", "Nombre: X", "Destino: 0102");
     expect(bdvTransferenciaTerceros.extrae(f).fecha).toEqual({ texto: "15/10/2026", certeza: "heuristica" });
+  });
+});
+
+describe("bancaribe-pagomovil", () => {
+  it("captura real: el OCR pierde la etiqueta Referencia y el número queda solo entre el monto y el celular de origen", () => {
+    const f = filasDe(bancaribeFixture);
+    expect(bancaribePagomovil.detecta(f)).toBe(true);
+    const r = bancaribePagomovil.extrae(f);
+    expect(valores(normalizarDeposito(r, HOY))).toEqual({
+      montoBs: "28.881,79",
+      fecha: "2026-10-10",
+      referencia: "1832689955",
+      banco: "Bancaribe",
+      cuentaDestino: "04121234567",
+    });
+    expect(r.referencia).toEqual({ texto: "1832689955", certeza: "etiqueta" });
+  });
+
+  it("con la etiqueta Referencia leída se toma de ahí", () => {
+    const f = filas("BANCARIBE", "Monto: Bs. 1,00", "Referencia: 1832689955", "Celular de origen: 04141234567");
+    expect(bancaribePagomovil.extrae(f).referencia).toEqual({ texto: "1832689955", certeza: "etiqueta" });
+  });
+
+  it("un pago móvil de otro banco hacia Bancaribe no se confunde", () => {
+    const f = filas("PagomóvilBDV Personas", "Operación: 007687628929", "Banco: 0114 - BANCARIBE", "Monto: 1,00", "Fecha: 10/10/2026");
+    expect(bancaribePagomovil.detecta(f)).toBe(false);
+  });
+});
+
+describe("mercantil-detalle", () => {
+  it("captura real: el destino y la fecha salen de la descripción; con otra \"Fecha y hora\" la fecha queda para revisar", () => {
+    const f = filasDe(mercantilDetalleFixture);
+    expect(mercantilDetalle.detecta(f)).toBe(true);
+    const r = mercantilDetalle.extrae(f);
+    expect(valores(normalizarDeposito(r, HOY))).toEqual({
+      montoBs: "89.869,14",
+      fecha: "2026-10-17",
+      referencia: "000025585963349",
+      banco: "Mercantil",
+      cuentaDestino: "inversiones mariandres c.a.",
+    });
+    expect(r.fecha).toEqual({ texto: "17/10/2026", certeza: "heuristica" });
+  });
+
+  it("si las dos fechas coinciden es segura, y la cuenta enmascarada no entra en el destino", () => {
+    const f = filas(
+      "Mercantil",
+      "Nro. de Referencia:",
+      "000025585963349",
+      "Fecha y hora:",
+      "16/10/2026 a las 11:15 AM",
+      "Descripción:",
+      "Transferencia desde la cuenta ***3718 a la cuenta de inversiones mariandres c.a. ***5875 por bs.",
+      "89,869.14 realizada en mercantil personas el 16/10/2026 a las 11:15 am",
+      "Bs. 89.869,14",
+    );
+    const r = mercantilDetalle.extrae(f);
+    expect(r.fecha).toEqual({ texto: "16/10/2026", certeza: "etiqueta" });
+    expect(r.cuentaDestino).toEqual({ texto: "inversiones mariandres c.a.", certeza: "etiqueta" });
+  });
+
+  it("sin la descripción usa \"Fecha y hora\"", () => {
+    const f = filas("Mercantil", "Nro. de Referencia:", "1", "Descripción:", "Pago", "Fecha y hora:", "19/10/2026 a las 11:15 AM");
+    expect(mercantilDetalle.extrae(f).fecha).toEqual({ texto: "19/10/2026", certeza: "etiqueta" });
   });
 });
 
