@@ -91,7 +91,8 @@ it("ofrece Agregar a mi campaña y lo muestra en el resumen", async () => {
   const { db, s } = await destino();
   const { user, router } = await renderApp(`/consolidar?carpeta=recibidos/p1&campana=${s.campanaId}`, { db, hoy: "2026-03-06" });
 
-  expect(await screen.findByLabelText("Luis es…")).toHaveValue("Agregar a mi campaña");
+  // La opción "Agregar a mi campaña" aparece cuando cargan los datos de la campaña: hasta entonces el campo está vacío.
+  await waitFor(() => expect(screen.getByLabelText("Luis es…")).toHaveValue("Agregar a mi campaña"));
   expect(await seccion(/Nuevos \(2\)/)).toBeInTheDocument();
   expect(screen.getByText("Gerentes agregados a la campaña (1): Luis")).toBeInTheDocument();
   expect(screen.getByText("(nuevo en tu campaña)")).toBeInTheDocument();
