@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acomodarDirectos, alternarRama, aplanarArbol, armarArbol, cicloEn, creaCiclo, descendientes, estadoRama, type Jefes, type LugarDirecto, type NodoArbol } from "./arbol";
+import { acomodarDirectos, alternarRama, aplanarArbol, aplanarConCierres, armarArbol, cicloEn, creaCiclo, descendientes, estadoRama, type Jefes, type LugarDirecto, type NodoArbol } from "./arbol";
 
 // Árbol de ejemplo: 1 Ana → 2 Luis → (3 Pedro, 4 María); 1 Ana → 5 Carla; 6 José sin jefe.
 const jefes: Jefes = new Map([
@@ -58,6 +58,14 @@ describe("arbol", () => {
       [4, 2, 0],
     ]);
     expect(aplanarArbol(armarArbol(items, (x) => x, jefes), (x) => x, new Set([2])).map((f) => f.item)).toEqual([6, 1, 5, 2]);
+  });
+  it("aplanarConCierres agrega el cierre de cada rama abierta después de su gente", () => {
+    const arbol = armarArbol([1, 2, 3, 4, 5, 6], (x) => x, jefes);
+    const ver = (plegados?: Set<number>) =>
+      aplanarConCierres(arbol, (x) => x, plegados).map((f) => (f.tipo === "cierre" ? `fin ${f.item} (${f.nivel}, ${f.debajo})` : f.item));
+    expect(ver()).toEqual([6, 1, 5, 2, 3, 4, "fin 2 (1, 2)", "fin 1 (0, 4)"]);
+    expect(ver(new Set([2]))).toEqual([6, 1, 5, 2, "fin 1 (0, 4)"]);
+    expect(ver(new Set([1]))).toEqual([6, 1]);
   });
   it("un jefe que no está en la lista cuenta como raíz", () => {
     expect(armarArbol([3, 4], (x) => x, jefes).map((n) => n.item)).toEqual([3, 4]);

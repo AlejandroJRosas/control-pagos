@@ -2,8 +2,9 @@ import type { DragEvent, MouseEvent } from "react";
 import Decimal from "decimal.js";
 import { ChevronDown } from "lucide-react";
 import { ESTADOS_GERENTE } from "@/components/EstadoGerenteBadge";
-import { estadoGerente, type GerenteResumen } from "@/domain/campanaView";
+import { estadoGerente, type GerenteResumen, type Resumen } from "@/domain/campanaView";
 import { formatUsd } from "@/domain/money";
+import { RamaResumen } from "./PorGerenteTab";
 import { cn } from "@/lib/utils";
 
 export const TIPO_ARRASTRE = "application/x-asignacion";
@@ -20,6 +21,8 @@ export type Arrastre = {
 type Props = {
   g: GerenteResumen;
   cerrada: boolean;
+  /** Lo suyo más lo de toda su gente (solo si tiene gente a cargo). */
+  rama?: Resumen;
   /** Cuántos tiene debajo (todos los niveles); se muestra con la rama plegada. */
   debajo: number;
   /** undefined = sin gente a cargo (no se pliega). */
@@ -32,8 +35,8 @@ type Props = {
   arrastre?: Arrastre;
 };
 
-/** Un gerente en el organigrama: nombre, estado y lo que le falta. */
-export function CajitaGerente({ g, cerrada, debajo, plegada, onAlternar, onClic, elegida, arrastre }: Props) {
+/** Un gerente en el organigrama: nombre, estado y lo que le falta (y, si es jefe, lo de su rama). */
+export function CajitaGerente({ g, cerrada, rama, debajo, plegada, onAlternar, onClic, elegida, arrastre }: Props) {
   const restante = new Decimal(g.restante);
   const estado = ESTADOS_GERENTE[estadoGerente(g)];
   return (
@@ -64,6 +67,14 @@ export function CajitaGerente({ g, cerrada, debajo, plegada, onAlternar, onClic,
         <span className={cn("text-xs tabular-nums", restante.isNegative() ? "font-medium text-destructive" : "text-muted-foreground")}>
           {restante.isZero() ? "al día" : `Restante ${formatUsd(g.restante)}`}
         </span>
+        {rama && (
+          <span className="mt-1 grid gap-1 border-t border-dashed pt-1">
+            <RamaResumen r={rama} />
+            <span aria-hidden className="h-1 overflow-hidden rounded-full bg-muted">
+              <span className="block h-full rounded-full bg-primary" style={{ width: `${rama.pct}%` }} />
+            </span>
+          </span>
+        )}
       </button>
       {plegada !== undefined && (
         <button

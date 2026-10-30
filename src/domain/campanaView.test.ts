@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { agruparPorDia, buildCampanaView, calcResumen, compareRecientePrimero, estadoGerente, filtrarDepositos, sumarResumenes, type AsignacionData, type DepositoData } from "./campanaView";
+import { agruparPorDia, buildCampanaView, calcResumen, compareRecientePrimero, estadoGerente, filtrarDepositos, resumenesDeRama, sumarResumenes, type AsignacionData, type DepositoData } from "./campanaView";
+import { armarArbol } from "./arbol";
 
 const asig = (id: number, gerenteId: number, gerenteNombre: string, saldoUsd: string): AsignacionData => ({ id, gerenteId, gerenteNombre, saldoUsd });
 
@@ -168,6 +169,22 @@ describe("sumarResumenes", () => {
 
   it("sin gerentes da ceros", () => {
     expect(sumarResumenes([])).toMatchObject({ asignado: "0.00", pagado: "0.00", restante: "0.00", pct: 0, cantidad: 0, ultimaFecha: null });
+  });
+});
+
+describe("resumenesDeRama", () => {
+  it("suma a cada jefe con toda su gente (todos los niveles); los que no tienen gente no llevan", () => {
+    const g = (id: number, asignado: string, usds: string[], fechas: string[]) => ({ id, ...calcResumen(asignado, usds, fechas) });
+    const gerentes = [g(1, "1000", ["800"], ["2026-03-02"]), g(2, "1200", ["900"], ["2026-03-05"]), g(3, "800", ["400"], ["2026-03-01"]), g(4, "100", [], [])];
+    const jefes = new Map([
+      [2, 1],
+      [3, 2],
+    ]);
+    const ramas = resumenesDeRama(armarArbol(gerentes, (x) => x.id, jefes), (x) => x.id);
+    expect([...ramas.keys()].sort()).toEqual([1, 2]);
+    expect(ramas.get(1)).toEqual(sumarResumenes(gerentes.slice(0, 3)));
+    expect(ramas.get(1)).toMatchObject({ asignado: "3000.00", pagado: "2100.00", restante: "900.00", pct: 70, cantidad: 3, ultimaFecha: "2026-03-05" });
+    expect(ramas.get(2)).toEqual(sumarResumenes(gerentes.slice(1, 3)));
   });
 });
 

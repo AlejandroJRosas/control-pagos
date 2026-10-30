@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { formatNumberVE, toUsd } from "./money";
 import { coincideBusqueda } from "./busqueda";
+import type { NodoArbol } from "./arbol";
 
 export type AsignacionData = { id: number; gerenteId: number; gerenteNombre: string; saldoUsd: string };
 
@@ -64,6 +65,18 @@ export function sumarResumenes(rs: Resumen[]): Resumen {
   const suma = (k: "asignado" | "pagado") => rs.reduce((acc, r) => acc.plus(r[k]), new Decimal(0));
   const fechas = rs.flatMap((r) => (r.ultimaFecha ? [r.ultimaFecha] : []));
   return resumen(suma("asignado"), suma("pagado"), rs.reduce((n, r) => n + r.cantidad, 0), ultima(fechas));
+}
+
+/** Resumen de cada jefe con toda su gente (todos los niveles), por id; los que no tienen a nadie debajo no llevan. */
+export function resumenesDeRama<T extends Resumen>(nodos: NodoArbol<T>[], id: (t: T) => number): Map<number, Resumen> {
+  const ramas = new Map<number, Resumen>();
+  const visitar = (nodo: NodoArbol<T>): T[] => {
+    const todos = [nodo.item, ...nodo.hijos.flatMap(visitar)];
+    if (nodo.hijos.length > 0) ramas.set(id(nodo.item), sumarResumenes(todos));
+    return todos;
+  };
+  nodos.forEach(visitar);
+  return ramas;
 }
 
 function ultima(fechas: string[]): string | null {

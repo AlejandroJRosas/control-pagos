@@ -109,6 +109,23 @@ export function aplanarArbol<T>(nodos: NodoArbol<T>[], id: (t: T) => number, ple
   return filas;
 }
 
+/** Una fila de `aplanarConCierres`: un nodo, o el cierre de la rama abierta de `item` (va después de toda su gente). */
+export type FilaConCierre<T> = ({ tipo: "nodo" } & FilaArbol<T>) | { tipo: "cierre"; item: T; nivel: number; debajo: number };
+
+/** Como `aplanarArbol`, con el cierre de cada rama abierta (para su subtotal). Una rama plegada no lleva cierre. */
+export function aplanarConCierres<T>(nodos: NodoArbol<T>[], id: (t: T) => number, plegados: ReadonlySet<number> = new Set()): FilaConCierre<T>[] {
+  const filas: FilaConCierre<T>[] = [];
+  const visitar = (nodo: NodoArbol<T>, nivel: number) => {
+    const debajo = contar(nodo);
+    filas.push({ tipo: "nodo", item: nodo.item, nivel, debajo, tieneHijos: nodo.hijos.length > 0 });
+    if (nodo.hijos.length === 0 || plegados.has(id(nodo.item))) return;
+    for (const h of nodo.hijos) visitar(h, nivel + 1);
+    filas.push({ tipo: "cierre", item: nodo.item, nivel, debajo });
+  };
+  for (const n of nodos) visitar(n, 0);
+  return filas;
+}
+
 /** Si `id` está marcado, lo desmarca con toda su rama; si no, los marca. */
 export function alternarRama(marcados: ReadonlySet<number>, jefes: Jefes, id: number): Set<number> {
   const nuevo = new Set(marcados);

@@ -76,6 +76,41 @@ it("Por gerente muestra el árbol con sangría, pliega ramas y con búsqueda u o
   expect((await fila("Pedro")).querySelector('[data-nivel="2"]')).not.toBeNull();
 });
 
+it("Por gerente cierra cada rama con su subtotal y Estructura muestra la rama en la cajita del jefe", async () => {
+  const db = await createTestDb();
+  const campanaId = await createCampana(db, { nombre: "Octubre", fechaInicio: "2026-10-01", fechaFin: null, notas: null });
+  const nueva = async (nombre: string, saldoUsd: string) =>
+    createAsignacion(db, { campanaId, gerenteId: await createGerente(db, { nombre, telefono: null }), saldoUsd });
+  const ana = await nueva("Ana", "100");
+  await nueva("Bruno", "50");
+  const zoe = await nueva("Zoe", "70");
+  const pedro = await nueva("Pedro", "30");
+  await setJefeAsignacion(db, zoe, ana);
+  await setJefeAsignacion(db, pedro, zoe);
+  const { user } = await renderApp(`/campanas/${campanaId}?tab=gerentes`, { db, hoy: "2026-10-19" });
+
+  await screen.findByText("Ana");
+  const filas = () => screen.getAllByRole("row").map((r) => r.querySelector("[data-gerente]")?.textContent ?? r.querySelector("[data-cierre]")?.textContent);
+  expect(filas().slice(1, -1)).toEqual(["Bruno", "Ana", "Zoe", "Pedro", "Total rama de Zoe (2)", "Total rama de Ana (3)"]);
+  const cierreAna = screen.getByText("Total rama de Ana (3)").closest("tr") as HTMLElement;
+  // sin pagos: asignado y restante iguales
+  expect(within(cierreAna).getAllByText("$ 200,00")).toHaveLength(2);
+  expect(within(screen.getByText("Total rama de Zoe (2)").closest("tr") as HTMLElement).getAllByText("$ 100,00")).toHaveLength(2);
+  // el pie no cuenta los subtotales
+  expect(within(screen.getByText("Total (4 gerentes)").closest("tr") as HTMLElement).getAllByText("$ 250,00").length).toBeGreaterThan(0);
+
+  await user.click(screen.getByRole("button", { name: "Plegar a Ana" }));
+  expect(screen.queryByText(/Total rama de/)).not.toBeInTheDocument();
+  expect(within(screen.getByText("Ana").closest("tr") as HTMLElement).getByText("Rama: restante $ 200,00 · 0,0 %")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Desplegar a Ana" }));
+
+  await user.click(screen.getByRole("tab", { name: "Estructura" }));
+  const cajitaAna = await screen.findByRole("button", { name: "Ana" });
+  expect(within(cajitaAna).getByText("Rama: restante $ 200,00 · 0,0 %")).toBeInTheDocument();
+  expect(within(screen.getByRole("button", { name: "Zoe" })).getByText("Rama: restante $ 100,00 · 0,0 %")).toBeInTheDocument();
+  expect(within(screen.getByRole("button", { name: "Pedro" })).queryByText(/Rama:/)).not.toBeInTheDocument();
+});
+
 /** dataTransfer falso: jsdom no lo trae. */
 function arrastre() {
   const datos = new Map<string, string>();

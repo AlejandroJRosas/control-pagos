@@ -10,8 +10,8 @@ import { SortableHead, useOrden } from "@/components/SortableHead";
 import { ColumnasMenu } from "@/components/ColumnasMenu";
 import { BotonConMotivo, MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { ESTADOS_GERENTE, EstadoGerenteBadge, ORDEN_ESTADOS } from "@/components/EstadoGerenteBadge";
-import { estadoGerente, sumarResumenes, type EstadoGerente, type GerenteResumen, type Resumen } from "@/domain/campanaView";
-import { aplanarArbol, armarArbol, type Jefes } from "@/domain/arbol";
+import { estadoGerente, resumenesDeRama, sumarResumenes, type EstadoGerente, type GerenteResumen, type Resumen } from "@/domain/campanaView";
+import { aplanarConCierres, armarArbol, type FilaConCierre, type Jefes } from "@/domain/arbol";
 import { formatFecha } from "@/domain/dates";
 import { formatPct, formatUsd } from "@/domain/money";
 import { claveComparacion } from "@/domain/texto";
@@ -65,8 +65,36 @@ function CeldaTotal({ col, t }: { col: Key; t: Resumen }) {
   }
 }
 
-/** Lugar de una fila en el árbol (solo en el modo árbol). */
-type Rama = { nivel: number; debajo: number; tieneHijos: boolean; plegada: boolean; onAlternar: () => void };
+/** Restante y avance de la rama de un jefe, en una línea («Rama: restante $ 900,00 · 70 %»). */
+export function RamaResumen({ r, className }: { r: Resumen; className?: string }) {
+  return (
+    <span className={cn("text-xs font-normal tabular-nums", new Decimal(r.restante).isNegative() ? "text-destructive" : "text-muted-foreground", className)}>
+      {`Rama: restante ${formatUsd(r.restante)} · ${formatPct(r.pct)}`}
+    </span>
+  );
+}
+
+/** Celda de la fila que cierra la rama de un jefe: lo suyo más lo de toda su gente. */
+function CeldaCierre({ col, t, nombre, nivel, debajo }: { col: Key; t: Resumen; nombre: string; nivel: number; debajo: number }) {
+  switch (col) {
+    case "gerenteNombre":
+      return (
+        <TableCell style={{ paddingLeft: `calc(var(--spacing) * 2 + ${(nivel + 1) * 1.25}rem)` }}>
+          <span className="inline-block size-5 align-middle" aria-hidden />
+          <span data-cierre>{`Total rama de ${nombre} (${debajo + 1})`}</span>
+        </TableCell>
+      );
+    case "estado":
+      return <TableCell />;
+    case "ultimaFecha":
+      return <TableCell>{t.ultimaFecha ? formatFecha(t.ultimaFecha) : "—"}</TableCell>;
+    default:
+      return <CeldaTotal col={col} t={t} />;
+  }
+}
+
+/** Lugar de una fila en el árbol (solo en el modo árbol). Plegada, `resumen` es el de su rama. */
+type Rama = { nivel: number; debajo: number; tieneHijos: boolean; plegada: boolean; onAlternar: () => void; resumen?: Resumen };
 
 function Celda({ col, g, rama }: { col: Key; g: Fila; rama?: Rama }) {
   switch (col) {
@@ -93,6 +121,7 @@ function Celda({ col, g, rama }: { col: Key; g: Fila; rama?: Rama }) {
             <span data-gerente>{g.gerenteNombre}</span>
             {rama.debajo > 0 && <span className="text-xs font-normal text-muted-foreground">{`· ${rama.debajo} debajo`}</span>}
           </div>
+          {rama.plegada && rama.resumen && <RamaResumen r={rama.resumen} className="ml-6 block" />}
         </TableCell>
       );
     case "estado":
@@ -149,13 +178,15 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
   // árbol solo con el orden por defecto y sin filtros; con búsqueda, estado u otro orden es lista plana
   const modoArbol = (!orden || (orden.key === "gerenteNombre" && orden.dir === 1)) && !f.qg && !f.estado;
   const plegadosClave = [...ramas.plegados].join(",");
-  const filas = useMemo(
+  const arbol = useMemo(() => (modoArbol ? armarArbol(ordenadas, (a) => a.asignacionId, jefes) : []), [modoArbol, ordenadas, jefes]);
+  const deRama = useMemo(() => resumenesDeRama(arbol, (a) => a.asignacionId), [arbol]);
+  const filas = useMemo<FilaConCierre<Fila>[]>(
     () =>
       modoArbol
-        ? aplanarArbol(armarArbol(ordenadas, (a) => a.asignacionId, jefes), (a) => a.asignacionId, ramas.plegados)
-        : ordenadas.map((item) => ({ item, nivel: 0, debajo: 0, tieneHijos: false })),
+        ? aplanarConCierres(arbol, (a) => a.asignacionId, ramas.plegados)
+        : ordenadas.map((item) => ({ tipo: "nodo", item, nivel: 0, debajo: 0, tieneHijos: false })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [modoArbol, ordenadas, jefes, plegadosClave],
+    [modoArbol, arbol, ordenadas, plegadosClave],
   );
   // las ramas plegadas siguen contando en el total: solo cambia lo que se ve
   const total = useMemo(() => sumarResumenes(ordenadas), [ordenadas]);
@@ -238,36 +269,58 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filas.map(({ item: g, nivel, debajo, tieneHijos }) => (
-              <TableRow key={g.asignacionId} className="cursor-pointer" onClick={() => navigate(`/asignaciones/${g.asignacionId}`)}>
-                {columnas.visibles.map((col) => (
-                  <Celda
-                    key={col}
-                    col={col}
-                    g={g}
-                    rama={
-                      modoArbol
-                        ? { nivel, debajo, tieneHijos, plegada: ramas.plegados.has(g.asignacionId), onAlternar: () => ramas.alternar(g.asignacionId) }
-                        : undefined
-                    }
-                  />
-                ))}
-                <TableCell className="space-x-2 text-right" onClick={(e) => e.stopPropagation()}>
-                  <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
-                    <Button size="sm" variant="outline" disabled={cerrada} onClick={() => onEditarSaldo(g)}>
-                      Editar
-                    </Button>
-                  </BotonConMotivo>
-                  {g.cantidad === 0 && (
+            {filas.map((f) => {
+              const { item: g, nivel, debajo } = f;
+              if (f.tipo === "cierre") {
+                const t = deRama.get(g.asignacionId) as Resumen;
+                return (
+                  <TableRow key={`cierre-${g.asignacionId}`} className="text-muted-foreground italic hover:bg-transparent">
+                    {columnas.visibles.map((col) => (
+                      <CeldaCierre key={col} col={col} t={t} nombre={g.gerenteNombre} nivel={nivel} debajo={debajo} />
+                    ))}
+                    <TableCell />
+                  </TableRow>
+                );
+              }
+              const { tieneHijos } = f;
+              return (
+                <TableRow key={g.asignacionId} className="cursor-pointer" onClick={() => navigate(`/asignaciones/${g.asignacionId}`)}>
+                  {columnas.visibles.map((col) => (
+                    <Celda
+                      key={col}
+                      col={col}
+                      g={g}
+                      rama={
+                        modoArbol
+                          ? {
+                              nivel,
+                              debajo,
+                              tieneHijos,
+                              plegada: ramas.plegados.has(g.asignacionId),
+                              onAlternar: () => ramas.alternar(g.asignacionId),
+                              resumen: deRama.get(g.asignacionId),
+                            }
+                          : undefined
+                      }
+                    />
+                  ))}
+                  <TableCell className="space-x-2 text-right" onClick={(e) => e.stopPropagation()}>
                     <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
-                      <Button size="sm" variant="ghost" disabled={cerrada} onClick={() => onQuitar(g)}>
-                        Quitar
+                      <Button size="sm" variant="outline" disabled={cerrada} onClick={() => onEditarSaldo(g)}>
+                        Editar
                       </Button>
                     </BotonConMotivo>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+                    {g.cantidad === 0 && (
+                      <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
+                        <Button size="sm" variant="ghost" disabled={cerrada} onClick={() => onQuitar(g)}>
+                          Quitar
+                        </Button>
+                      </BotonConMotivo>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
           <TableFooter data-barra-inferior className={STICKY_PIE}>
             <TableRow>

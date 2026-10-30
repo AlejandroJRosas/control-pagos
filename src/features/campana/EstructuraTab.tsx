@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { getDb } from "@/db";
 import { moverAJefe, restaurarJefes } from "@/db/operaciones/moverAJefe";
 import { MOTIVO_CERRADA } from "@/components/BotonConMotivo";
-import { type GerenteResumen } from "@/domain/campanaView";
+import { resumenesDeRama, type GerenteResumen } from "@/domain/campanaView";
 import { acomodarDirectos, aplanarArbol, armarArbol, creaCiclo, type Jefes, type LugarDirecto, type NodoArbol } from "@/domain/arbol";
 import { clicSeleccion, SIN_SELECCION, type Seleccion } from "@/domain/seleccion";
 import { hayDialogoAbierto } from "@/hooks/useAtajo";
@@ -35,6 +35,7 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
     const raices = armarArbol(orden, idDe, jefes);
     return { arboles: raices.filter((r) => !esHoja(r)), sueltos: raices.filter(esHoja).map((r) => r.item) };
   }, [gerentes, jefes]);
+  const deRama = useMemo(() => resumenesDeRama(arboles, idDe), [arboles]);
   const nombres = useMemo(() => new Map(gerentes.map((g) => [g.asignacionId, g.gerenteNombre])), [gerentes]);
 
   /** Las cajitas en el orden en que se ven: la pirámide (sin ramas plegadas) y luego «Sin estructura». */
@@ -160,6 +161,7 @@ export function EstructuraTab({ campanaId, gerentes, jefes, cerrada }: Props) {
       <CajitaGerente
         g={g}
         cerrada={cerrada}
+        rama={deRama.get(g.asignacionId)}
         debajo={contar(n)}
         plegada={n.hijos.length > 0 ? ramas.plegados.has(g.asignacionId) : undefined}
         onAlternar={() => ramas.alternar(g.asignacionId)}
