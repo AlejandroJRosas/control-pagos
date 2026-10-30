@@ -8,7 +8,7 @@ import { FechaInput } from "@/components/FechaInput";
 import { filtrarDepositos, type DepositoCalculado } from "@/domain/campanaView";
 import { useFiltrosUrl } from "@/lib/filtrosUrl";
 
-const FILTROS = ["q", "banco", "desde", "hasta"] as const;
+const FILTROS = ["q", "banco", "cuenta", "desde", "hasta"] as const;
 
 /**
  * Búsqueda y filtros de una tabla de depósitos, en la URL y recordados por `clave`. Con `gerenteId` quedan solo los suyos
@@ -18,22 +18,32 @@ export function useFiltrosDepositos(clave: string, depositos: DepositoCalculado[
   const filtros = useFiltrosUrl(clave, FILTROS);
   const f = filtros.valores;
   const propios = useMemo(() => (gerenteId == null ? depositos : depositos.filter((d) => d.gerenteId === gerenteId)), [depositos, gerenteId]);
-  const opcionesBanco = useMemo(() => {
-    const bancos = Array.from(new Set(propios.map((d) => d.banco.trim()))).sort((a, b) => a.localeCompare(b, "es"));
-    return [{ value: "", label: "Todos" }, ...bancos.map((b) => ({ value: b, label: b }))];
-  }, [propios]);
+  const opciones = (valores: string[], todas: string) => {
+    const unicos = Array.from(new Set(valores.map((v) => v.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "es"));
+    return [{ value: "", label: todas }, ...unicos.map((v) => ({ value: v, label: v }))];
+  };
+  const opcionesBanco = useMemo(() => opciones(propios.map((d) => d.banco), "Todos"), [propios]);
+  const opcionesCuenta = useMemo(() => opciones(propios.map((d) => d.cuentaDestino), "Todas"), [propios]);
   const r = useMemo(
-    () => filtrarDepositos(depositos, { gerenteId, banco: f.banco || null, desde: f.desde || null, hasta: f.hasta || null, texto: f.q || null }),
-    [depositos, gerenteId, f.banco, f.desde, f.hasta, f.q],
+    () =>
+      filtrarDepositos(depositos, {
+        gerenteId,
+        banco: f.banco || null,
+        cuenta: f.cuenta || null,
+        desde: f.desde || null,
+        hasta: f.hasta || null,
+        texto: f.q || null,
+      }),
+    [depositos, gerenteId, f.banco, f.cuenta, f.desde, f.hasta, f.q],
   );
-  return { ...filtros, r, opcionesBanco, hayDepositos: propios.length > 0 };
+  return { ...filtros, r, opcionesBanco, opcionesCuenta, hayDepositos: propios.length > 0 };
 }
 
 type Props = { filtros: ReturnType<typeof useFiltrosDepositos> };
 
-/** Barra de búsqueda, banco y fechas sobre una tabla de depósitos. */
+/** Barra de búsqueda, banco, cuenta destino y fechas sobre una tabla de depósitos. */
 export function FiltrosDepositos({ filtros }: Props) {
-  const { valores: f, set, limpiar, activos, opcionesBanco } = filtros;
+  const { valores: f, set, limpiar, activos, opcionesBanco, opcionesCuenta } = filtros;
   return (
     <div className="flex flex-wrap items-end gap-3">
       <div className="grid w-72 gap-1.5">
@@ -54,6 +64,10 @@ export function FiltrosDepositos({ filtros }: Props) {
       <div className="grid w-44 gap-1.5">
         <Label htmlFor="f-banco">Banco</Label>
         <BuscadorSelect id="f-banco" value={f.banco} onChange={(banco) => set({ banco })} opciones={opcionesBanco} placeholder="Todos" />
+      </div>
+      <div className="grid w-52 gap-1.5">
+        <Label htmlFor="f-cuenta">Cuenta destino</Label>
+        <BuscadorSelect id="f-cuenta" value={f.cuenta} onChange={(cuenta) => set({ cuenta })} opciones={opcionesCuenta} placeholder="Todas" />
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="f-desde">Desde</Label>

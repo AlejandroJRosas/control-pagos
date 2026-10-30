@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import Decimal from "decimal.js";
 import { useLocation, useNavigate } from "react-router";
-import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { STICKY_PIE, Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { agruparPorDia, compareRecientePrimero, type FilaDeposito, type GrupoDia } from "@/domain/campanaView";
@@ -24,6 +24,7 @@ import { ComprobanteIcono } from "./ComprobanteIcono";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Vacio } from "./Feedback";
 import { MoverDepositosDialog, type AsignacionDestino } from "./MoverDepositosDialog";
+import { EditarDepositosDialog } from "./EditarDepositosDialog";
 import { SortableHead, useOrden } from "./SortableHead";
 import { cn } from "@/lib/utils";
 
@@ -136,6 +137,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
   const [borrar, setBorrar] = useState<number[] | null>(null);
   const [mover, setMover] = useState<{ ids: number[]; origenes: number[] } | null>(null);
+  const [editar, setEditar] = useState<FilaDeposito[] | null>(null);
   // Sobre el orden base, para que los empates de cualquier columna (p. ej. la fecha) respeten el orden de registro.
   const ordenadas = useMemo(() => ordenar([...filas].sort(compareRecientePrimero), COLUMNAS, orden), [filas, orden]);
   // En orden de fecha (el de siempre o al ordenar por ella) se agrupa por día; ordenada por otra columna, lista plana.
@@ -293,6 +295,10 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
               <ArrowRightLeft />
               Mover a otro gerente…
             </Button>
+            <Button size="sm" variant="outline" onClick={() => setEditar(filas.filter((d) => marcados.has(d.id)))}>
+              <Pencil />
+              Editar seleccionados…
+            </Button>
             <Button size="sm" variant="ghost" onClick={() => setMarcados(new Set())}>
               Quitar selección
             </Button>
@@ -431,6 +437,7 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
         onOpenChange={(o) => !o && setMover(null)}
         onMovidos={(ids) => setMarcados((m) => new Set([...m].filter((id) => !ids.includes(id))))}
       />
+      <EditarDepositosDialog depositos={editar} onOpenChange={(o) => !o && setEditar(null)} />
       <ConfirmDialog
         open={borrar !== null}
         onOpenChange={(o) => !o && setBorrar(null)}

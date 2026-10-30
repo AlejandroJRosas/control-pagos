@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { agruparPorDia, buildCampanaView, calcResumen, compareRecientePrimero, estadoGerente, filtrarDepositos, resumenesDeRama, sumarResumenes, type AsignacionData, type DepositoData } from "./campanaView";
+import { agruparPorDia, buildCampanaView, calcResumen, compareRecientePrimero, estadoGerente, filtrarDepositos, resumenesDeRama, totalUsdConTasa, sumarResumenes, type AsignacionData, type DepositoData } from "./campanaView";
 import { armarArbol } from "./arbol";
 
 const asig = (id: number, gerenteId: number, gerenteNombre: string, saldoUsd: string): AsignacionData => ({ id, gerenteId, gerenteNombre, saldoUsd });
@@ -103,6 +103,16 @@ describe("filtrarDepositos", () => {
     expect(filtrarDepositos(build().depositos, { desde: "2026-03-02", hasta: "2026-03-03" }).cantidad).toBe(2);
   });
 
+  it("cuenta destino sin distinguir mayúsculas ni espacios", () => {
+    const v = buildCampanaView(asignaciones, [
+      dep({ asignacionId: 1, fecha: "2026-03-01", montoBs: "10", tasaValor: "1", cuentaDestino: "0414-1234567" }),
+      dep({ asignacionId: 2, fecha: "2026-03-02", montoBs: "20", tasaValor: "1", cuentaDestino: "Juan Pérez" }),
+      dep({ asignacionId: 1, fecha: "2026-03-03", montoBs: "30", tasaValor: "1", cuentaDestino: " 0414-1234567 " }),
+    ]);
+    expect(filtrarDepositos(v.depositos, { cuenta: "0414-1234567" }).filas.map((f) => f.id)).toEqual([1, 3]);
+    expect(filtrarDepositos(v.depositos, { cuenta: "JUAN PÉREZ" }).cantidad).toBe(1);
+  });
+
   it("busca texto en referencia, banco, gerente y observaciones sin distinguir mayúsculas ni acentos", () => {
     const v = buildCampanaView(asignaciones, [
       dep({ asignacionId: 1, fecha: "2026-03-01", montoBs: "1234567.89", tasaValor: "1", referencia: "000123", observaciones: "Pagó en Caracas" }),
@@ -185,6 +195,13 @@ describe("resumenesDeRama", () => {
     expect(ramas.get(1)).toEqual(sumarResumenes(gerentes.slice(0, 3)));
     expect(ramas.get(1)).toMatchObject({ asignado: "3000.00", pagado: "2100.00", restante: "900.00", pct: 70, cantidad: 3, ultimaFecha: "2026-03-05" });
     expect(ramas.get(2)).toEqual(sumarResumenes(gerentes.slice(1, 3)));
+  });
+});
+
+describe("totalUsdConTasa", () => {
+  it("suma los USD redondeados de cada depósito con otra tasa", () => {
+    expect(totalUsdConTasa([{ montoBs: "100" }, { montoBs: "100" }], "3")).toBe("66.66");
+    expect(totalUsdConTasa([], "3")).toBe("0.00");
   });
 });
 

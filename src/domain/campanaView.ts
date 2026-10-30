@@ -79,6 +79,11 @@ export function resumenesDeRama<T extends Resumen>(nodos: NodoArbol<T>[], id: (t
   return ramas;
 }
 
+/** Total en USD de unos depósitos si todos tuvieran la tasa `tasaValor` (cada uno redondeado, como siempre). */
+export function totalUsdConTasa(depositos: { montoBs: string }[], tasaValor: string): string {
+  return depositos.reduce((acc, d) => acc.plus(toUsd(d.montoBs, tasaValor)), new Decimal(0)).toFixed(2);
+}
+
 function ultima(fechas: string[]): string | null {
   return fechas.length > 0 ? fechas.reduce((max, f) => (f > max ? f : max)) : null;
 }
@@ -158,6 +163,7 @@ export function coincideTexto(d: DepositoCalculado, texto: string): boolean {
 export type FiltroDepositos = {
   gerenteId?: number | null;
   banco?: string | null;
+  cuenta?: string | null;
   desde?: string | null;
   hasta?: string | null;
   texto?: string | null;
@@ -183,12 +189,14 @@ export function filtrarDepositos(
   f: FiltroDepositos,
 ): { filas: FilaDeposito[]; totalBs: string; totalUsd: string; cantidad: number } {
   const banco = f.banco?.trim().toLowerCase() || null;
+  const cuenta = f.cuenta?.trim().toLowerCase() || null;
   const porGerente = f.gerenteId != null;
   const filas = depositos
     .filter(
       (d) =>
         (!porGerente || d.gerenteId === f.gerenteId) &&
         (!banco || d.banco.trim().toLowerCase() === banco) &&
+        (!cuenta || d.cuentaDestino.trim().toLowerCase() === cuenta) &&
         (!f.desde || d.fecha >= f.desde) &&
         (!f.hasta || d.fecha <= f.hasta) &&
         (!f.texto || coincideTexto(d, f.texto)),
