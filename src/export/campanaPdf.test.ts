@@ -177,3 +177,18 @@ describe("buildGerentePdf", () => {
     expect(() => buildGerentePdf(campana, view, 99)).toThrow();
   });
 });
+
+describe("buildCampanaPdf sin los gerentes sin pagos", () => {
+  const sinVacios = buildCampanaPdf(campana, view, generadoEn, { ocultarSinPagos: true });
+
+  it("solo quedan las páginas de quienes tienen depósitos", () => {
+    const bloques = bloquesGerente(sinVacios);
+    expect(bloques).toHaveLength(1);
+    expect(textos(bloques[0])).toContain("Ana Peña");
+  });
+
+  it("el resumen sigue con todos los gerentes", () => {
+    const resumen = (sinVacios.content as unknown as Record<string, unknown>[]).filter((n) => n.pageBreak !== "before");
+    expect(textos(resumen)).toContain("Luis");
+  });
+});

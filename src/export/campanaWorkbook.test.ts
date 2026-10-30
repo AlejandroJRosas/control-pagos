@@ -210,3 +210,18 @@ it("Excel de un gerente: una sola hoja con sus depósitos y su resumen", async (
 it("Excel de un gerente que no está en la campaña lanza error", () => {
   expect(() => buildGerenteWorkbook(campana, buildCampanaView([], []), 99)).toThrow();
 });
+
+it("sin las hojas de los gerentes sin pagos: el resumen los sigue mostrando", async () => {
+  const view = buildCampanaView(
+    [
+      { id: 1, gerenteId: 10, gerenteNombre: "Ana", saldoUsd: "100" },
+      { id: 2, gerenteId: 20, gerenteNombre: "Luis", saldoUsd: "50" },
+    ],
+    [dep(1, 1, "2026-03-02", "3650")],
+  );
+  const wb = await roundTrip(buildCampanaWorkbook(campana, view, new Date(2026, 2, 10), { ocultarSinPagos: true }));
+  expect(wb.worksheets.map((w) => w.name)).toEqual(["Resumen", "Todos los depósitos", "Ana"]);
+  const resumen: unknown[] = [];
+  wb.getWorksheet("Resumen")!.eachRow((r) => resumen.push(r.getCell(1).value));
+  expect(resumen).toContain("Luis");
+});

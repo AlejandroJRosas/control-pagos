@@ -4,7 +4,7 @@ import type { Campana } from "@/db/repos/campanas";
 import type { CampanaView, DepositoCalculado, GerenteResumen, Resumen } from "@/domain/campanaView";
 import { formatPct, formatUsd } from "@/domain/money";
 import { formatFecha, formatPeriodo, todayIso } from "@/domain/dates";
-import { COLOR, argb, colorTextoRestante, textoRestante } from "./estilo";
+import { COLOR, argb, colorTextoRestante, gerentesConPagina, textoRestante, type OpcionesExportar } from "./estilo";
 
 const MONEY = "#,##0.00";
 const TASA = "#,##0.0000";
@@ -269,12 +269,12 @@ export function buildGerenteWorkbook(campana: Campana, view: CampanaView, asigna
   return wb;
 }
 
-export function buildCampanaWorkbook(campana: Campana, view: CampanaView, generadoEn: Date = new Date()): ExcelJS.Workbook {
+export function buildCampanaWorkbook(campana: Campana, view: CampanaView, generadoEn: Date = new Date(), opciones: OpcionesExportar = {}): ExcelJS.Workbook {
   const wb = nuevoLibro(generadoEn);
   const used = new Set<string>();
   addResumen(wb.addWorksheet(safeSheetName("Resumen", used)), campana, view, generadoEn);
   addDepositos(wb.addWorksheet(safeSheetName("Todos los depósitos", used)), campana, view.total, view.depositos, { titulo: "Todos los depósitos" }, generadoEn);
-  for (const g of view.gerentes) {
+  for (const g of gerentesConPagina(view.gerentes, opciones)) {
     addDepositos(
       wb.addWorksheet(safeSheetName(g.gerenteNombre, used)),
       campana,

@@ -43,3 +43,9 @@ export function textoRestante(r: Resumen): { etiqueta: "Faltan" | "Pagado de má
   const excedido = restante.isNegative() && !restante.isZero();
   return { etiqueta: excedido ? "Pagado de más" : "Faltan", monto: formatUsd(restante.abs()), excedido };
 }
+
+/** Opciones de la exportación de la campaña. `ocultarSinPagos`: sin la página u hoja de los gerentes que aún no tienen depósitos (el resumen los sigue mostrando). */
+export type OpcionesExportar = { ocultarSinPagos?: boolean };
+
+/** Gerentes que llevan su propia página u hoja en la exportación de la campaña. */
+export const gerentesConPagina = <G extends { cantidad: number }>(gerentes: G[], o: OpcionesExportar): G[] => (o.ocultarSinPagos ? gerentes.filter((g) => g.cantidad > 0) : gerentes);

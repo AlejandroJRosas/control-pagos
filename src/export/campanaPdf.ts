@@ -4,7 +4,7 @@ import type { Campana } from "@/db/repos/campanas";
 import type { CampanaView, DepositoCalculado, GerenteResumen, Resumen } from "@/domain/campanaView";
 import { formatFecha, formatPeriodo, todayIso } from "@/domain/dates";
 import { formatNumberVE, formatPct, formatTasa, formatUsd } from "@/domain/money";
-import { COLOR, anchoBarra, colorBarra, colorTextoRestante, hex, textoRestante } from "./estilo";
+import { COLOR, anchoBarra, colorBarra, colorTextoRestante, gerentesConPagina, hex, textoRestante, type OpcionesExportar } from "./estilo";
 
 /** Ancho útil de una hoja carta (612 pt) con márgenes de 40 pt. */
 const ANCHO = 532;
@@ -217,14 +217,14 @@ function documento(titulo: string, encabezado: string, corte: string, content: C
 }
 
 /** Reporte de la campaña para compartir: resumen por gerente y una página de depósitos por gerente. */
-export function buildCampanaPdf(campana: Campana, view: CampanaView, generadoEn: Date = new Date()): TDocumentDefinitions {
+export function buildCampanaPdf(campana: Campana, view: CampanaView, generadoEn: Date = new Date(), opciones: OpcionesExportar = {}): TDocumentDefinitions {
   const corte = formatFecha(todayIso(generadoEn));
   return documento(`Campaña ${campana.nombre}`, campana.nombre, corte, [
     franja(`REPORTE DE CAMPAÑA · CORTE ${corte}`, campana.nombre, periodoYEstado(campana)),
     ...avance(view.total, "", COLOR.barraAzul, `${formatPct(view.total.pct)} de avance`),
     { text: "Resumen por gerente", bold: true, fontSize: 11, margin: [0, 16, 0, 6] },
     tablaResumen(view),
-    ...view.gerentes.map((g) =>
+    ...gerentesConPagina(view.gerentes, opciones).map((g) =>
       paginaGerente(
         g,
         view.depositos.filter((d) => d.asignacionId === g.asignacionId),

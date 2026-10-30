@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { ChevronDown, CopyX, Download, FileSpreadsheet, FileText, FileUp, Images, ListChecks, Loader2, Lock, LockOpen, Merge, Pencil, Plus, MessageCircle, Settings2, Share2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
 import { Aviso, Cargando, Vacio } from "@/components/Feedback";
@@ -30,6 +30,7 @@ import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
 import { setCampanaActual } from "@/lib/campanaActual";
+import { useOcultarSinPagos } from "@/lib/ocultarSinPagos";
 import { rutaConsolidar } from "@/lib/rutaConsolidar";
 import { abrirPaqueteDeDialogo } from "@/platform/paquete";
 import { usePestanaUrl } from "@/lib/pestanaUrl";
@@ -63,6 +64,7 @@ export function CampanaPage() {
   const [quitar, setQuitar] = useState<GerenteResumen | null>(null);
   const [eliminar, setEliminar] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [ocultarSinPagos, setOcultarSinPagos] = useOcultarSinPagos();
   const [envio, setEnvio] = useState(false);
   const [compartir, setCompartir] = useState(false);
 
@@ -139,10 +141,13 @@ export function CampanaPage() {
 
   // Con duplicados sin resolver (o mientras se cuentan) no se exporta: los totales saldrían inflados.
   const exportable = duplicados === 0;
-  const exportar = () => conExportando(() => saveWorkbook(buildCampanaWorkbook(campana, view), archivoExcel(campana.nombre, todayIso())), "Excel guardado");
+  const opciones = { ocultarSinPagos };
+  const sinPagos = view.gerentes.filter((g) => g.cantidad === 0).length;
+  const exportar = () =>
+    conExportando(() => saveWorkbook(buildCampanaWorkbook(campana, view, new Date(), opciones), archivoExcel(campana.nombre, todayIso())), "Excel guardado");
   const exportarPdf = () =>
     conExportando(
-      (avisar) => savePdf(buildCampanaPdf(campana, view), archivoPdf(campana.nombre, todayIso()), () => avisar("Generando PDF…")),
+      (avisar) => savePdf(buildCampanaPdf(campana, view, new Date(), opciones), archivoPdf(campana.nombre, todayIso()), () => avisar("Generando PDF…")),
       "PDF guardado",
     );
 
@@ -182,6 +187,11 @@ export function CampanaPage() {
                     <FileText />
                     PDF (.pdf)
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {/* El resumen sigue con todos; solo se quitan sus páginas u hojas. */}
+                  <DropdownMenuCheckboxItem checked={ocultarSinPagos} onCheckedChange={setOcultarSinPagos}>
+                    Ocultar gerentes sin pagos{sinPagos > 0 && ` (${sinPagos})`}
+                  </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </BotonConMotivo>
