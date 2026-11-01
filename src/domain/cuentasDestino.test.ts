@@ -28,6 +28,18 @@ describe("variantesParaRecordar", () => {
     ]);
   });
 
+  it("propone la misma cuenta escrita con otras mayúsculas (no unificada aunque la cuenta nueva lo sea)", () => {
+    const alias = new Map([["myacolecciones", "M A Colecciones 2006 CA"]]);
+    expect(variantesParaRecordar(["M A Colecciones 2006 Ca", " M A Colecciones 2006 CA "], "M A Colecciones 2006 CA", alias)).toEqual([
+      { variante: "M A Colecciones 2006 Ca", depositos: 1, unificada: false },
+    ]);
+  });
+
+  it("no propone la escritura con otras mayúsculas que ya está recordada", () => {
+    const alias = new Map([["macolecciones2006ca", "M A Colecciones 2006 CA"]]);
+    expect(variantesParaRecordar(["M A Colecciones 2006 Ca"], "M A Colecciones 2006 CA", alias)).toEqual([]);
+  });
+
   it("no propone una variante que ya apunta a la cuenta nueva", () => {
     const alias = new Map([["myacolecciones2006ca", "M A Colecciones 2006 CA"]]);
     expect(variantesParaRecordar(["MYA Colecciones 2006 ca"], "M A Colecciones 2006 CA", alias)).toEqual([]);

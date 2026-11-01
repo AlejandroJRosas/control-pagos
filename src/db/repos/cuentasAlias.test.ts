@@ -16,7 +16,35 @@ it("recuerda cada variante con cómo se escribió y la resuelve sin mayúsculas,
 
 it("no recuerda la cuenta como variante de sí misma", async () => {
   const db = await createTestDb();
-  await recordarVariantesCuenta(db, ["m a colecciones 2006 ca"], MA);
+  await recordarVariantesCuenta(db, [` ${MA} `], MA);
+  expect(await listAliasCuentas(db)).toEqual([]);
+});
+
+it("recuerda la misma cuenta escrita con otras mayúsculas: queda exactamente como el nombre unificado", async () => {
+  const db = await createTestDb();
+  await recordarVariantesCuenta(db, ["M A Colecciones 2006 Ca"], MA);
+  expect(await listAliasCuentas(db)).toEqual([{ alias: "macolecciones2006ca", variante: "M A Colecciones 2006 Ca", cuenta: MA }]);
+  expect((await aliasCuentas(db)).get("macolecciones2006ca")).toBe(MA);
+});
+
+it("cambiar las mayúsculas del nombre unificado lleva a él sus variantes y la escritura anterior", async () => {
+  const db = await createTestDb();
+  await recordarVariantesCuenta(db, ["MYA Colecciones"], "M A Colecciones 2006 Ca");
+  await recordarVariantesCuenta(db, ["M A Colecciones 2006 Ca"], MA);
+  expect(await aliasCuentas(db)).toEqual(new Map([["macolecciones2006ca", MA], ["myacolecciones", MA]]));
+});
+
+it("conserva la escritura con otras mayúsculas ya recordada al recordar otras variantes", async () => {
+  const db = await createTestDb();
+  await recordarVariantesCuenta(db, ["M A Colecciones 2006 Ca"], MA);
+  await recordarVariantesCuenta(db, ["MYA Colecciones"], MA);
+  expect(await aliasCuentas(db)).toEqual(new Map([["macolecciones2006ca", MA], ["myacolecciones", MA]]));
+});
+
+it("restaurarAliasCuentas también deshace la escritura con otras mayúsculas", async () => {
+  const db = await createTestDb();
+  const previos = await recordarVariantesCuenta(db, ["M A Colecciones 2006 Ca"], MA);
+  await restaurarAliasCuentas(db, previos);
   expect(await listAliasCuentas(db)).toEqual([]);
 });
 

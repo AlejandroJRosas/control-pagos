@@ -23,20 +23,37 @@ const guardar = (db: SqlDriver, a: AliasCuenta) =>
 
 /**
  * Recuerda que cada una de `variantes` es la cuenta `cuenta`. Las que apuntaban a una de esas variantes pasan a `cuenta` y
- * `cuenta` deja de ser variante de otra (así no hay cadenas ni ciclos). Si falla, deja todo como estaba.
+ * `cuenta` deja de ser variante de otra (así no hay cadenas ni ciclos). La misma cuenta escrita con otras mayúsculas
+ * ("… Ca" por "… CA") también se recuerda: queda en la fila de la clave de `cuenta`, que entonces apunta a ella misma con la
+ * escritura exacta. Si falla, deja todo como estaba.
  */
-export async function recordarVariantesCuenta(db: SqlDriver, variantes: string[], cuenta: string): Promise<PrevioAliasCuenta[]> {
+export async function recordarVariantesCuenta(db: SqlDriver, variantes: string[], cuentaEscrita: string): Promise<PrevioAliasCuenta[]> {
+  const cuenta = cuentaEscrita.trim();
   const destino = claveComparacion(cuenta);
   const nuevas = new Map<string, string>();
-  for (const v of variantes) if (claveComparacion(v) && claveComparacion(v) !== destino) nuevas.set(claveComparacion(v), v.trim());
+  let otraEscritura: string | undefined;
+  for (const v of variantes) {
+    const clave = claveComparacion(v);
+    if (!clave || v.trim() === cuenta) continue;
+    if (clave === destino) otraEscritura ??= v.trim();
+    else nuevas.set(clave, v.trim());
+  }
   const filas = await listAliasCuentas(db);
-  const encadenadas = filas.filter((f) => nuevas.has(claveComparacion(f.cuenta)) && !nuevas.has(f.alias) && f.alias !== destino);
+  const propia = filas.find((f) => f.alias === destino);
+  // La escritura con otras mayúsculas ya recordada se conserva (ahora hacia `cuenta`), salvo que sea justo `cuenta`.
+  const varianteMayusculas = otraEscritura ?? (propia && propia.variante !== cuenta ? propia.variante : undefined);
+  const apuntaACambiar = (f: AliasCuenta) => {
+    const c = claveComparacion(f.cuenta);
+    return nuevas.has(c) || (c === destino && f.cuenta !== cuenta);
+  };
+  const encadenadas = filas.filter((f) => f.alias !== destino && !nuevas.has(f.alias) && apuntaACambiar(f));
   const previos: PrevioAliasCuenta[] = [
     ...filas.filter((f) => f.alias === destino || nuevas.has(f.alias) || encadenadas.includes(f)).map((f) => ({ alias: f.alias, fila: f })),
-    ...[...nuevas.keys()].filter((k) => !filas.some((f) => f.alias === k)).map((alias) => ({ alias, fila: null })),
+    ...[...nuevas.keys(), ...(varianteMayusculas ? [destino] : [])].filter((k) => !filas.some((f) => f.alias === k)).map((alias) => ({ alias, fila: null })),
   ];
   try {
-    await db.execute("DELETE FROM cuentas_alias WHERE alias = ?", [destino]);
+    if (varianteMayusculas) await guardar(db, { alias: destino, variante: varianteMayusculas, cuenta });
+    else await db.execute("DELETE FROM cuentas_alias WHERE alias = ?", [destino]);
     for (const f of encadenadas) await guardar(db, { ...f, cuenta });
     for (const [alias, variante] of nuevas) await guardar(db, { alias, variante, cuenta });
   } catch (err) {
