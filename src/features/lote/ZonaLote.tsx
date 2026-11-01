@@ -137,17 +137,17 @@ const leyendo = (f: FilaLote) => f.estado === "en-cola" || f.estado === "leyendo
  * Barra fija abajo con "Ir a revisar" (Enter o Ctrl+Enter). Salir abandona las lecturas pendientes, así que
  * mientras se lee el botón espera a que termine y entonces abre la revisión ("Ir ya" no espera).
  */
-export function BarraIrARevisar({ to, filas }: { to: string; filas: FilaLote[] }) {
+export function BarraIrARevisar({ to, state, filas }: { to: string; state?: unknown; filas: FilaLote[] }) {
   const navigate = useNavigate();
   const [esperando, setEsperando] = useState(false);
   const porLeer = filas.filter(leyendo).length;
   const listos = porLeer === 0;
 
   useEffect(() => {
-    if (esperando && listos) navigate(to);
-  }, [esperando, listos, navigate, to]);
+    if (esperando && listos) navigate(to, { state });
+  }, [esperando, listos, navigate, to, state]);
 
-  const ir = () => (listos ? navigate(to) : setEsperando((e) => !e));
+  const ir = () => (listos ? navigate(to, { state }) : setEsperando((e) => !e));
   useAtajo("Enter", ir, { activo: filas.length > 0 });
   useAtajo("Enter", ir, { ctrl: true, activo: filas.length > 0 });
   if (filas.length === 0) return null;
@@ -160,7 +160,7 @@ export function BarraIrARevisar({ to, filas }: { to: string; filas: FilaLote[] }
         {esperando && " · la revisión se abre al terminar"}
       </span>
       {esperando && (
-        <Button variant="ghost" onClick={() => navigate(to)}>
+        <Button variant="ghost" onClick={() => navigate(to, { state })}>
           Ir ya
         </Button>
       )}

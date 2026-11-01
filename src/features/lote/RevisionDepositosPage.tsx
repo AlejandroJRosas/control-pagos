@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 import { Images, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -22,6 +22,8 @@ import { ListaCola, RevisionLayout, visiblesDe, type ElementoLista, type Filtro 
 import { motivosBorrador, type ContextoIncidencia } from "./incidencias";
 import { EditorDeposito, type Editor } from "./EditorDeposito";
 import { nombreDestino } from "./destino";
+import { estadoLote, migasLote } from "./origenLote";
+import type { EstadoLote } from "@/components/SoltarImagenes";
 
 type Ctx = { data: CampanaData; items: ItemColaDeposito[]; gerentes: Gerente[]; bancos: string[]; contexto: Map<number, ContextoIncidencia> };
 
@@ -49,6 +51,7 @@ export function RevisionDepositosPage() {
 function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
   const campana = data.campana;
   const cerrada = campana.estado === "cerrada";
+  const estado = useLocation().state as EstadoLote | null;
   const [actualId, setActualId] = useState<number | null>(() => siguientePendiente(items, null) ?? items[0]?.id ?? null);
   const [filtro, setFiltro] = useState<Filtro>("pendientes");
   const [seleccion, setSeleccion] = useState<Seleccion>(SIN_SELECCION);
@@ -186,7 +189,7 @@ function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
 
   return (
     <RevisionLayout
-      migas={[{ to: "/campanas", label: "Campañas" }, { to: `/campanas/${campana.id}`, label: campana.nombre }]}
+      migas={migasLote(campana, data.asignaciones, estado)}
       titulo="Revisión de comprobantes"
       hechos={hechos}
       total={items.length}
@@ -196,7 +199,7 @@ function Revision({ data, items, gerentes, bancos, contexto }: Ctx) {
             Quitar hechos
           </Button>
           {!cerrada && (
-            <Link to={`/campanas/${campana.id}/lote`} className={buttonVariants({ variant: "outline" })}>
+            <Link to={`/campanas/${campana.id}/lote`} state={estadoLote(estado)} className={buttonVariants({ variant: "outline" })}>
               <Images />
               Subir más
             </Link>

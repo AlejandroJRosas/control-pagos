@@ -20,6 +20,7 @@ import type { EstadoLote } from "@/components/SoltarImagenes";
 import { borradorDepositoConOcr } from "./leerEnBorrador";
 import { useLote } from "./useLote";
 import { BarraIrARevisar, TablaLote, ZonaLote } from "./ZonaLote";
+import { estadoLote, migasLote } from "./origenLote";
 
 export function SubirLoteDepositosPage() {
   const { campanaId } = useParams();
@@ -31,7 +32,8 @@ export function SubirLoteDepositosPage() {
 function SubirLote({ data }: { data: CampanaData }) {
   const campana = data.campana;
   const cerrada = campana.estado === "cerrada";
-  const preelegido = (useLocation().state as EstadoLote | null)?.gerente;
+  const estado = useLocation().state as EstadoLote | null;
+  const preelegido = estado?.gerente;
   const [gerente, setGerente] = useState(() => (preelegido && data.asignaciones.some((a) => `a:${a.id}` === preelegido) ? preelegido : ""));
   // Gerente vigente al encolar cada imagen (la lista puede cambiar entre tandas).
   const gerenteRef = useRef(gerente);
@@ -77,12 +79,12 @@ function SubirLote({ data }: { data: CampanaData }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        migas={[{ to: "/campanas", label: "Campañas" }, { to: `/campanas/${campana.id}`, label: campana.nombre }]}
+        migas={migasLote(campana, data.asignaciones, estado)}
         title="Subir comprobantes en lote"
         subtitle="Cada imagen se lee y queda en la cola de revisión; los saldos cambian solo al darle Hecho."
         actions={
           filas.length === 0 && (
-            <Link to={`/campanas/${campana.id}/revision`} className={buttonVariants()}>
+            <Link to={`/campanas/${campana.id}/revision`} state={estadoLote(estado)} className={buttonVariants()}>
               <ListChecks />
               Ir a revisar
             </Link>
@@ -104,7 +106,7 @@ function SubirLote({ data }: { data: CampanaData }) {
       </div>
       <ZonaLote onArchivos={agregar} disabled={cerrada} />
       <TablaLote filas={filas} />
-      <BarraIrARevisar to={`/campanas/${campana.id}/revision`} filas={filas} />
+      <BarraIrARevisar to={`/campanas/${campana.id}/revision`} state={estadoLote(estado)} filas={filas} />
     </div>
   );
 }

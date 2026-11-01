@@ -41,3 +41,21 @@ it("el gerente elegido después de subir se pone a los comprobantes ya subidos d
   await elegirAna();
   await waitFor(async () => expect(await destinos()).toEqual([`a:${s.asignacionId}`]));
 });
+
+it("un lote subido desde el gerente vuelve a él con Esc, desde la subida y desde la revisión", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  tauri.invoke.mockImplementation(async (cmd: string) => (cmd === "ocr_imagen" ? SIN_TEXTO : null));
+  const { user } = await renderApp(`/asignaciones/${s.asignacionId}`, { db });
+  await user.click(await screen.findByRole("button", { name: "Subir lote" }));
+  await screen.findByText("Subir comprobantes en lote");
+  expect(screen.getByRole("link", { name: "Ana" })).toHaveAttribute("href", `/asignaciones/${s.asignacionId}`);
+  const input = document.querySelector<HTMLInputElement>('input[type="file"]') as HTMLInputElement;
+  await user.upload(input, new File(["x"], "1.png", { type: "image/png" }));
+  await screen.findByText("Formato no reconocido: se llena a mano");
+  await user.click(screen.getByRole("button", { name: /Ir a revisar/ }));
+  await screen.findByText("Revisión de comprobantes");
+  await user.keyboard("{Escape}");
+  await screen.findByRole("button", { name: "Subir lote" });
+  expect(screen.queryByText("Revisión de comprobantes")).not.toBeInTheDocument();
+});
