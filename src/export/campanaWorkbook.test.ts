@@ -59,14 +59,14 @@ it("nombres que Excel/ExcelJS rechazan no rompen la exportación", async () => {
   }
 });
 
-it("archivoExcel genera un nombre seguro", () => {
-  expect(archivoExcel("Campaña Marzo/2026", "2026-10-18")).toBe("campana-marzo-2026-2026-10-18.xlsx");
-  expect(archivoExcel("***", "2026-10-18")).toBe("reporte-2026-10-18.xlsx");
+it("archivoExcel: partes separadas por guiones, como se escribieron, y la fecha dd-mm-aaaa", () => {
+  expect(archivoExcel(["Mary Cordero", "MARIANDRES C3 2026"], "2026-11-03")).toBe("Mary Cordero - MARIANDRES C3 2026 - 03-11-2026.xlsx");
+  expect(archivoExcel(["Campaña Marzo/2026"], "2026-10-18")).toBe("Campaña Marzo-2026 - 18-10-2026.xlsx");
+  expect(archivoExcel(["***"], "2026-10-18")).toBe("Reporte - 18-10-2026.xlsx");
 });
 
-it("archivoPdf genera un nombre seguro", () => {
-  expect(archivoPdf("Campaña Marzo/2026", "2026-10-18")).toBe("campana-marzo-2026-2026-10-18.pdf");
-  expect(archivoPdf("***", "2026-10-18")).toBe("reporte-2026-10-18.pdf");
+it("archivoPdf usa el mismo nombre", () => {
+  expect(archivoPdf(["José Pérez", "Julio 2026"], "2026-10-18")).toBe("José Pérez - Julio 2026 - 18-10-2026.pdf");
 });
 
 it("genera resumen, todos los depósitos y una hoja por gerente", async () => {

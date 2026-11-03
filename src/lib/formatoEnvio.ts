@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { archivoBase } from "@/domain/texto";
+import { nombreLegible } from "@/domain/texto";
 
 /** En qué se envía el estado de cuenta; se recuerda el último elegido (localStorage). */
 export const FORMATOS_ENVIO = ["imagen", "pdf", "excel"] as const;
@@ -10,9 +10,9 @@ const EXTENSION: Record<FormatoEnvio, string> = { imagen: "png", pdf: "pdf", exc
 
 export const normalizarFormato = (v: unknown): FormatoEnvio => (FORMATOS_ENVIO.includes(v as FormatoEnvio) ? (v as FormatoEnvio) : "imagen");
 
-/** Solo letras, números y guiones: el comando `copiar_envio` no acepta otra cosa. */
+/** "Ana - Julio 2026 - 21-10-2026.pdf" (sin lo que Windows o `copiar_envio` no aceptan). */
 export const nombreEstadoCuenta = (formato: FormatoEnvio, gerente: string, campana: string, fecha: string): string =>
-  `estado-de-cuenta-${archivoBase(gerente)}-${archivoBase(campana)}-${fecha}.${EXTENSION[formato]}`;
+  `${nombreLegible([gerente, campana], fecha)}.${EXTENSION[formato]}`;
 
 const clave = "control-pagos:formato-envio";
 

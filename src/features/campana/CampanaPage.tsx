@@ -144,10 +144,10 @@ export function CampanaPage() {
   const opciones = { ocultarSinPagos };
   const sinPagos = view.gerentes.filter((g) => g.cantidad === 0).length;
   const exportar = () =>
-    conExportando(() => saveWorkbook(buildCampanaWorkbook(campana, view, new Date(), opciones), archivoExcel(campana.nombre, todayIso())), "Excel guardado");
+    conExportando(() => saveWorkbook(buildCampanaWorkbook(campana, view, new Date(), opciones), archivoExcel([campana.nombre], todayIso())), "Excel guardado");
   const exportarPdf = () =>
     conExportando(
-      (avisar) => savePdf(buildCampanaPdf(campana, view, new Date(), opciones), archivoPdf(campana.nombre, todayIso()), () => avisar("Generando PDF…")),
+      (avisar) => savePdf(buildCampanaPdf(campana, view, new Date(), opciones), archivoPdf([campana.nombre], todayIso()), () => avisar("Generando PDF…")),
       "PDF guardado",
     );
 

@@ -11,9 +11,9 @@ describe("normalizarFormato", () => {
 });
 
 describe("nombreEstadoCuenta", () => {
-  it("arma un nombre de archivo simple con la extensión del formato", () => {
-    expect(nombreEstadoCuenta("pdf", "José Pérez", "Julio 2026", "2026-10-21")).toBe("estado-de-cuenta-jose-perez-julio-2026-2026-10-21.pdf");
-    expect(nombreEstadoCuenta("excel", "Ana", "Julio", "2026-10-21")).toBe("estado-de-cuenta-ana-julio-2026-10-21.xlsx");
-    expect(nombreEstadoCuenta("imagen", "Ana", "Julio", "2026-10-21")).toBe("estado-de-cuenta-ana-julio-2026-10-21.png");
+  it("Gerente - Campaña - fecha, con la extensión del formato", () => {
+    expect(nombreEstadoCuenta("pdf", "José Pérez", "Julio 2026", "2026-10-21")).toBe("José Pérez - Julio 2026 - 21-10-2026.pdf");
+    expect(nombreEstadoCuenta("excel", "Ana", "Julio", "2026-10-21")).toBe("Ana - Julio - 21-10-2026.xlsx");
+    expect(nombreEstadoCuenta("imagen", "Ana", "Julio", "2026-10-21")).toBe("Ana - Julio - 21-10-2026.png");
   });
 });

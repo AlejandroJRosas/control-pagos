@@ -64,7 +64,7 @@ export function TasasPage() {
 
   async function exportar() {
     try {
-      if (await saveWorkbook(buildTasasWorkbook(data ?? []), archivoExcel("tasas", todayIso()))) toast.success("Excel guardado");
+      if (await saveWorkbook(buildTasasWorkbook(data ?? []), archivoExcel(["Tasas"], todayIso()))) toast.success("Excel guardado");
     } catch (e) {
       reportError(e, "Exportar");
     }

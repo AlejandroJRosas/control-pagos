@@ -4,14 +4,18 @@
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-/// Solo un nombre de archivo simple (sin carpetas) con extensión .pdf, .xlsx o .cpagos.
+/// Solo un nombre de archivo simple (sin carpetas ni caracteres que Windows no acepta) con extensión .pdf, .xlsx o .cpagos.
+/// Se permiten espacios y acentos ("Mary Cordero - MARIANDRES C3 2026 - 03-11-2026.pdf").
 pub fn nombre_valido(nombre: &str) -> bool {
     let (base, ext) = match nombre.rsplit_once('.') {
         Some(p) => p,
         None => return false,
     };
     !base.is_empty()
-        && base.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        && base.chars().any(|c| c.is_alphanumeric())
+        && !base.starts_with(['.', ' '])
+        && !base.ends_with(['.', ' '])
+        && base.chars().all(|c| !c.is_control() && !matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'))
         && matches!(ext, "pdf" | "xlsx" | "cpagos")
 }
 
@@ -60,6 +64,17 @@ mod tests {
         assert!(!nombre_valido("ana.exe"));
         assert!(!nombre_valido(".pdf"));
         assert!(!nombre_valido("ana"));
+    }
+
+    #[test]
+    fn acepta_nombres_legibles_con_espacios_y_acentos() {
+        assert!(nombre_valido("Mary Cordero - MARIANDRES C3 2026 - 03-11-2026.pdf"));
+        assert!(nombre_valido("José Peña - Julio 2026 - 21-10-2026.xlsx"));
+        assert!(!nombre_valido("a:b.pdf"));
+        assert!(!nombre_valido("a*b.pdf"));
+        assert!(!nombre_valido(" ana.pdf"));
+        assert!(!nombre_valido("ana .pdf"));
+        assert!(!nombre_valido("...pdf"));
     }
 
     #[test]

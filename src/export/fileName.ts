@@ -1,11 +1,10 @@
-import { archivoBase } from "@/domain/texto";
+import { nombreLegible } from "@/domain/texto";
 
-export { archivoBase };
-
-export function archivoExcel(nombre: string, fecha: string): string {
-  return `${archivoBase(nombre) || "reporte"}-${fecha}.xlsx`;
+/** "Mary Cordero - MARIANDRES C3 2026 - 03-11-2026.xlsx" */
+export function archivoExcel(partes: string[], fecha: string): string {
+  return `${nombreLegible(partes, fecha)}.xlsx`;
 }
 
-export function archivoPdf(nombre: string, fecha: string): string {
-  return `${archivoBase(nombre) || "reporte"}-${fecha}.pdf`;
+export function archivoPdf(partes: string[], fecha: string): string {
+  return `${nombreLegible(partes, fecha)}.pdf`;
 }

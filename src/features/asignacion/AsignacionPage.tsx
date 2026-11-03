@@ -93,7 +93,7 @@ export function AsignacionPage() {
     await openUrl(urlWhatsApp(numero, texto));
   }
 
-  const archivo = `${a.gerenteNombre} ${a.campanaNombre}`;
+  const archivo = [a.gerenteNombre, a.campanaNombre];
 
   /** Mientras se exporta, el menú queda deshabilitado: generar el PDF tarda unos segundos la primera vez. */
   async function conExportando(guardar: (avisar: (texto: string) => void) => Promise<boolean>, mensaje: string) {

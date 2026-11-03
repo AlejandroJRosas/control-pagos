@@ -25,7 +25,7 @@ it("copia el estado de cuenta en Excel como archivo", async () => {
   await user.click(await screen.findByRole("button", { name: "Estado de cuenta" }));
   await user.click(await screen.findByRole("button", { name: "Excel" }));
   await user.click(screen.getByRole("button", { name: "Copiar excel" }));
-  await waitFor(() => expect(copiados()).toEqual(["estado-de-cuenta-ana-marzo-2026-10-21.xlsx"]));
+  await waitFor(() => expect(copiados()).toEqual(["Ana - Marzo - 21-10-2026.xlsx"]));
 });
 
 it("en PDF lo copia y abre el chat con el mensaje, y recuerda el formato", async () => {
@@ -35,7 +35,7 @@ it("en PDF lo copia y abre el chat con el mensaje, y recuerda el formato", async
   await user.click(await screen.findByRole("button", { name: "PDF" }));
   await user.click(screen.getByRole("button", { name: "Copiar y abrir WhatsApp" }));
   await waitFor(() => expect(tauri.openUrl).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/wa\.me\/584141234567\?text=/)));
-  expect(copiados()).toEqual(["estado-de-cuenta-ana-marzo-2026-10-21.pdf"]);
+  expect(copiados()).toEqual(["Ana - Marzo - 21-10-2026.pdf"]);
   unmount();
 
   const otra = await renderApp(`/asignaciones/${s.asignacionId}`, { db, hoy: "2026-10-21" });
