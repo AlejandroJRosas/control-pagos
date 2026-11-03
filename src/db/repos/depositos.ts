@@ -248,3 +248,13 @@ export async function listCuentasDestinoUsadas(db: SqlDriver): Promise<string[]>
   const rows = await db.select<{ cuenta: string }>("SELECT DISTINCT trim(cuenta_destino) AS cuenta FROM depositos ORDER BY cuenta");
   return rows.map((r) => r.cuenta);
 }
+
+/** Cuentas destino usadas en la campaña de esa asignación (de todos sus gerentes), sin repetir ni vacías. */
+export async function listCuentasDestinoDeCampana(db: SqlDriver, asignacionId: number): Promise<string[]> {
+  const rows = await db.select<{ cuenta: string }>(
+    `SELECT DISTINCT trim(d.cuenta_destino) AS cuenta FROM depositos d JOIN asignaciones a ON a.id = d.asignacion_id
+     WHERE a.campana_id = (SELECT campana_id FROM asignaciones WHERE id = ?) AND trim(d.cuenta_destino) <> '' ORDER BY cuenta`,
+    [asignacionId],
+  );
+  return rows.map((r) => r.cuenta);
+}

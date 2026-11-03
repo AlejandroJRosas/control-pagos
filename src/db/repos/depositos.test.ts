@@ -4,7 +4,7 @@ import { createTestDb } from "../testing/sqljsDriver";
 import { crearDuplicado, depositoBase, seedBasico } from "../testing/fixtures";
 import { createTasa } from "./tasas";
 import { createCampana, setEstadoCampana } from "./campanas";
-import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, findPosiblesRepetidos, getDeposito, listBancosUsados, listCuentasDestinoUsadas, restaurarDepositos, updateDeposito } from "./depositos";
+import { createDeposito, deleteDeposito, deleteDepositos, findDuplicados, findPosiblesRepetidos, getDeposito, listBancosUsados, listCuentasDestinoUsadas, listCuentasDestinoDeCampana, restaurarDepositos, updateDeposito } from "./depositos";
 import { guardarAliasBanco } from "./bancosAlias";
 import { recordarVariantesCuenta } from "./cuentasAlias";
 import { createGerente } from "./gerentes";
@@ -165,6 +165,18 @@ it("lista las cuentas destino usadas sin repetir", async () => {
   await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: " A ", referencia: "2" }));
   await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: "B", referencia: "3" }));
   expect(await listCuentasDestinoUsadas(db)).toEqual(["A", "B"]);
+});
+
+it("lista las cuentas destino de la campaña de una asignación, sin las de otras campañas", async () => {
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: "B", referencia: "1" }));
+  await createDeposito(db, s.asignacionId, depositoBase(s.tasaId, { cuentaDestino: " A ", referencia: "2" }));
+  const luisId = await createGerente(db, { nombre: "Luis", telefono: null });
+  const otraAsig = await createAsignacion(db, { campanaId: s.campanaId, gerenteId: luisId, saldoUsd: "0" });
+  await createDeposito(db, otraAsig, depositoBase(s.tasaId, { cuentaDestino: "C", referencia: "3" }));
+  const otraCampana = await createCampana(db, { nombre: "Abril", fechaInicio: "2026-04-01", fechaFin: null, notas: null });
+  const ajena = await createAsignacion(db, { campanaId: otraCampana, gerenteId: s.anaId, saldoUsd: "0" });
+  await createDeposito(db, ajena, depositoBase(s.tasaId, { cuentaDestino: "Z", referencia: "4" }));
+  expect(await listCuentasDestinoDeCampana(db, s.asignacionId)).toEqual(["A", "B", "C"]);
 });
 
 it("createDeposito y updateDeposito guardan la cuenta destino con su nombre unificado", async () => {

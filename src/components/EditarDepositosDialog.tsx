@@ -10,7 +10,7 @@ import { BotonConMotivo } from "@/components/BotonConMotivo";
 import { Casilla } from "@/components/Casilla";
 import { getDb } from "@/db";
 import { editarDepositos } from "@/db/operaciones/editarDepositos";
-import { listBancosUsados, listCuentasDestinoUsadas } from "@/db/repos/depositos";
+import { listBancosUsados, listCuentasDestinoDeCampana } from "@/db/repos/depositos";
 import { aliasCuentas } from "@/db/repos/cuentasAlias";
 import { getTasaParaFecha } from "@/db/repos/tasas";
 import { sugerenciasBancos } from "@/domain/bancos";
@@ -49,12 +49,14 @@ export function EditarDepositosDialog({ depositos, onOpenChange }: Props) {
   const sucio = depositos !== null && [cuenta, banco, fecha, nota].some((v) => v.trim() !== "");
   const aviso = useDialogoSinGuardar(sucio, onOpenChange);
   const abierto = depositos !== null;
+  // Las cuentas sugeridas son solo las de la campaña de los depósitos (todos son de la misma).
+  const asignacionId = depositos?.[0]?.asignacionId ?? null;
   const { data: sugerencias } = useData(
     async (db) =>
-      abierto
-        ? { bancos: sugerenciasBancos(await listBancosUsados(db)), cuentas: (await listCuentasDestinoUsadas(db)).filter(Boolean), alias: await aliasCuentas(db) }
+      asignacionId !== null
+        ? { bancos: sugerenciasBancos(await listBancosUsados(db)), cuentas: await listCuentasDestinoDeCampana(db, asignacionId), alias: await aliasCuentas(db) }
         : null,
-    [abierto],
+    [asignacionId],
   );
   const alias = sugerencias?.alias;
   const cuentaUnificada = alias && cuenta.trim() ? cuentaCanonica(cuenta.trim(), alias) : "";
