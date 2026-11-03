@@ -171,7 +171,7 @@ export function AppLayout() {
         <Outlet />
         <VolverArriba contenedor={main} />
       </main>
-      <Toaster richColors position="top-right" />
+      <Toaster richColors position="top-center" />
       <BusquedaGlobal open={buscar} onOpenChange={setBuscar} />
       <AyudaAtajos open={ayuda} onOpenChange={setAyuda} />
       <AvisoActualizacion />
