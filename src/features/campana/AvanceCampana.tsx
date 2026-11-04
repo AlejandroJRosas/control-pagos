@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { CircleCheck, Copy, Plus } from "lucide-react";
 import { ESTILO_META, describirMeta } from "@/components/estiloMeta";
 import { toast } from "sonner";
@@ -48,6 +49,9 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
   const nFilas = vistas.length === 0 ? 0 : Math.max(...filas) + 1;
   const completo = total.pct >= 100;
   const avanceEnBarra = Math.min(Math.max(total.pct, 0), 100);
+  // La meta bajo el mouse (o con el foco): se marca su trayecto, las demás se atenúan y sale su casilla.
+  const [enfocadaId, setEnfocadaId] = useState<number | null>(null);
+  const enfocada = vistas.find((m) => m.id === enfocadaId) ?? null;
 
   async function copiar() {
     try {
@@ -60,7 +64,8 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
 
   return (
     <section aria-label="Avance de la campaña">
-    <Card className="gap-4 px-5 py-4">
+    {/* overflow-visible: la casilla de la meta enfocada sale por debajo de la tarjeta. */}
+    <Card className="gap-4 overflow-visible px-5 py-4">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
         <div className="grid gap-0.5">
           <span className="text-sm text-muted-foreground">Avance de la campaña</span>
@@ -137,11 +142,27 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
               style={{ width: `${avanceEnBarra}%` }}
             />
           </div>
+          {/* Trayecto de lo pagado hasta la meta enfocada (solo si aún falta). */}
+          {enfocada && enfocada.estado !== "cumplida" && enfocada.posicion > avanceEnBarra && (
+            <span
+              data-trayecto
+              aria-hidden
+              className={cn(
+                "absolute inset-y-0 rounded-r-full border-2 border-l-0 border-dashed",
+                enfocada.estado === "vencida" ? "border-destructive bg-destructive/20" : "border-primary-intenso bg-primary/30",
+              )}
+              style={{ left: `${avanceEnBarra}%`, width: `${enfocada.posicion - avanceEnBarra}%` }}
+            />
+          )}
           {vistas.map((m) => (
             <span
               key={m.id}
               aria-hidden
-              className={cn("absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded-full", ESTILO_META[m.estado].linea)}
+              className={cn(
+                "absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded-full transition-opacity",
+                ESTILO_META[m.estado].linea,
+                enfocada && enfocada.id !== m.id && "opacity-25",
+              )}
               style={{ left: `${m.posicion}%` }}
             />
           ))}
@@ -151,17 +172,25 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
             {vistas.map((m, i) => {
               const estilo = ESTILO_META[m.estado];
               const Icono = estilo.icono;
+              const atenuada = !!enfocada && enfocada.id !== m.id;
               return (
                 <button
                   key={m.id}
                   type="button"
-                  disabled={cerrada}
+                  // aria-disabled y no disabled: un botón deshabilitado no recibe el hover y la casilla no saldría.
+                  aria-disabled={cerrada || undefined}
                   aria-label={describirMeta(m)}
-                  title={describirMeta(m)}
-                  onClick={() => onEditar(m)}
+                  data-atenuada={atenuada || undefined}
+                  onClick={() => !cerrada && onEditar(m)}
+                  onMouseEnter={() => setEnfocadaId(m.id)}
+                  onMouseLeave={() => setEnfocadaId(null)}
+                  onFocus={() => setEnfocadaId(m.id)}
+                  onBlur={() => setEnfocadaId(null)}
                   className={cn(
-                    "absolute grid justify-items-start rounded-md px-1.5 py-0.5 text-left text-xs leading-tight whitespace-nowrap tabular-nums",
-                    "enabled:hover:bg-fila-hover disabled:cursor-default",
+                    "absolute grid justify-items-start rounded-md px-1.5 py-0.5 text-left text-xs leading-tight whitespace-nowrap tabular-nums transition-opacity",
+                    cerrada ? "cursor-default" : "hover:bg-fila-hover",
+                    atenuada && "opacity-30",
+                    enfocada?.id === m.id && "z-20",
                     anclaje(m.posicion),
                     estilo.texto,
                   )}
@@ -172,6 +201,7 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
                     {formatUsd(m.montoUsd)}
                   </span>
                   <span className="text-muted-foreground">{formatFecha(m.fecha)}</span>
+                  {enfocada?.id === m.id && <CasillaMeta m={m} hoy={hoy} />}
                 </button>
               );
             })}
@@ -180,6 +210,40 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
       </div>
     </Card>
     </section>
+  );
+}
+
+const nDias = (n: number) => (n === 1 ? "1 día" : `${n} días`);
+
+/** "en 15 días", "vence hoy" o "vencida hace 2 días". */
+function cuandoVence(hoy: string, fecha: string): string {
+  const dias = diasHasta(hoy, fecha);
+  return dias < 0 ? `vencida hace ${nDias(-dias)}` : dias === 0 ? "vence hoy" : `en ${nDias(dias)}`;
+}
+
+/** Casilla de la meta enfocada: solo lo que falta (o "Cumplida"), la fecha objetivo y los días. */
+function CasillaMeta({ m, hoy }: { m: MetaVista; hoy: string }) {
+  return (
+    <span
+      role="tooltip"
+      className={cn(
+        "pointer-events-none absolute top-full z-30 mt-1 grid min-w-36 gap-0.5 rounded-md border bg-popover px-3 py-2 text-left text-xs text-popover-foreground shadow-md",
+        m.posicion < 8 ? "left-0" : m.posicion > 92 ? "right-0" : "left-1/2 -translate-x-1/2",
+      )}
+    >
+      {m.estado === "cumplida" ? (
+        <span className="flex items-center gap-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+          <CircleCheck className="size-3.5" />
+          Cumplida
+        </span>
+      ) : (
+        <span className={cn("text-sm font-semibold", m.estado === "vencida" && "text-destructive")}>Faltan {formatUsd(m.falta)}</span>
+      )}
+      <span className="text-muted-foreground">
+        Para el <span className="font-medium text-foreground">{formatFecha(m.fecha)}</span>
+      </span>
+      {m.estado !== "cumplida" && <span className={m.estado === "vencida" ? "text-destructive" : "text-muted-foreground"}>{cuandoVence(hoy, m.fecha)}</span>}
+    </span>
   );
 }
 
@@ -192,9 +256,7 @@ function ProximaMeta({ proxima, hayMetas, hoy }: { proxima: MetaVista | null; ha
         Todas las metas cumplidas
       </span>
     );
-  const dias = diasHasta(hoy, proxima.fecha);
-  const nDias = (n: number) => (n === 1 ? "1 día" : `${n} días`);
-  const cuando = dias < 0 ? `vencida hace ${nDias(-dias)}` : dias === 0 ? "vence hoy" : `en ${nDias(dias)}`;
+  const cuando = cuandoVence(hoy, proxima.fecha);
   return (
     <span className={cn("text-sm", proxima.estado === "vencida" ? "text-destructive" : "text-muted-foreground")}>
       Próxima meta: <span className="font-medium text-foreground tabular-nums">{formatUsd(proxima.montoUsd)}</span> para el{" "}

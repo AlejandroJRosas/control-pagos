@@ -62,6 +62,41 @@ it("al 100 % muestra la fecha final de la campaña; una meta cumplida y una venc
   expect(within(avance).getByRole("button", { name: /Meta \$ 70,00 para el 03\/03\/2026 · vencida · faltan \$ 20,00/ })).toBeInTheDocument();
 });
 
+it("al pasar sobre una meta marca el trayecto desde lo pagado, atenúa las demás y dice solo lo que falta, la fecha y los días", async () => {
+  const { db, s } = await campanaConPagos();
+  await createMeta(db, s.campanaId, { montoUsd: "40", fecha: "2026-03-10", nota: null });
+  await createMeta(db, s.campanaId, { montoUsd: "70", fecha: "2026-03-20", nota: null });
+  const { user } = await renderApp(`/campanas/${s.campanaId}`, { db, hoy: "2026-03-05" });
+
+  const avance = await screen.findByRole("region", { name: "Avance de la campaña" });
+  const meta70 = within(avance).getByRole("button", { name: /Meta \$ 70,00/ });
+  const meta40 = within(avance).getByRole("button", { name: /Meta \$ 40,00/ });
+  // Sin el aviso del sistema con todo el texto.
+  expect(meta70).not.toHaveAttribute("title");
+  expect(within(avance).queryByRole("tooltip")).not.toBeInTheDocument();
+
+  await user.hover(meta70);
+  const casilla = within(avance).getByRole("tooltip");
+  expect(casilla).toHaveTextContent("Faltan $ 20,00");
+  expect(casilla).toHaveTextContent("20/03/2026");
+  expect(casilla).toHaveTextContent("en 15 días");
+  expect(casilla).not.toHaveTextContent("Meta");
+  // Trayecto de 50 % (lo pagado) a 70 % (la meta).
+  expect(avance.querySelector("[data-trayecto]")).toHaveStyle({ left: "50%", width: "20%" });
+  expect(meta40).toHaveAttribute("data-atenuada");
+  expect(meta70).not.toHaveAttribute("data-atenuada");
+
+  await user.unhover(meta70);
+  expect(within(avance).queryByRole("tooltip")).not.toBeInTheDocument();
+  expect(avance.querySelector("[data-trayecto]")).toBeNull();
+  expect(meta40).not.toHaveAttribute("data-atenuada");
+
+  // Una meta cumplida lo dice, sin trayecto.
+  await user.hover(meta40);
+  expect(within(avance).getByRole("tooltip")).toHaveTextContent("Cumplida");
+  expect(avance.querySelector("[data-trayecto]")).toBeNull();
+});
+
 it("con la campaña cerrada no se agregan metas", async () => {
   const { db, s } = await campanaConPagos();
   await setEstadoCampana(db, s.campanaId, "cerrada");
