@@ -64,13 +64,14 @@ export function CajitaGerente({ g, cerrada, rama, debajo, plegada, onAlternar, o
           <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", estado.punto)} />
           <span className="truncate">{g.gerenteNombre}</span>
         </span>
-        <span className="flex items-baseline justify-between gap-2 text-xs tabular-nums">
-          <span className={cn("truncate", restante.isNegative() ? "font-medium text-destructive" : "text-muted-foreground")}>
-            {restante.isZero() ? "al día" : `Restante ${formatUsd(g.restante)}`}
-          </span>
-          <span className="shrink-0 text-muted-foreground">{formatPct(g.pct)}</span>
+        {/* El monto va en su propia línea: nunca se corta. El porcentaje acompaña a la barra. */}
+        <span className={cn("text-xs tabular-nums", restante.isNegative() ? "font-medium text-destructive" : "text-muted-foreground")}>
+          {restante.isZero() ? "al día" : `Restante ${formatUsd(g.restante)}`}
         </span>
-        <BarraAvance pct={g.pct} label={`Avance de ${g.gerenteNombre}`} />
+        <span className="flex items-center gap-1.5">
+          <BarraAvance pct={g.pct} label={`Avance de ${g.gerenteNombre}`} />
+          <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">{formatPct(g.pct)}</span>
+        </span>
         {rama && (
           <span className="mt-1 grid gap-1 border-t border-dashed pt-1">
             <RamaResumen r={rama} />
@@ -101,7 +102,7 @@ export function CajitaGerente({ g, cerrada, rama, debajo, plegada, onAlternar, o
 function BarraAvance({ pct, label }: { pct: number; label: string }) {
   const ancho = Math.min(Math.max(pct, 0), 100);
   return (
-    <span role="progressbar" aria-label={label} aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} className="block h-1 overflow-hidden rounded-full bg-muted">
+    <span role="progressbar" aria-label={label} aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} className="block h-1 flex-1 overflow-hidden rounded-full bg-muted">
       <span className={cn("block h-full rounded-full", pct >= 100 ? "bg-emerald-500" : "bg-primary")} style={{ width: `${ancho}%` }} />
     </span>
   );
