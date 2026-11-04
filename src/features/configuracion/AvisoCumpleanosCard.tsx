@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,10 +13,12 @@ import { reportError } from "@/lib/reportError";
 /** Días de antelación con que se avisan los cumpleaños de los gerentes. */
 export function AvisoCumpleanosCard() {
   const { data: guardada } = useData(async (db) => antelacionDeAjuste(await getAjuste(db, AJUSTE_ANTELACION_CUMPLE)), []);
-  const [valor, setValor] = useState("");
-  useEffect(() => {
-    if (guardada !== undefined) setValor(String(guardada));
-  }, [guardada]);
+  // El campo sale recién con el valor guardado (si no, lo escrito antes de cargar se pisaría); `key` lo repone al guardar.
+  return guardada === undefined ? null : <Formulario key={guardada} guardada={guardada} />;
+}
+
+function Formulario({ guardada }: { guardada: number }) {
+  const [valor, setValor] = useState(String(guardada));
 
   const dias = /^\d+$/.test(valor) ? Number(valor) : null;
   const valido = dias !== null && dias <= ANTELACION_CUMPLE_MAX;
@@ -38,7 +40,7 @@ export function AvisoCumpleanosCard() {
       <CardHeader>
         <CardTitle>Cumpleaños</CardTitle>
         <CardDescription>
-          Arriba de cada pantalla se avisa el cumpleaños de los gerentes activos con estos días de antelación, todos los días hasta la fecha. Con 0 solo se
+          Una ventanita abajo a la derecha avisa el cumpleaños de los gerentes activos con estos días de antelación, todos los días hasta la fecha. Con 0 solo se
           avisa el mismo día.
         </CardDescription>
       </CardHeader>
