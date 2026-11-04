@@ -29,3 +29,19 @@ it("una variante recordada pasa al nombre unificado sin bajar la confianza", () 
 it("sin cuenta leída no cambia nada", () => {
   expect(ajustarCuentaDestino({ montoBs: { value: "1", confidence: 0.9 } }, ["y"])).toEqual({ montoBs: { value: "1", confidence: 0.9 } });
 });
+
+it("una cuenta parecida a una sola conocida (letras de menos o de más) propone la conocida para revisar", () => {
+  const conocidas = ["M A Colecciones 2006 Ca", "Inversiones Mariandres CA"];
+  // El OCR perdió la "M".
+  expect(ajustarCuentaDestino({ cuentaDestino: { value: "A Colecciones 2006 Ca", confidence: 0.9 } }, conocidas).cuentaDestino).toEqual({
+    value: "M A Colecciones 2006 Ca",
+    confidence: 0.7,
+  });
+  // Confundió dos letras.
+  expect(ajustarCuentaDestino({ cuentaDestino: { value: "Inversiones Mariandrcs CO", confidence: 0.9 } }, conocidas).cuentaDestino?.value).toBe("Inversiones Mariandres CA");
+});
+
+it("si se parece a dos conocidas por igual, o la diferencia es grande, no propone ninguna", () => {
+  expect(ajustarCuentaDestino({ cuentaDestino: { value: "Cuenta B", confidence: 0.9 } }, ["Cuenta A", "Cuenta C"]).cuentaDestino).toEqual({ value: "Cuenta B", confidence: 0.7 });
+  expect(ajustarCuentaDestino(f, ["Inversiones ABC CA"]).cuentaDestino?.value).toBe("Inversiones Xyz CA");
+});

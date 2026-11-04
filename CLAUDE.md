@@ -106,7 +106,7 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - Datos en la UI: `useData(load, deps)`; después de cualquier escritura llamar `invalidate()`. Errores: `reportError(e)`.
 - TDD: la lógica nueva va en `domain/` o `db/` con su prueba primero. Flujos de la UI: `*.ui.test.tsx` con `renderApp(ruta, { db, hoy })` (`src/testing/`: BD sql.js, `@/db` y Tauri simulados en `setupUi.ts`, respuestas de `invoke` en `tauri.invoke`). Lo que no cubren, con `pnpm build` y `docs/checklist-mvp.md`.
 - Commits en español con prefijo (`feat:`, `fix:`, `docs:`…).
-- Versiones con versionado semántico `MAYOR.MENOR.PARCHE` (desde la 0.8.0), según lo que trae la versión desde la última etiqueta: solo arreglos o ajustes de lo que ya existe (`fix:`) → PARCHE (0.8.0 → 0.8.1); alguna funcionalidad nueva (`feat:`, incluido un formato nuevo de OCR) → MENOR y PARCHE a 0 (0.8.1 → 0.9.0); un cambio estructural importante (p. ej. la fase 3, BD en línea) → MAYOR y lo demás a 0 (0.9.0 → 1.0.0). Manda el cambio más grande que incluya.
+- Versiones con versionado semántico `MAYOR.MENOR.PARCHE` (desde la 0.8.0), según lo que trae la versión desde la última etiqueta: solo arreglos o ajustes de lo que ya existe (`fix:`, y también un formato nuevo de OCR: el usuario lo cuenta como agregado, no como funcionalidad; commit `fix(ocr):`) → PARCHE (0.8.0 → 0.8.1); alguna funcionalidad nueva (`feat:`) → MENOR y PARCHE a 0 (0.8.1 → 0.9.0); un cambio estructural importante (p. ej. la fase 3, BD en línea) → MAYOR y lo demás a 0 (0.9.0 → 1.0.0). Manda el cambio más grande que incluya.
 
 ## Agregar un formato de comprobante (OCR)
 
@@ -130,4 +130,4 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 
 ## Pendientes conocidos (menores)
 
-La lista fija de alias de `domain/bancos.ts` sigue siendo a mano (los nombres que se confirman al importar se recuerdan en `bancos_alias`). La cuenta destino del OCR solo baja a ámbar si nunca se usó: una mal leída igual a una ya usada no se detecta. Los feriados bancarios adicionales (SUDEBAN) se cargan a mano.
+La lista fija de alias de `domain/bancos.ts` sigue siendo a mano (los nombres que se confirman al importar se recuerdan en `bancos_alias`). La cuenta destino del OCR baja a ámbar si nunca se usó y, si se parece a una sola conocida (≤ 2 letras y ≤ 20 %, `cuentaParecida` en `extraction/cuentaConocida.ts`), se propone esa; una mal leída igual a otra ya usada no se detecta. Los feriados bancarios adicionales (SUDEBAN) se cargan a mano.

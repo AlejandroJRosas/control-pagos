@@ -1,4 +1,4 @@
-import { claveComparacion } from "@/domain/texto";
+import { claveComparacion, distanciaEdicion } from "@/domain/texto";
 import type { CuentasAlias } from "@/domain/cuentasDestino";
 import type { CampoPropuesto, CamposDeposito } from "./tipos";
 
@@ -7,7 +7,9 @@ const CONFIANZA_CUENTA_NUEVA = 0.7;
 
 /**
  * Las cuentas destino son pocas y se repiten (las de la empresa). Una variante recordada pasa a su nombre unificado.
- * Si la leída no coincide con ninguna ya usada, se marca como heurística (ámbar) para que se revise. Sin cuentas registradas no se toca nada.
+ * Si la leída no coincide con ninguna ya usada, se marca como heurística (ámbar) para que se revise; si se parece a una sola
+ * conocida (pocas letras de diferencia: el OCR perdió o confundió alguna), se propone esa, también en ámbar.
+ * Sin cuentas registradas no se toca nada.
  */
 export function ajustarCuentaDestino(
   fields: Partial<Record<CamposDeposito, CampoPropuesto>>,
@@ -21,5 +23,28 @@ export function ajustarCuentaDestino(
   if (conocidas.length === 0) return fields;
   const clave = claveComparacion(c.value);
   if (conocidas.some((k) => claveComparacion(k) === clave)) return fields;
-  return { ...fields, cuentaDestino: { ...c, confidence: Math.min(c.confidence, CONFIANZA_CUENTA_NUEVA) } };
+  const parecida = cuentaParecida(clave, conocidas);
+  return { ...fields, cuentaDestino: { value: parecida ?? c.value, confidence: Math.min(c.confidence, CONFIANZA_CUENTA_NUEVA) } };
+}
+
+/**
+ * La conocida que se parece a la leída: a lo más 2 letras de diferencia y no más del 20 % del nombre, y que no haya otra
+ * igual de cerca (con un empate no se adivina).
+ */
+function cuentaParecida(clave: string, conocidas: string[]): string | undefined {
+  const tope = Math.min(2, Math.floor(clave.length * 0.2));
+  if (tope === 0) return undefined;
+  let mejor: { cuenta: string; d: number } | undefined;
+  let empate = false;
+  const vistas = new Set<string>();
+  for (const k of conocidas) {
+    const ck = claveComparacion(k);
+    if (vistas.has(ck)) continue;
+    vistas.add(ck);
+    const d = distanciaEdicion(clave, ck);
+    if (d > tope) continue;
+    if (!mejor || d < mejor.d) [mejor, empate] = [{ cuenta: k, d }, false];
+    else if (d === mejor.d) empate = true;
+  }
+  return mejor && !empate ? mejor.cuenta : undefined;
 }

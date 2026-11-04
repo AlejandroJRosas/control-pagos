@@ -36,3 +36,14 @@ export function archivoBase(nombre: string): string {
     .replace(/^-+|-+$/g, "")
     .toLowerCase();
 }
+
+/** Distancia de edición (Levenshtein): cuántas letras hay que quitar, poner o cambiar para pasar de `a` a `b`. */
+export function distanciaEdicion(a: string, b: string): number {
+  let previa = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const fila = [i];
+    for (let j = 1; j <= b.length; j++) fila[j] = Math.min(previa[j] + 1, fila[j - 1] + 1, previa[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    previa = fila;
+  }
+  return previa[b.length];
+}
