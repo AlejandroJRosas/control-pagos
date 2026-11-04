@@ -182,6 +182,23 @@ const MIGRATIONS: Migration[] = [
     version: 10,
     statements: ["CREATE TABLE IF NOT EXISTS cuentas_alias (alias TEXT PRIMARY KEY, variante TEXT NOT NULL, cuenta TEXT NOT NULL)"],
   },
+  {
+    // Metas generales de la campaña: un monto pagado (USD, toda la campaña) al que llegar para una fecha. No viajan al consolidar.
+    version: 11,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS metas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        campana_id INTEGER NOT NULL REFERENCES campanas(id),
+        monto_usd TEXT NOT NULL,
+        fecha TEXT NOT NULL,
+        nota TEXT,
+        uuid TEXT NOT NULL UNIQUE,
+        creado_en TEXT NOT NULL,
+        actualizado_en TEXT NOT NULL
+      )`,
+      "CREATE INDEX IF NOT EXISTS idx_metas_campana ON metas(campana_id)",
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

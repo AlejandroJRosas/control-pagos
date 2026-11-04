@@ -14,6 +14,8 @@ import { buildResumenGeneral, type FilaCampana } from "@/domain/resumenGeneral";
 import { formatFecha, todayIso } from "@/domain/dates";
 import { formatPct, formatUsd } from "@/domain/money";
 import { useData } from "@/hooks/useData";
+import { metasPorCampana } from "@/db/repos/metas";
+import { vistaMetas } from "@/domain/metas";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { conVolver } from "@/lib/volver";
 import { cn } from "@/lib/utils";
@@ -48,6 +50,7 @@ const MAX_DEUDORES = 10;
 export function ResumenPage() {
   const hoy = todayIso();
   const { data, error } = useData(async (db) => buildResumenGeneral(await loadResumenGeneral(db), hoy), [hoy]);
+  const { data: metas } = useData((db) => metasPorCampana(db), []);
   const navigate = useNavigate();
   const location = useLocation();
   // Sin orden elegido quedan las campañas más recientes primero.
@@ -114,7 +117,7 @@ export function ResumenPage() {
                     </TableCell>
                     <TableCell className="w-36">
                       <div className="flex items-center gap-2">
-                        <AvanceBar pct={c.pct} />
+                        <AvanceBar pct={c.pct} metas={vistaMetas(metas?.get(c.campanaId) ?? [], c, hoy).metas} />
                         <span className="w-14 shrink-0 text-right tabular-nums">{formatPct(c.pct)}</span>
                       </div>
                     </TableCell>

@@ -9,6 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { BotonConMotivo } from "@/components/BotonConMotivo";
 import { cn } from "@/lib/utils";
+import type { MetaVista } from "@/domain/metas";
+import { ESTILO_META, describirMeta } from "./estiloMeta";
 
 /** Colores fijos por significado (no siguen el tema): saldo azul, pagado verde, restante ámbar, de más rojo.
     `icono` es el fondo del icono y `lengueta` la franja del borde izquierdo de la tarjeta. */
@@ -89,15 +91,18 @@ export function ResumenCards({
   resumen,
   etiquetaAsignado = "Saldo asignado",
   editarAsignado,
+  sinAvance = false,
 }: {
   resumen: Resumen;
   etiquetaAsignado?: string;
   editarAsignado?: EditarAsignado;
+  /** Sin la tarjeta de Avance (la campaña lo muestra en grande, con sus metas). */
+  sinAvance?: boolean;
 }) {
   const pagoDeMas = new Decimal(resumen.restante).isNegative();
   const completo = resumen.pct >= 100;
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className={cn("grid gap-4", sinAvance ? "grid-cols-3" : "grid-cols-2 lg:grid-cols-4")}>
       <Stat
         label={etiquetaAsignado}
         value={formatUsd(resumen.asignado)}
@@ -130,14 +135,32 @@ export function ResumenCards({
         danger={pagoDeMas}
         hint={pagoDeMas ? "Pagado de más" : undefined}
       />
+      {!sinAvance && (
       <Stat label="Avance" value={formatPct(resumen.pct)} icon={TrendingUp} tono={completo ? TONOS.pagado : TONOS.avance}>
         <AvanceBar pct={resumen.pct} />
       </Stat>
+      )}
     </div>
   );
 }
 
-/** Barra de avance: color del tema y verde al llegar al 100 %. */
-export function AvanceBar({ pct }: { pct: number }) {
-  return <Progress value={pct} className={cn(pct >= 100 && "[&_[data-slot=progress-indicator]]:bg-emerald-500")} />;
+/** Barra de avance: color del tema y verde al llegar al 100 %. Con `metas`, una marca fina por cada una (su color dice el estado). */
+export function AvanceBar({ pct, metas }: { pct: number; metas?: MetaVista[] }) {
+  const barra = <Progress value={pct} className={cn(pct >= 100 && "[&_[data-slot=progress-indicator]]:bg-emerald-500")} />;
+  if (!metas?.length) return barra;
+  return (
+    <div className="relative w-full">
+      {barra}
+      {metas.map((m) => (
+        <span
+          key={m.id}
+          role="img"
+          aria-label={describirMeta(m)}
+          title={describirMeta(m)}
+          className={cn("absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded-full", ESTILO_META[m.estado].linea)}
+          style={{ left: `${m.posicion}%` }}
+        />
+      ))}
+    </div>
+  );
 }

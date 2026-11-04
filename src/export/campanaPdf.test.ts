@@ -192,3 +192,14 @@ describe("buildCampanaPdf sin los gerentes sin pagos", () => {
     expect(textos(resumen)).toContain("Luis");
   });
 });
+
+it("el PDF de la campaña marca las metas en la barra y las lista", () => {
+  const metas = [{ id: 1, campanaId: 1, montoUsd: "140", fecha: "2026-10-30", nota: null }];
+  const texto = JSON.stringify(buildCampanaPdf({ ...campana, fechaFin: "2026-03-31" }, view, generadoEn, { metas }).content);
+  expect(texto).toContain("Metas");
+  expect(texto).toContain("30/10/2026");
+  expect(texto).toContain("Pendiente");
+  // 100 % = fin de la campaña.
+  expect(texto).toContain("100 % · fin 31/03/2026");
+  expect(JSON.stringify(buildCampanaPdf(campana, view, generadoEn).content)).not.toContain("Metas");
+});

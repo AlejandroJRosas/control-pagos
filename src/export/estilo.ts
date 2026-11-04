@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { estadoGerente, type Resumen } from "@/domain/campanaView";
 import { formatUsd } from "@/domain/money";
+import type { EstadoMeta, Meta } from "@/domain/metas";
 
 /** Colores comunes del PDF y del Excel (hex sin "#"). */
 export const COLOR = {
@@ -44,8 +45,18 @@ export function textoRestante(r: Resumen): { etiqueta: "Faltan" | "Pagado de má
   return { etiqueta: excedido ? "Pagado de más" : "Faltan", monto: formatUsd(restante.abs()), excedido };
 }
 
-/** Opciones de la exportación de la campaña. `ocultarSinPagos`: sin la página u hoja de los gerentes que aún no tienen depósitos (el resumen los sigue mostrando). */
-export type OpcionesExportar = { ocultarSinPagos?: boolean };
+/**
+ * Opciones de la exportación de la campaña. `ocultarSinPagos`: sin la página u hoja de los gerentes que aún no tienen depósitos (el resumen los
+ * sigue mostrando). `metas`: las metas generales de la campaña (van en el resumen).
+ */
+export type OpcionesExportar = { ocultarSinPagos?: boolean; metas?: Meta[] };
+
+/** Estado de una meta como texto y su color. */
+export const ESTADO_META_EXPORT: Record<EstadoMeta, { texto: string; color: string }> = {
+  cumplida: { texto: "Cumplida", color: COLOR.textoVerde },
+  vencida: { texto: "Vencida", color: COLOR.textoRojo },
+  pendiente: { texto: "Pendiente", color: COLOR.gris },
+};
 
 /** Gerentes que llevan su propia página u hoja en la exportación de la campaña. */
 export const gerentesConPagina = <G extends { cantidad: number }>(gerentes: G[], o: OpcionesExportar): G[] => (o.ocultarSinPagos ? gerentes.filter((g) => g.cantidad > 0) : gerentes);

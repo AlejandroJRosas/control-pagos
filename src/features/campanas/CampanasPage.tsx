@@ -10,14 +10,16 @@ import { EstadoBadge } from "@/components/EstadoBadge";
 import { listCampanas, type Campana } from "@/db/repos/campanas";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { buildCampanaView } from "@/domain/campanaView";
-import { formatPeriodo } from "@/domain/dates";
+import { formatPeriodo, todayIso } from "@/domain/dates";
+import { vistaMetas, type MetaVista } from "@/domain/metas";
+import { metasPorCampana } from "@/db/repos/metas";
 import { formatPct, formatUsd } from "@/domain/money";
 import { useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
 import { cn } from "@/lib/utils";
 import { CampanaFormDialog } from "./CampanaFormDialog";
 
-type Fila = { campana: Campana; total: ReturnType<typeof buildCampanaView>["total"]; gerentes: number };
+type Fila = { campana: Campana; total: ReturnType<typeof buildCampanaView>["total"]; gerentes: number; metas: MetaVista[] };
 
 const KEY_CERRADAS = "campanas-cerradas-abiertas";
 
@@ -49,10 +51,13 @@ export function CampanasPage() {
   useAtajo("n", () => setNueva(true));
   const { data, error } = useData(async (db) => {
     const campanas = await listCampanas(db);
+    const metas = await metasPorCampana(db);
+    const hoy = todayIso();
     return Promise.all(
       campanas.map(async (campana) => {
         const d = await loadCampanaData(db, campana.id);
-        return { campana, total: buildCampanaView(d.asignaciones, d.depositos).total, gerentes: d.asignaciones.length };
+        const total = buildCampanaView(d.asignaciones, d.depositos).total;
+        return { campana, total, gerentes: d.asignaciones.length, metas: vistaMetas(metas.get(campana.id) ?? [], total, hoy).metas };
       }),
     );
   }, []);
@@ -118,7 +123,7 @@ export function CampanasPage() {
 function Tarjetas({ filas }: { filas: Fila[] }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {filas.map(({ campana, total, gerentes }) => (
+      {filas.map(({ campana, total, gerentes, metas }) => (
         <Link key={campana.id} to={`/campanas/${campana.id}`}>
           <Card className={cn("transition-colors hover:ring-primary-intenso", campana.estado === "cerrada" && "bg-muted/40")}>
             <CardHeader>
@@ -137,7 +142,7 @@ function Tarjetas({ filas }: { filas: Fila[] }) {
                 </span>
                 <span className={cn("font-medium tabular-nums", total.pct >= 100 && "text-emerald-700 dark:text-emerald-400")}>{formatPct(total.pct)}</span>
               </div>
-              <AvanceBar pct={total.pct} />
+              <AvanceBar pct={total.pct} metas={metas} />
             </CardContent>
           </Card>
         </Link>

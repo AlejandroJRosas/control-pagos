@@ -41,6 +41,10 @@ import { EliminarCampanaDialog } from "./EliminarCampanaDialog";
 import { EstructuraTab } from "./EstructuraTab";
 import { PorGerenteTab } from "./PorGerenteTab";
 import { TodosDepositosTab } from "./TodosDepositosTab";
+import { AvanceCampana } from "./AvanceCampana";
+import { MetaFormDialog } from "./MetaFormDialog";
+import { listMetas } from "@/db/repos/metas";
+import type { Meta } from "@/domain/metas";
 
 const PESTANAS = ["depositos", "gerentes", "estructura"] as const;
 
@@ -49,7 +53,7 @@ export function CampanaPage() {
   const { data, error } = useData(
     async (db) => {
       const d = await loadCampanaData(db, campanaId);
-      return { ...d, view: buildCampanaView(d.asignaciones, d.depositos) };
+      return { ...d, view: buildCampanaView(d.asignaciones, d.depositos), metas: await listMetas(db, campanaId) };
     },
     [campanaId],
   );
@@ -63,6 +67,7 @@ export function CampanaPage() {
   const [confirmEstado, setConfirmEstado] = useState(false);
   const [quitar, setQuitar] = useState<GerenteResumen | null>(null);
   const [eliminar, setEliminar] = useState(false);
+  const [meta, setMeta] = useState<Meta | "nueva" | null>(null);
   const [exportando, setExportando] = useState(false);
   const [ocultarSinPagos, setOcultarSinPagos] = useOcultarSinPagos();
   const [envio, setEnvio] = useState(false);
@@ -141,7 +146,7 @@ export function CampanaPage() {
 
   // Con duplicados sin resolver (o mientras se cuentan) no se exporta: los totales saldrían inflados.
   const exportable = duplicados === 0;
-  const opciones = { ocultarSinPagos };
+  const opciones = { ocultarSinPagos, metas: data.metas };
   const sinPagos = view.gerentes.filter((g) => g.cantidad === 0).length;
   const exportar = () =>
     conExportando(() => saveWorkbook(buildCampanaWorkbook(campana, view, new Date(), opciones), archivoExcel([campana.nombre], todayIso())), "Excel guardado");
@@ -293,7 +298,16 @@ export function CampanaPage() {
         )
       ) : (
         <>
-          <ResumenCards resumen={view.total} etiquetaAsignado="Saldo general" />
+          <ResumenCards resumen={view.total} etiquetaAsignado="Saldo general" sinAvance />
+          <AvanceCampana
+            campana={campana}
+            total={view.total}
+            metas={data.metas}
+            hoy={todayIso()}
+            cerrada={cerrada}
+            onAgregar={() => setMeta("nueva")}
+            onEditar={setMeta}
+          />
           <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
             <TabsList>
               <TabsTrigger value="depositos">Todos los depósitos ({view.depositos.length})</TabsTrigger>
@@ -323,6 +337,13 @@ export function CampanaPage() {
 
       <CampanaFormDialog campana={campana} open={editar} onOpenChange={setEditar} />
       <EliminarCampanaDialog campana={campana} open={eliminar} onOpenChange={setEliminar} />
+      <MetaFormDialog
+        campanaId={campanaId}
+        meta={meta}
+        asignado={view.total.asignado}
+        fechaSugerida={campana.fechaFin ?? ""}
+        onOpenChange={(o) => !o && setMeta(null)}
+      />
       <AgregarGerentesDialog
         campanaId={campanaId}
         gerentesEnCampana={asignaciones.map((a) => a.gerenteId)}

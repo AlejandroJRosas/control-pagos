@@ -4,7 +4,8 @@ import type { Campana } from "@/db/repos/campanas";
 import type { CampanaView, DepositoCalculado, GerenteResumen, Resumen } from "@/domain/campanaView";
 import { formatFecha, formatPeriodo, todayIso } from "@/domain/dates";
 import { formatNumberVE, formatPct, formatTasa, formatUsd } from "@/domain/money";
-import { COLOR, anchoBarra, colorBarra, colorTextoRestante, gerentesConPagina, hex, textoRestante, type OpcionesExportar } from "./estilo";
+import { COLOR, ESTADO_META_EXPORT, anchoBarra, colorBarra, colorTextoRestante, gerentesConPagina, hex, textoRestante, type OpcionesExportar } from "./estilo";
+import { vistaMetas, type MetaVista } from "@/domain/metas";
 
 /** Ancho útil de una hoja carta (612 pt) con márgenes de 40 pt. */
 const ANCHO = 532;
@@ -19,11 +20,16 @@ const monto = (v: string, extra: Record<string, unknown> = {}): TableCell => ({
 });
 const enc = (text: string, derecha = false): TableCell => ({ text, style: "encabezado", ...(derecha ? { alignment: "right" } : {}) });
 
-function barra(ancho: number, alto: number, r: Resumen, color: string): ContentCanvas {
+/** Barra de avance; cada meta va como una raya vertical del color de su estado. */
+function barra(ancho: number, alto: number, r: Resumen, color: string, metas: MetaVista[] = []): ContentCanvas {
   return {
     canvas: [
       { type: "rect", x: 0, y: 0, w: ancho, h: alto, r: alto / 2, color: hex(COLOR.grisBarra) },
       { type: "rect", x: 0, y: 0, w: ancho * anchoBarra(r), h: alto, r: alto / 2, color: hex(color) },
+      ...metas.map((m) => {
+        const x = Math.min(Math.max((ancho * m.posicion) / 100, 1), ancho - 1);
+        return { type: "line" as const, x1: x, y1: -3, x2: x, y2: alto + 3, lineWidth: 1.5, lineColor: hex(ESTADO_META_EXPORT[m.estado].color) };
+      }),
     ],
   };
 }
@@ -52,7 +58,7 @@ function layoutTabla(conTotal: boolean): CustomTableLayout {
 }
 
 /** "$ X pagado / de $ Y" + barra + "Faltan $ Z · NN,N %…". */
-function avance(r: Resumen, deTexto: string, color: string, cola: string): Content[] {
+function avance(r: Resumen, deTexto: string, color: string, cola: string, metas: MetaVista[] = []): Content[] {
   const restante = textoRestante(r);
   return [
     {
@@ -62,7 +68,7 @@ function avance(r: Resumen, deTexto: string, color: string, cola: string): Conte
       ],
       margin: [0, 10, 0, 3],
     },
-    barra(ANCHO, 8, r, color),
+    barra(ANCHO, 8, r, color, metas),
     {
       text: [
         { text: restante.etiqueta },
@@ -76,7 +82,42 @@ function avance(r: Resumen, deTexto: string, color: string, cola: string): Conte
   ];
 }
 
-const periodoYEstado = (campana: Campana) => `${formatPeriodo(campana.fechaInicio, campana.fechaFin)} · ${campana.estado === "activa" ? "Activa" : "Cerrada"}`;
+/** Bajo la barra: el inicio y el fin de la campaña (el 100 %) y la tabla de metas. Sin metas, nada. */
+function seccionMetas(campana: Campana, metas: MetaVista[]): Content[] {
+  if (metas.length === 0) return [];
+  const fin = campana.fechaFin ? `fin ${formatFecha(campana.fechaFin)}` : "sin fecha final";
+  return [
+    {
+      columns: [
+        { text: `Inicio ${formatFecha(campana.fechaInicio)}` },
+        { text: `100 % · ${fin}`, alignment: "right" },
+      ],
+      fontSize: 8,
+      color: hex(COLOR.gris),
+      margin: [0, 2, 0, 0],
+    },
+    { text: "Metas", bold: true, fontSize: 11, margin: [0, 12, 0, 6] },
+    {
+      table: {
+        headerRows: 1,
+        widths: ["auto", "auto", "auto", "auto", "*"],
+        body: [
+          [enc("Para el"), enc("Monto", true), enc("Falta", true), enc("Estado"), enc("Nota")],
+          ...metas.map((m): TableCell[] => [
+            formatFecha(m.fecha),
+            { text: formatUsd(m.montoUsd), alignment: "right" },
+            { text: formatUsd(m.falta), alignment: "right" },
+            { text: ESTADO_META_EXPORT[m.estado].texto, bold: true, color: hex(ESTADO_META_EXPORT[m.estado].color) },
+            { text: m.nota ?? "", color: hex(COLOR.gris) },
+          ]),
+        ],
+      },
+      layout: layoutTabla(false),
+    },
+  ];
+}
+
+const periodoYEstado =(campana: Campana) => `${formatPeriodo(campana.fechaInicio, campana.fechaFin)} · ${campana.estado === "activa" ? "Activa" : "Cerrada"}`;
 
 function franja(etiqueta: string, titulo: string, subtitulo: string): Content {
   return {
@@ -219,9 +260,11 @@ function documento(titulo: string, encabezado: string, corte: string, content: C
 /** Reporte de la campaña para compartir: resumen por gerente y una página de depósitos por gerente. */
 export function buildCampanaPdf(campana: Campana, view: CampanaView, generadoEn: Date = new Date(), opciones: OpcionesExportar = {}): TDocumentDefinitions {
   const corte = formatFecha(todayIso(generadoEn));
+  const metas = vistaMetas(opciones.metas ?? [], view.total, todayIso(generadoEn)).metas;
   return documento(`Campaña ${campana.nombre}`, campana.nombre, corte, [
     franja(`REPORTE DE CAMPAÑA · CORTE ${corte}`, campana.nombre, periodoYEstado(campana)),
-    ...avance(view.total, "", COLOR.barraAzul, `${formatPct(view.total.pct)} de avance`),
+    ...avance(view.total, "", COLOR.barraAzul, `${formatPct(view.total.pct)} de avance`, metas),
+    ...seccionMetas(campana, metas),
     { text: "Resumen por gerente", bold: true, fontSize: 11, margin: [0, 16, 0, 6] },
     tablaResumen(view),
     ...gerentesConPagina(view.gerentes, opciones).map((g) =>

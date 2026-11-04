@@ -26,5 +26,6 @@ export async function eliminarCampana(db: SqlDriver, campanaId: number): Promise
   await db.execute("DELETE FROM depositos WHERE asignacion_id IN (SELECT id FROM asignaciones WHERE campana_id = ?)", [campanaId]);
   await db.execute("UPDATE asignaciones SET jefe_id = NULL WHERE campana_id = ?", [campanaId]);
   await db.execute("DELETE FROM asignaciones WHERE campana_id = ?", [campanaId]);
+  await db.execute("DELETE FROM metas WHERE campana_id = ?", [campanaId]);
   await db.execute("DELETE FROM campanas WHERE id = ?", [campanaId]);
 }

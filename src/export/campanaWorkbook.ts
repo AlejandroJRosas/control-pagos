@@ -4,7 +4,8 @@ import type { Campana } from "@/db/repos/campanas";
 import type { CampanaView, DepositoCalculado, GerenteResumen, Resumen } from "@/domain/campanaView";
 import { formatPct, formatUsd } from "@/domain/money";
 import { formatFecha, formatPeriodo, todayIso } from "@/domain/dates";
-import { COLOR, argb, colorTextoRestante, gerentesConPagina, textoRestante, type OpcionesExportar } from "./estilo";
+import { COLOR, ESTADO_META_EXPORT, argb, colorTextoRestante, gerentesConPagina, textoRestante, type OpcionesExportar } from "./estilo";
+import { vistaMetas, type Meta, type MetaVista } from "@/domain/metas";
 
 const MONEY = "#,##0.00";
 const TASA = "#,##0.0000";
@@ -92,7 +93,7 @@ function estilarTotal(row: ExcelJS.Row, columnas: number): void {
 
 const corte = (generadoEn: Date) => `Corte ${formatFecha(todayIso(generadoEn))}`;
 
-function addResumen(ws: ExcelJS.Worksheet, campana: Campana, view: CampanaView, generadoEn: Date): void {
+function addResumen(ws: ExcelJS.Worksheet, campana: Campana, view: CampanaView, generadoEn: Date, metas: Meta[] = []): void {
   const columnas = 7;
   const estado = campana.estado === "activa" ? "Activa" : "Cerrada";
   franjaTitulo(ws, columnas, campana.nombre, `${formatPeriodo(campana.fechaInicio, campana.fechaFin)} · ${estado} · ${corte(generadoEn)}`);
@@ -159,12 +160,34 @@ function addResumen(ws: ExcelJS.Worksheet, campana: Campana, view: CampanaView, 
     });
   }
 
+  addMetas(ws, ultimaFila + 3, vistaMetas(metas, total, todayIso(generadoEn)).metas);
+
   ws.getColumn(1).width = 28;
   for (const c of [2, 3, 4]) ws.getColumn(c).width = 16;
   ws.getColumn(5).width = 14;
   ws.getColumn(6).width = 12;
   ws.getColumn(7).width = 16;
   imprimir(ws, filaEncabezado);
+}
+
+/** Tabla de metas de la campaña desde la fila `desde` (título, encabezado y una fila por meta); sin metas no escribe nada. */
+function addMetas(ws: ExcelJS.Worksheet, desde: number, metas: MetaVista[]): void {
+  if (metas.length === 0) return;
+  const titulo = ws.getCell(desde, 1);
+  titulo.value = "Metas";
+  titulo.font = { bold: true, size: 12 };
+  const encabezado = desde + 1;
+  ws.getRow(encabezado).values = ["Para el", "Monto USD", "Falta USD", "Estado", "Nota"];
+  metas.forEach((m, i) => {
+    const row = ws.getRow(encabezado + 1 + i);
+    const estado = ESTADO_META_EXPORT[m.estado];
+    row.values = [isoToExcelDate(m.fecha), num(m.montoUsd), num(m.falta), estado.texto, m.nota ?? ""];
+    row.getCell(1).numFmt = FECHA;
+    row.getCell(2).numFmt = MONEY;
+    row.getCell(3).numFmt = MONEY;
+    row.getCell(4).font = { bold: true, color: { argb: argb(estado.color) } };
+  });
+  estilarTabla(ws, encabezado, encabezado + metas.length, 5);
 }
 
 function imprimir(ws: ExcelJS.Worksheet, filaEncabezado: number): void {
@@ -272,7 +295,7 @@ export function buildGerenteWorkbook(campana: Campana, view: CampanaView, asigna
 export function buildCampanaWorkbook(campana: Campana, view: CampanaView, generadoEn: Date = new Date(), opciones: OpcionesExportar = {}): ExcelJS.Workbook {
   const wb = nuevoLibro(generadoEn);
   const used = new Set<string>();
-  addResumen(wb.addWorksheet(safeSheetName("Resumen", used)), campana, view, generadoEn);
+  addResumen(wb.addWorksheet(safeSheetName("Resumen", used)), campana, view, generadoEn, opciones.metas);
   addDepositos(wb.addWorksheet(safeSheetName("Todos los depósitos", used)), campana, view.total, view.depositos, { titulo: "Todos los depósitos" }, generadoEn);
   for (const g of gerentesConPagina(view.gerentes, opciones)) {
     addDepositos(
