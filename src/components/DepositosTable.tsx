@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Decimal from "decimal.js";
 import { useLocation, useNavigate } from "react-router";
 import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, Pencil, Trash2 } from "lucide-react";
@@ -15,7 +15,7 @@ import { avisarDepositosEliminados } from "@/lib/deshacer";
 import { conVolver } from "@/lib/volver";
 import { conRecorrido } from "@/lib/recorrido";
 import { ordenar, type Columnas } from "@/lib/orden";
-import { agruparPie, useColumnas } from "@/lib/columnas";
+import { agruparPie, columnasVisibles, useColumnas } from "@/lib/columnas";
 import { useDiasPlegados } from "@/lib/diasPlegados";
 import { Casilla } from "./Casilla";
 import { BotonEliminarFila } from "./BotonEliminarFila";
@@ -128,6 +128,58 @@ function Celda({ col, d }: { col: Col; d: FilaDeposito }) {
   }
 }
 
+/** Cuántos depósitos se dibujan de entrada y cuántos más cada vez que se llega al final (una campaña puede tener miles). */
+export const TRAMO_FILAS = 150;
+
+const hayObservador = () => typeof IntersectionObserver === "function";
+
+type FilaProps = {
+  d: FilaDeposito;
+  visibles: Col[];
+  marcado: boolean;
+  soloLectura: boolean;
+  onAbrir: (id: number) => void;
+  onMarcar: (ids: number[], si: boolean) => void;
+  onEliminar: (ids: number[]) => void;
+};
+
+/** Una fila de depósito. Memorizada: marcar una casilla o plegar un día no vuelve a dibujar las demás. */
+const FilaDepositoRow = memo(function FilaDepositoRow({ d, visibles, marcado, soloLectura, onAbrir, onMarcar, onEliminar }: FilaProps) {
+  return (
+    <TableRow className="cursor-pointer" data-state={marcado ? "selected" : undefined} onClick={() => onAbrir(d.id)}>
+      {!soloLectura && (
+        <TableCell onClick={(e) => e.stopPropagation()}>
+          <input type="checkbox" aria-label={`Seleccionar depósito ${d.referencia}`} checked={marcado} onChange={(e) => onMarcar([d.id], e.target.checked)} />
+        </TableCell>
+      )}
+      {visibles.map((col) => (
+        <Celda key={col} col={col} d={d} />
+      ))}
+      {!soloLectura && (
+        <TableCell className="py-0" onClick={(e) => e.stopPropagation()}>
+          <BotonEliminarFila label="Eliminar depósito" onClick={() => onEliminar([d.id])} />
+        </TableCell>
+      )}
+    </TableRow>
+  );
+});
+
+/**
+ * Avisa cuando `el` (la fila de "Mostrando N de M") queda cerca de verse dentro del `<main>` que hace scroll. Se vuelve a
+ * observar con cada tramo (`limite`): así, si tras dibujar uno sigue a la vista, llega el siguiente.
+ */
+function useAlLlegarAlFinal(el: HTMLElement | null, limite: number, onLlegar: () => void) {
+  useEffect(() => {
+    if (!el || !hayObservador()) return;
+    const obs = new IntersectionObserver((entradas) => entradas.some((e) => e.isIntersecting) && onLlegar(), {
+      root: el.closest("main"),
+      rootMargin: "0px 0px 800px 0px",
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [el, limite, onLlegar]);
+}
+
 export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, totalDe, totales, soloLectura = false, vacio, volverLabel, clave, filtrando = false, asignaciones }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -138,6 +190,12 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
   const [borrar, setBorrar] = useState<number[] | null>(null);
   const [mover, setMover] = useState<{ ids: number[]; origenes: number[] } | null>(null);
   const [editar, setEditar] = useState<FilaDeposito[] | null>(null);
+  // Por tramos: se vuelve al primero al cambiar el orden. Sin IntersectionObserver no habría cómo avisar al bajar: todo.
+  const [tramo, setTramo] = useState({ orden, n: TRAMO_FILAS });
+  const limite = !hayObservador() ? Infinity : tramo.orden === orden ? tramo.n : TRAMO_FILAS;
+  const [finEl, setFinEl] = useState<HTMLElement | null>(null);
+  const masFilas = useCallback(() => setTramo((t) => ({ orden, n: (t.orden === orden ? t.n : TRAMO_FILAS) + TRAMO_FILAS })), [orden]);
+  useAlLlegarAlFinal(finEl, limite, masFilas);
   // Sobre el orden base, para que los empates de cualquier columna (p. ej. la fecha) respeten el orden de registro.
   const ordenadas = useMemo(() => ordenar([...filas].sort(compareRecientePrimero), COLUMNAS, orden), [filas, orden]);
   // En orden de fecha (el de siempre o al ordenar por ella) se agrupa por día; ordenada por otra columna, lista plana.
@@ -154,9 +212,50 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
   // Solo cuentan los marcados que siguen visibles (al filtrar se pueden ocultar).
   const elegidos = filas.filter((d) => marcados.has(d.id)).map((d) => d.id);
   const todos = filas.length > 0 && elegidos.length === filas.length;
+  // Estable mientras no cambien las columnas: lo necesitan las filas memorizadas.
+  const estadoColumnas = columnas.estado;
+  const visibles = useMemo(
+    () => (porDia ? columnasVisibles(estadoColumnas).filter((c) => !EN_FILA_DIA.includes(c)) : columnasVisibles(estadoColumnas)),
+    [porDia, estadoColumnas],
+  );
+
+  const marcar = useCallback((ids: number[], si: boolean) => {
+    setMarcados((m) => {
+      const n = new Set(m);
+      for (const id of ids) {
+        if (si) n.add(id);
+        else n.delete(id);
+      }
+      return n;
+    });
+  }, []);
+
+  const eliminar = useCallback(async (ids: number[]) => {
+    try {
+      avisarDepositosEliminados(await deleteDepositos(await getDb(), ids));
+      setMarcados((m) => new Set([...m].filter((id) => !ids.includes(id))));
+      invalidate();
+    } catch (e) {
+      reportError(e);
+    } finally {
+      setBorrar(null);
+    }
+  }, []);
+  const eliminarFila = useCallback((ids: number[]) => void eliminar(ids), [eliminar]);
+
+  const abrir = useCallback(
+    (id: number) =>
+      navigate(`/depositos/${id}`, {
+        // ← / → en el depósito recorren esta lista, en este orden y con estos filtros.
+        state: conRecorrido(
+          conVolver(location, volverLabel),
+          ordenadas.map((x) => x.id),
+        ),
+      }),
+    [navigate, location, volverLabel, ordenadas],
+  );
 
   if (filas.length === 0) return vacio ?? <Vacio texto="No hay depósitos." />;
-  const visibles = porDia ? columnas.visibles.filter((c) => !EN_FILA_DIA.includes(c)) : columnas.visibles;
   const etiquetas: Record<Col, string> = {
     fecha: "Fecha",
     gerente: "Gerente",
@@ -186,32 +285,9 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
   // La fila del día lleva aparte la casilla de selección; el resto se agrupa como el pie.
   const pieDia = agruparPie<Col | "accion">([...visibles, ...extra], CON_TOTAL);
 
-  function marcar(ids: number[], si: boolean) {
-    setMarcados((m) => {
-      const n = new Set(m);
-      for (const id of ids) {
-        if (si) n.add(id);
-        else n.delete(id);
-      }
-      return n;
-    });
-  }
-
   function moverElegidos() {
     const origenes = [...new Set(filas.filter((d) => marcados.has(d.id)).map((d) => d.asignacionId))];
     setMover({ ids: elegidos, origenes });
-  }
-
-  async function eliminar(ids: number[]) {
-    try {
-      avisarDepositosEliminados(await deleteDepositos(await getDb(), ids));
-      setMarcados((m) => new Set([...m].filter((id) => !ids.includes(id))));
-      invalidate();
-    } catch (e) {
-      reportError(e);
-    } finally {
-      setBorrar(null);
-    }
   }
 
   /**
@@ -277,6 +353,38 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
           ),
         )}
       </TableRow>
+    );
+  }
+
+  // Hasta `limite` depósitos (los días plegados no cuentan); lo que falta llega al bajar.
+  const cuerpo: ReactNode[] = [];
+  let dibujadas = 0;
+  let pendientes = 0;
+  for (const g of grupos) {
+    const deDia = plegado(g.fecha) ? [] : g.filas;
+    if (dibujadas >= limite && deDia.length > 0) {
+      pendientes += deDia.length;
+      continue;
+    }
+    const aqui = deDia.slice(0, limite - dibujadas);
+    dibujadas += aqui.length;
+    pendientes += deDia.length - aqui.length;
+    cuerpo.push(
+      <Fragment key={g.fecha || "todos"}>
+        {porDia && filaDia(g)}
+        {aqui.map((d) => (
+          <FilaDepositoRow
+            key={d.id}
+            d={d}
+            visibles={visibles}
+            marcado={marcados.has(d.id)}
+            soloLectura={soloLectura}
+            onAbrir={abrir}
+            onMarcar={marcar}
+            onEliminar={eliminarFila}
+          />
+        ))}
+      </Fragment>,
     );
   }
 
@@ -372,46 +480,17 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
           </TableRow>
         </TableHeader>
         <TableBody>
-          {grupos.map((g) => (
-            <Fragment key={g.fecha || "todos"}>
-              {porDia && filaDia(g)}
-              {(plegado(g.fecha) ? [] : g.filas).map((d) => (
-                <TableRow
-                  key={d.id}
-                  className="cursor-pointer"
-                  data-state={marcados.has(d.id) ? "selected" : undefined}
-                  onClick={() =>
-                    navigate(`/depositos/${d.id}`, {
-                      // ← / → en el depósito recorren esta lista, en este orden y con estos filtros.
-                      state: conRecorrido(
-                        conVolver(location, volverLabel),
-                        ordenadas.map((x) => x.id),
-                      ),
-                    })
-                  }
-                >
-                  {!soloLectura && (
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        aria-label={`Seleccionar depósito ${d.referencia}`}
-                        checked={marcados.has(d.id)}
-                        onChange={(e) => marcar([d.id], e.target.checked)}
-                      />
-                    </TableCell>
-                  )}
-                  {visibles.map((col) => (
-                    <Celda key={col} col={col} d={d} />
-                  ))}
-                  {!soloLectura && (
-                    <TableCell className="py-0" onClick={(e) => e.stopPropagation()}>
-                      <BotonEliminarFila label="Eliminar depósito" onClick={() => void eliminar([d.id])} />
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </Fragment>
-          ))}
+          {cuerpo}
+          {pendientes > 0 && (
+            <TableRow ref={setFinEl} className="hover:bg-transparent">
+              <TableCell colSpan={visibles.length + extra.length * 2} className="py-3 text-center text-xs text-muted-foreground">
+                Mostrando {dibujadas} de {dibujadas + pendientes} depósitos
+                <Button size="sm" variant="ghost" className="ml-2" onClick={() => setTramo({ orden, n: Infinity })}>
+                  Mostrar todos
+                </Button>
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
         {totales && (
           <TableFooter data-barra-inferior className={STICKY_PIE}>
