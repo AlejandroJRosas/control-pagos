@@ -122,7 +122,7 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
           >
             <span
               className={cn(
-                "px-2 py-0.5 text-sm font-semibold whitespace-nowrap tabular-nums shadow-sm",
+                "rounded-md px-2 py-0.5 text-sm font-semibold whitespace-nowrap tabular-nums shadow-sm",
                 completo ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground",
               )}
             >
@@ -133,12 +133,12 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
         <div className="relative">
           <span
             aria-hidden
-            className={cn("absolute -top-2 -bottom-1 z-10 w-0.5 -translate-x-1/2", completo ? "bg-emerald-600" : "bg-primary-intenso")}
+            className={cn("absolute -top-2 -bottom-1 z-10 w-0.5 -translate-x-1/2 rounded-full", completo ? "bg-emerald-600" : "bg-primary-intenso")}
             style={{ left: `${avanceEnBarra}%` }}
           />
           <div className="h-4 overflow-hidden rounded-full bg-muted">
             <div
-              className={cn("h-full rounded-full transition-[width]", completo ? "bg-emerald-500" : "bg-primary")}
+              className={cn("h-full transition-[width]", completo ? "bg-emerald-500" : "bg-primary")}
               style={{ width: `${avanceEnBarra}%` }}
             />
           </div>
@@ -148,7 +148,7 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
               data-trayecto
               aria-hidden
               className={cn(
-                "absolute inset-y-0 rounded-r-full border-2 border-l-0 border-dashed",
+                "absolute inset-y-0 border-2 border-l-0 border-dashed",
                 enfocada.estado === "vencida" ? "border-destructive bg-destructive/20" : "border-primary-intenso bg-primary/30",
               )}
               style={{ left: `${avanceEnBarra}%`, width: `${enfocada.posicion - avanceEnBarra}%` }}
@@ -159,7 +159,7 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
               key={m.id}
               aria-hidden
               className={cn(
-                "absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 transition-opacity",
+                "absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded-full transition-opacity",
                 ESTILO_META[m.estado].linea,
                 enfocada && enfocada.id !== m.id && "opacity-25",
               )}
