@@ -22,6 +22,7 @@ import { getAsignacion, type AsignacionDetalle } from "@/db/repos/asignaciones";
 import { createDeposito, deleteDeposito, getDeposito, listBancosUsados, listCuentasDestinoUsadas, updateDeposito, type Deposito, type Duplicado } from "@/db/repos/depositos";
 import { listGerentes, type Gerente } from "@/db/repos/gerentes";
 import { aliasCuentas } from "@/db/repos/cuentasAlias";
+import { aprenderAliasBanco } from "@/db/repos/bancosAlias";
 import { registrarDepositoEnCampana } from "@/db/operaciones/destino";
 import { actualizarDuplicado } from "@/db/operaciones/revision";
 import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
@@ -260,6 +261,8 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
       if (deposito) {
         const otro = gerente !== undefined && gerente !== deposito.asignacionId ? gerente : undefined;
         await updateDeposito(db, deposito.id, v, otro === undefined ? undefined : { asignacionId: otro });
+        // Si se corrigió un nombre de banco que no es de la lista por uno conocido, se recuerda (así se unifica en las demás campañas).
+        await aprenderAliasBanco(db, deposito.banco, v.banco).catch(() => false);
         asignacionId = otro ?? deposito.asignacionId;
       } else if (r.destino) {
         asignacionId = await registrarDepositoEnCampana(db, campana.id, r.destino, v);
