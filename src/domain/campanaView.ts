@@ -50,9 +50,9 @@ export function compareCronologico(a: Ordenable, b: Ordenable): number {
   return a.fecha.localeCompare(b.fecha) || a.creadoEn.localeCompare(b.creadoEn) || a.id - b.id;
 }
 
-/** Orden de las tablas: el día más reciente arriba; dentro del día, en el orden en que se registraron. */
+/** Orden de las tablas: el día más reciente arriba y, dentro del día, el último registrado arriba (el cronológico al revés). */
 export function compareRecientePrimero(a: Ordenable, b: Ordenable): number {
-  return b.fecha.localeCompare(a.fecha) || a.creadoEn.localeCompare(b.creadoEn) || a.id - b.id;
+  return compareCronologico(b, a);
 }
 
 export function calcResumen(asignado: Decimal.Value, usds: string[], fechas: string[]): Resumen {

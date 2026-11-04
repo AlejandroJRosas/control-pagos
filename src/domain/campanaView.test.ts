@@ -206,7 +206,7 @@ describe("totalUsdConTasa", () => {
 });
 
 describe("compareRecientePrimero", () => {
-  it("días del más reciente al más viejo y, dentro del día, en el orden en que se registraron", () => {
+  it("días del más reciente al más viejo y, dentro del día, del último registrado al primero", () => {
     const d = (id: number, fecha: string, creadoEn: string) => ({ id, fecha, creadoEn });
     const filas = [
       d(1, "2026-03-01", "2026-03-01T10:00:00.000Z"),
@@ -215,7 +215,7 @@ describe("compareRecientePrimero", () => {
       d(5, "2026-03-02", "2026-03-02T09:00:00.000Z"),
       d(4, "2026-03-03", "2026-03-03T08:00:00.000Z"),
     ];
-    expect(filas.sort(compareRecientePrimero).map((f) => f.id)).toEqual([4, 3, 5, 2, 1]);
+    expect(filas.sort(compareRecientePrimero).map((f) => f.id)).toEqual([4, 2, 5, 3, 1]);
   });
 });
 

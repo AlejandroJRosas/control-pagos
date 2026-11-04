@@ -29,9 +29,9 @@ it("agrupa los depósitos por día, el más reciente arriba, con la cantidad y l
   expect(texto[martes]).toContain("2 depósitos");
   expect(texto[martes]).toContain("2.555,00");
   expect(texto[martes]).toContain("70,00");
-  // Dentro del día, en el orden en que se registraron.
-  expect(texto[martes + 1]).toContain("222");
-  expect(texto[martes + 2]).toContain("333");
+  // Dentro del día, también el más reciente arriba.
+  expect(texto[martes + 1]).toContain("333");
+  expect(texto[martes + 2]).toContain("222");
   expect(texto[lunes]).toContain("1 depósito");
 });
 
@@ -74,6 +74,8 @@ it("agrupada se puede ver del día más antiguo al más reciente", async () => {
   await user.click(screen.getByRole("button", { name: "Recientes primero" }));
   const texto = filas();
   expect(texto.findIndex((t) => t.includes("Lunes 02/03/2026"))).toBeLessThan(texto.findIndex((t) => t.includes("Martes 03/03/2026")));
+  // Dentro del día, también en el orden en que se registraron.
+  expect(texto.findIndex((t) => t.includes("222"))).toBeLessThan(texto.findIndex((t) => t.includes("333")));
   expect(screen.getByRole("button", { name: "Antiguos primero" })).toBeInTheDocument();
 });
 

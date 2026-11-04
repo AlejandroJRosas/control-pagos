@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { STICKY_PIE, Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { agruparPorDia, compareRecientePrimero, type FilaDeposito, type GrupoDia } from "@/domain/campanaView";
+import { agruparPorDia, compareCronologico, compareRecientePrimero, type FilaDeposito, type GrupoDia } from "@/domain/campanaView";
 import { formatFecha, nombreDia } from "@/domain/dates";
 import { formatNumberVE, formatTasa, formatUsd } from "@/domain/money";
 import { getDb } from "@/db";
@@ -196,11 +196,15 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
   const [finEl, setFinEl] = useState<HTMLElement | null>(null);
   const masFilas = useCallback(() => setTramo((t) => ({ orden, n: (t.orden === orden ? t.n : TRAMO_FILAS) + TRAMO_FILAS })), [orden]);
   useAlLlegarAlFinal(finEl, limite, masFilas);
-  // Sobre el orden base, para que los empates de cualquier columna (p. ej. la fecha) respeten el orden de registro.
-  const ordenadas = useMemo(() => ordenar([...filas].sort(compareRecientePrimero), COLUMNAS, orden), [filas, orden]);
   // En orden de fecha (el de siempre o al ordenar por ella) se agrupa por día; ordenada por otra columna, lista plana.
   const porDia = !orden || orden.key === "fecha";
   const antiguosPrimero = orden?.key === "fecha" && orden.dir === 1;
+  // Sobre el orden base, para que los empates de cualquier columna (p. ej. la fecha) respeten el orden de registro:
+  // lo más reciente arriba, salvo en "Antiguos primero", que va en orden cronológico también dentro del día.
+  const ordenadas = useMemo(
+    () => ordenar([...filas].sort(antiguosPrimero ? compareCronologico : compareRecientePrimero), COLUMNAS, orden),
+    [filas, orden, antiguosPrimero],
+  );
   const grupos = useMemo<GrupoDia<FilaDeposito>[]>(
     () => (porDia ? agruparPorDia(ordenadas) : [{ fecha: "", filas: ordenadas, totalBs: "", totalUsd: "" }]),
     [porDia, ordenadas],

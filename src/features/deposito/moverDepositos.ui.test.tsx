@@ -49,10 +49,10 @@ it("marca varios depósitos en la tabla del gerente y los pasa a uno de su equip
 it("en el depósito se recorre la lista con ← / → y, con el gerente cambiado, pregunta si guardar antes de pasar", async () => {
   const { db, s, eva } = await preparar();
   const { user } = await renderApp(`/asignaciones/${s.asignacionId}`, { db, hoy: "2026-03-02" });
-  // Mismo día: de arriba abajo en orden de registro.
-  await user.click(await screen.findByText("111"));
+  // Mismo día: de arriba abajo, el último registrado primero.
+  await user.click(await screen.findByText("333"));
   expect(await screen.findByText("1 de 3")).toBeInTheDocument();
-  expect(screen.getByLabelText("Referencia bancaria")).toHaveValue("111");
+  expect(screen.getByLabelText("Referencia bancaria")).toHaveValue("333");
 
   // Sin cambios pasa directo.
   await user.keyboard("{ArrowRight}");
@@ -70,7 +70,7 @@ it("en el depósito se recorre la lista con ← / → y, con el gerente cambiado
   expect(within(pregunta).getByText("¿Guardar los cambios?")).toBeInTheDocument();
   await user.click(within(pregunta).getByRole("button", { name: "No guardar" }));
   expect(await screen.findByText("2 de 3")).toBeInTheDocument();
-  expect(await gerenteDe(db, "111")).toBe(s.asignacionId);
+  expect(await gerenteDe(db, "333")).toBe(s.asignacionId);
 
   // "Guardar y seguir" lo mueve y pasa al siguiente; la lista no se corre.
   await waitFor(() => expect(screen.getByLabelText("Referencia bancaria")).toHaveValue("222"));
@@ -82,7 +82,7 @@ it("en el depósito se recorre la lista con ← / → y, con el gerente cambiado
   await user.click(within(pregunta).getByRole("button", { name: "Guardar y seguir" }));
   expect(await screen.findByText("Depósito movido a Eva")).toBeInTheDocument();
   expect(await screen.findByText("3 de 3")).toBeInTheDocument();
-  await waitFor(() => expect(screen.getByLabelText("Referencia bancaria")).toHaveValue("333"));
+  await waitFor(() => expect(screen.getByLabelText("Referencia bancaria")).toHaveValue("111"));
   expect(await gerenteDe(db, "222")).toBe(eva);
   expect(screen.getByRole("button", { name: "Depósito siguiente" })).toBeDisabled();
 });
