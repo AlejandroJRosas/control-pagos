@@ -47,6 +47,7 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
   const filas = filasDeEtiquetas(vistas);
   const nFilas = vistas.length === 0 ? 0 : Math.max(...filas) + 1;
   const completo = total.pct >= 100;
+  const avanceEnBarra = Math.min(Math.max(total.pct, 0), 100);
 
   async function copiar() {
     try {
@@ -106,11 +107,34 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
             )}
           </span>
         </div>
+        {/* Lo pagado hasta hoy, sobre la punta del progreso y con su color. */}
+        <div className="relative h-7">
+          <span
+            data-pagado-actual
+            title={`Pagado hasta hoy: ${formatUsd(total.pagado)} (${formatPct(total.pct)})`}
+            className={cn("absolute bottom-1 flex flex-col items-center", anclaje(avanceEnBarra))}
+            style={{ left: `${avanceEnBarra}%` }}
+          >
+            <span
+              className={cn(
+                "rounded-md px-2 py-0.5 text-sm font-semibold whitespace-nowrap tabular-nums shadow-sm",
+                completo ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground",
+              )}
+            >
+              {formatUsd(total.pagado)}
+            </span>
+          </span>
+        </div>
         <div className="relative">
+          <span
+            aria-hidden
+            className={cn("absolute -top-2 -bottom-1 z-10 w-0.5 -translate-x-1/2 rounded-full", completo ? "bg-emerald-600" : "bg-primary-intenso")}
+            style={{ left: `${avanceEnBarra}%` }}
+          />
           <div className="h-4 overflow-hidden rounded-full bg-muted">
             <div
               className={cn("h-full rounded-full transition-[width]", completo ? "bg-emerald-500" : "bg-primary")}
-              style={{ width: `${Math.min(Math.max(total.pct, 0), 100)}%` }}
+              style={{ width: `${avanceEnBarra}%` }}
             />
           </div>
           {vistas.map((m) => (

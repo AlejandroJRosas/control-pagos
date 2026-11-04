@@ -22,6 +22,9 @@ it("agrega una meta, la marca en la barra con lo que falta, y se edita y elimina
   const avance = await screen.findByRole("region", { name: "Avance de la campaña" });
   expect(within(avance).getByText("50,0 %")).toBeInTheDocument();
   expect(within(avance).getByText(/Sin metas/)).toBeInTheDocument();
+  // Lo pagado va sobre la barra, en la punta del progreso.
+  const actual = within(avance).getByText("$ 50,00");
+  expect(actual.closest("[data-pagado-actual]")).toHaveStyle({ left: "50%" });
 
   await user.click(within(avance).getByRole("button", { name: "Agregar meta" }));
   let dialogo = await screen.findByRole("dialog");
