@@ -1,5 +1,5 @@
-import { expect, it } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { expect, it, vi } from "vitest";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import { createTestDb } from "@/db/testing/sqljsDriver";
 import { createGerente, getGerente } from "@/db/repos/gerentes";
 import { getAjuste } from "@/db/repos/ajustes";
@@ -69,4 +69,19 @@ it("cambia los días de antelación en Configuración", async () => {
   await user.type(campo, "7");
   await user.click(screen.getByRole("button", { name: "Guardar antelación" }));
   await waitFor(async () => expect(await getAjuste(db, "cumple_antelacion")).toBe("7"));
+});
+
+it("sale como ventanita abajo a la derecha si la app quedó abierta de un día a otro, y llama la atención si está en segundo plano", async () => {
+  const db = await createTestDb();
+  await createGerente(db, { nombre: "Ana", telefono: null, nacimiento: "1990-10-20" });
+  await renderApp("/campanas", { db, hoy: "2026-10-15" });
+  await screen.findByRole("heading", { name: "Campañas" });
+  expect(screen.queryByRole("status", { name: "Cumpleaños" })).not.toBeInTheDocument();
+  vi.setSystemTime(new Date("2026-10-20T00:05:00"));
+  act(() => void document.dispatchEvent(new Event("visibilitychange")));
+  const aviso = await screen.findByRole("status", { name: "Cumpleaños" });
+  expect(aviso).toHaveTextContent("¡Cumpleaños hoy!");
+  expect(aviso).toHaveTextContent("¡Hoy cumple 36 años Ana!");
+  expect(aviso.className).toContain("fixed");
+  expect(within(aviso).getByRole("link", { name: "Ana" })).toHaveAttribute("href", expect.stringContaining("/gerentes/"));
 });

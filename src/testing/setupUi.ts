@@ -36,7 +36,8 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: (cmd: string, args?: unknown) =
 vi.mock("@tauri-apps/api/app", () => ({ getVersion: async () => "0.0.0-test" }));
 vi.mock("@tauri-apps/api/path", () => ({ join: async (...p: string[]) => p.join("/"), dirname: async (p: string) => p.split("/").slice(0, -1).join("/") }));
 vi.mock("@tauri-apps/api/window", () => ({
-  getCurrentWindow: () => ({ onCloseRequested: async () => () => {}, destroy: async () => {} }),
+  UserAttentionType: { Critical: 1, Informational: 2 },
+  getCurrentWindow: () => ({ onCloseRequested: async () => () => {}, destroy: async () => {}, requestUserAttention: async () => {} }),
 }));
 vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: () => ({ setZoom: async () => {} }) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: async () => null, save: async () => null }));
