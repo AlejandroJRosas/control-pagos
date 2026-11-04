@@ -109,6 +109,10 @@ it("Por gerente cierra cada rama con su subtotal y Estructura muestra la rama en
   expect(within(cajitaAna).getByText("Rama: restante $ 200,00 · 0,0 %")).toBeInTheDocument();
   expect(within(screen.getByRole("button", { name: "Zoe" })).getByText("Rama: restante $ 100,00 · 0,0 %")).toBeInTheDocument();
   expect(within(screen.getByRole("button", { name: "Pedro" })).queryByText(/Rama:/)).not.toBeInTheDocument();
+  // Cada cajita lleva su barra de avance (y el jefe, además, la de su rama).
+  expect(within(screen.getByRole("button", { name: "Pedro" })).getByRole("progressbar", { name: "Avance de Pedro" })).toHaveAttribute("aria-valuenow", "0");
+  expect(within(cajitaAna).getByRole("progressbar", { name: "Avance de Ana" })).toBeInTheDocument();
+  expect(within(cajitaAna).getByRole("progressbar", { name: "Avance de la rama de Ana" })).toBeInTheDocument();
 });
 
 /** dataTransfer falso: jsdom no lo trae. */

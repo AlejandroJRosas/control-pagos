@@ -3,7 +3,7 @@ import Decimal from "decimal.js";
 import { ChevronDown } from "lucide-react";
 import { ESTADOS_GERENTE } from "@/components/EstadoGerenteBadge";
 import { estadoGerente, type GerenteResumen, type Resumen } from "@/domain/campanaView";
-import { formatUsd } from "@/domain/money";
+import { formatPct, formatUsd } from "@/domain/money";
 import { RamaResumen } from "./PorGerenteTab";
 import { cn } from "@/lib/utils";
 
@@ -64,15 +64,17 @@ export function CajitaGerente({ g, cerrada, rama, debajo, plegada, onAlternar, o
           <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", estado.punto)} />
           <span className="truncate">{g.gerenteNombre}</span>
         </span>
-        <span className={cn("text-xs tabular-nums", restante.isNegative() ? "font-medium text-destructive" : "text-muted-foreground")}>
-          {restante.isZero() ? "al día" : `Restante ${formatUsd(g.restante)}`}
+        <span className="flex items-baseline justify-between gap-2 text-xs tabular-nums">
+          <span className={cn("truncate", restante.isNegative() ? "font-medium text-destructive" : "text-muted-foreground")}>
+            {restante.isZero() ? "al día" : `Restante ${formatUsd(g.restante)}`}
+          </span>
+          <span className="shrink-0 text-muted-foreground">{formatPct(g.pct)}</span>
         </span>
+        <BarraAvance pct={g.pct} label={`Avance de ${g.gerenteNombre}`} />
         {rama && (
           <span className="mt-1 grid gap-1 border-t border-dashed pt-1">
             <RamaResumen r={rama} />
-            <span aria-hidden className="h-1 overflow-hidden rounded-full bg-muted">
-              <span className="block h-full rounded-full bg-primary" style={{ width: `${rama.pct}%` }} />
-            </span>
+            <BarraAvance pct={rama.pct} label={`Avance de la rama de ${g.gerenteNombre}`} />
           </span>
         )}
       </button>
@@ -92,5 +94,15 @@ export function CajitaGerente({ g, cerrada, rama, debajo, plegada, onAlternar, o
         </button>
       )}
     </div>
+  );
+}
+
+/** Barra fina de avance (hasta el 100 %; verde al completarse, como `AvanceBar`). */
+function BarraAvance({ pct, label }: { pct: number; label: string }) {
+  const ancho = Math.min(Math.max(pct, 0), 100);
+  return (
+    <span role="progressbar" aria-label={label} aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} className="block h-1 overflow-hidden rounded-full bg-muted">
+      <span className={cn("block h-full rounded-full", pct >= 100 ? "bg-emerald-500" : "bg-primary")} style={{ width: `${ancho}%` }} />
+    </span>
   );
 }

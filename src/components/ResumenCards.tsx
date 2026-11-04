@@ -1,5 +1,7 @@
 import Decimal from "decimal.js";
-import { CircleAlert, CircleCheck, Hourglass, Pencil, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { CircleAlert, CircleCheck, Copy, Hourglass, Pencil, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { toast } from "sonner";
+import { reportError } from "@/lib/reportError";
 import type { Resumen } from "@/domain/campanaView";
 import { formatPct, formatUsd } from "@/domain/money";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,23 +42,42 @@ function Stat({
   accion?: React.ReactNode;
   children?: React.ReactNode;
 }) {
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copiado`, { description: value });
+    } catch (e) {
+      reportError(e, "No se pudo copiar");
+    }
+  }
   return (
-    <Card className="relative gap-2 py-4 pl-1.5">
-      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1.5", tono.lengueta)} />
-      <CardHeader className="px-4">
+    <Card className="group/stat relative gap-2 py-4 pl-1.5 transition-colors hover:bg-fila-hover">
+      {/* Toda la tarjeta copia el valor; la acción (lápiz) queda por encima. */}
+      <button
+        type="button"
+        onClick={() => void copiar()}
+        aria-label={`Copiar ${label}: ${value}`}
+        title="Clic para copiar"
+        className="absolute inset-0 cursor-copy rounded-[inherit]"
+      />
+      <span aria-hidden className={cn("pointer-events-none absolute inset-y-0 left-0 w-1.5", tono.lengueta)} />
+      <CardHeader className="pointer-events-none px-4">
         <div className="flex items-center justify-between gap-2">
-          <CardDescription>{label}</CardDescription>
+          <CardDescription className="flex items-center gap-1.5">
+            {label}
+            <Copy aria-hidden className="size-3 opacity-0 transition-opacity group-hover/stat:opacity-70" />
+          </CardDescription>
           <span className={cn("flex size-7 items-center justify-center rounded-md", tono.icono)}>
             <Icon className="size-4" />
           </span>
         </div>
         <div className="flex items-center gap-1">
           <CardTitle className={cn("text-2xl tabular-nums", danger && "text-destructive")}>{value}</CardTitle>
-          {accion}
+          {accion && <span className="pointer-events-auto relative">{accion}</span>}
         </div>
       </CardHeader>
-      {hint && <CardContent className="px-4 text-xs text-destructive">{hint}</CardContent>}
-      {children && <CardContent className="px-4">{children}</CardContent>}
+      {hint && <CardContent className="pointer-events-none px-4 text-xs text-destructive">{hint}</CardContent>}
+      {children && <CardContent className="pointer-events-none px-4">{children}</CardContent>}
     </Card>
   );
 }
