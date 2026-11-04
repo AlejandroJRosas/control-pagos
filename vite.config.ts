@@ -32,10 +32,32 @@ function novedades(): Plugin {
   };
 }
 
+/**
+ * `pnpm vista`: la app en el navegador, sin Tauri, con una BD de demostración en memoria (`src/vista/`), para ver la
+ * interfaz y sacar capturas (`pnpm capturas`) antes de publicar. Los módulos de Tauri y `@/db` se cambian por simulados.
+ */
+const VISTA: Record<string, string> = {
+  "@tauri-apps/api/core": "core",
+  "@tauri-apps/api/app": "app",
+  "@tauri-apps/api/path": "path",
+  "@tauri-apps/api/window": "window",
+  "@tauri-apps/api/webview": "webview",
+  "@tauri-apps/plugin-dialog": "dialog",
+  "@tauri-apps/plugin-fs": "fs",
+  "@tauri-apps/plugin-log": "log",
+  "@tauri-apps/plugin-opener": "opener",
+  "@tauri-apps/plugin-updater": "updater",
+  "@tauri-apps/plugin-sql": "sql",
+};
+const aliasVista = [
+  { find: /^@\/db$/, replacement: path.resolve(__dirname, "./src/vista/db.ts") },
+  ...Object.entries(VISTA).map(([m, f]) => ({ find: new RegExp(`^${m}$`), replacement: path.resolve(__dirname, `./src/vista/tauri/${f}.ts`) })),
+];
+
 // https://vite.dev/config/
-export default defineConfig(() => ({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss(), novedades()],
-  resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
+  resolve: { alias: [...(mode === "vista" ? aliasVista : []), { find: "@", replacement: path.resolve(__dirname, "./src") }] },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
@@ -43,7 +65,7 @@ export default defineConfig(() => ({
   clearScreen: false,
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
-    port: 1420,
+    port: mode === "vista" ? 1440 : 1420,
     strictPort: true,
     host: host || false,
     hmr: host ? { protocol: "ws", host, port: 1421 } : undefined,

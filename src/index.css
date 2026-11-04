@@ -252,3 +252,67 @@
   border-radius: var(--radius-md);
   animation: resaltar-error 1.6s ease-out;
 }
+
+/*
+ * Movimiento: duraciones cortas (nada pasa de 250 ms) y curvas con intención. Entrar = ease-out (llega rápido y se
+ * asienta), salir = ease-in y más corto que entrar (lo que se va no hace esperar).
+ */
+:root {
+  --duracion-rapida: 120ms;
+  --duracion: 180ms;
+  --duracion-lenta: 250ms;
+  --curva-entrada: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --curva-salida: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Cambio de pantalla o de pestaña (lib/transicionVista.ts): solo se anima el contenido; la barra lateral queda quieta. */
+main[data-contenido] {
+  view-transition-name: contenido;
+}
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-old(contenido) {
+  animation: vt-salir var(--duracion-rapida) var(--curva-salida) both;
+}
+::view-transition-new(contenido) {
+  animation: vt-entrar var(--duracion) var(--curva-entrada) both;
+}
+::view-transition-group(contenido) {
+  animation-duration: var(--duracion);
+}
+@keyframes vt-salir {
+  to { opacity: 0; }
+}
+@keyframes vt-entrar {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+/* Cargando: aparece después de un instante (lo que carga rápido no parpadea) y luego con un fundido corto. */
+@keyframes cargando-aparecer {
+  from { opacity: 0; transform: translateY(4px); }
+}
+.cargando-aparecer {
+  animation: cargando-aparecer var(--duracion) var(--curva-entrada) 150ms both;
+}
+@keyframes cargando-brillo {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+.cargando-esqueleto {
+  background: linear-gradient(90deg, var(--muted) 0%, color-mix(in oklab, var(--muted), var(--background) 60%) 50%, var(--muted) 100%);
+  background-size: 200% 100%;
+  animation: cargando-brillo 1.4s linear infinite;
+}
+
+/* Si Windows pide reducir el movimiento: sin desplazamientos ni bucles, todo casi instantáneo. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after, ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,3 +1,4 @@
+import { Spinner } from "./Feedback";
 import { useEffect, useState } from "react";
 import { dirname } from "@tauri-apps/api/path";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -72,7 +73,7 @@ export function BdDanada({ detalle, onContinuar }: Props) {
         <div className="space-y-2">
           <h2 className="font-medium">Respaldos disponibles</h2>
           {respaldos === null ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
+            <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner className="size-4" />Cargando…</p>
           ) : respaldos.length === 0 ? (
             <p className="text-sm text-muted-foreground">No hay respaldos en la carpeta de respaldos.</p>
           ) : (

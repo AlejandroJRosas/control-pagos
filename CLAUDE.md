@@ -10,6 +10,8 @@ App de escritorio local (Windows) para que una persona de gerencia registre dep�
 pnpm tauri dev               # app en desarrollo (puerto 1420; si queda un vite colgado, matarlo). OJO: usa los datos reales de %APPDATA%
 # Instancia aislada para probar (otros datos, puerto y target):
 # CARGO_TARGET_DIR=<tmp> pnpm tauri dev --config '{"identifier":"com.controlpagos.dev","build":{"devUrl":"http://localhost:1431","beforeDevCommand":"pnpm vite --port 1431 --strictPort"}}' 
+pnpm vista                   # la app en el navegador (http://localhost:1440) sin Tauri, con BD de demostración en memoria (src/vista/)
+pnpm capturas [carpeta]      # con `pnpm vista` corriendo: capturas de las pantallas clave en claro y oscuro (Edge sin ventana; ./capturas no se sube)
 pnpm test                    # vitest: proyecto "logica" (dominio, BD sql.js, Excel, plataforma con mocks) y "ui" (*.ui.test.tsx en jsdom)
 pnpm build                   # tsc + vite build — única verificación de tipos de la UI
 cd src-tauri; cargo test --lib   # pruebas de respaldo/restauración y OCR en Rust
@@ -35,6 +37,8 @@ Requiere toolchain Rust `stable-x86_64-pc-windows-msvc` + VS Build Tools (C++). 
 - Casillas: el estilo va en `index.css` (todas iguales); "marcar todos" con `components/Casilla.tsx` e `indeterminado` cuando hay algunos marcados.
 - Pestañas de una pantalla en la URL con `usePestanaUrl(pestanas, clave?)` (`lib/pestanaUrl.ts`, `?tab=`; la primera no se escribe): Campaña, Tasas y Gerentes. Con `clave` la última elegida se recuerda en localStorage y se abre al entrar sin `?tab=` (la Campaña, `"campana"`, igual para todas).
 - Estados con un solo componente: `EstadoBadge` (campaña) y `GerenteActivoBadge` (`components/EstadoBadge.tsx`), `EstadoGerenteBadge` (avance). Un saldo negativo va `font-medium text-destructive`.
+- Vista previa (`pnpm vista`, modo `vista` de `vite.config.ts`): los módulos de Tauri van a `src/vista/tauri/*` y `@/db` a `src/vista/db.ts` (sql.js + `semilla.ts`, datos relativos a hoy). `?capturas&modo=oscuro&tema=rosa` apaga tutorial y novedades y fija el tema; `scripts/capturas.mjs` recorre `PANTALLAS`. Revisar ahí lo visual antes de publicar; una pantalla nueva importante va a esa lista.
+- Movimiento: nada pasa de 250 ms (`--duracion-rapida/--duracion/--duracion-lenta` y curvas `--curva-entrada`/`--curva-salida` en `index.css`; entrar ease-out, salir más corto y ease-in) y todo se apaga con "reducir movimiento" de Windows. Cambios de pantalla o de pestaña (`?tab=`) con view transition (`lib/transicionVista.ts`, `instalarTransiciones(router)` en `main.tsx`; los cambios de filtros no animan), solo sobre `main[data-contenido]`; lo fijo que no debe animarse va fuera del `<main>`. Carga con `Cargando` (`components/Feedback.tsx`: indicador que gira + esqueleto con brillo, aparece tras 150 ms) o `Spinner` en lo chico.
 - `components/VolverArriba.tsx` (en `AppLayout`, sobre el `<main>` que hace scroll; tecla Inicio). Se sube si hay una barra fija abajo marcada con `data-barra-inferior`.
 - Campos de fecha con `components/FechaInput.tsx` (texto dd/mm/aaaa con `mascaraFecha`/`parseFechaVE` + calendario nativo con `showPicker`), nunca `<input type="date">` a la vista: este sigue el idioma de Windows. `lib.rs` arranca el WebView2 con `--lang=es`.
 - Zoom de la app (Ctrl + rueda / + / − / 0) en `lib/zoomApp.ts` con `setZoom` del webview; respeta el `preventDefault` de `ZoomableImage`.

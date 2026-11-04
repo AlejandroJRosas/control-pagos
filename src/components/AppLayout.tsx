@@ -164,13 +164,13 @@ export function AppLayout() {
         </NavLink>
         {!c && <VersionApp className="self-center" />}
       </aside>
-      <main ref={main} className="flex-1 overflow-auto p-6">
+      <main ref={main} data-contenido className="flex-1 overflow-auto p-6">
         <AvisoEspejo />
         <AvisoTasaFaltante />
-        <AvisoCumpleanos />
         <Outlet />
         <VolverArriba contenedor={main} />
       </main>
+      <AvisoCumpleanos />
       <Toaster richColors position="top-center" />
       <BusquedaGlobal open={buscar} onOpenChange={setBuscar} />
       <AyudaAtajos open={ayuda} onOpenChange={setAyuda} />

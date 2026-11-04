@@ -157,7 +157,7 @@ export function AvanceBar({ pct, metas }: { pct: number; metas?: MetaVista[] }) 
           role="img"
           aria-label={describirMeta(m)}
           title={describirMeta(m)}
-          className={cn("absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded-full", ESTILO_META[m.estado].linea)}
+          className={cn("absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2", ESTILO_META[m.estado].linea)}
           style={{ left: `${m.posicion}%` }}
         />
       ))}

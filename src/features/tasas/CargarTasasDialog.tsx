@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Aviso } from "@/components/Feedback";
+import { Aviso, Spinner } from "@/components/Feedback";
 import { FechaInput } from "@/components/FechaInput";
 import { getDb } from "@/db";
 import { listTasas } from "@/db/repos/tasas";
@@ -95,7 +95,7 @@ export function CargarTasasDialog({ open, onOpenChange }: Props) {
             <DialogDescription>Sin captura. Los días hábiles que faltan hasta hoy ya están en la lista; las filas vacías no se guardan.</DialogDescription>
           </DialogHeader>
           {!data ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
+            <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner className="size-4" />Cargando…</p>
           ) : (
             <div className="grid max-h-[55vh] gap-2 overflow-y-auto pr-1">
               {filas.length === 0 && (

@@ -2,8 +2,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router";
 import { router } from "./App";
+import { instalarTransiciones } from "./lib/transicionVista";
 import { reportError } from "./lib/reportError";
-import { getDb } from "./db";
+import { getDb } from "@/db";
 import { mantenimientoAlIniciar, marcarArranque } from "./platform/backup";
 import { invalidate } from "./hooks/useData";
 import { buscarActualizacion, buscarPeriodicamente } from "./platform/actualizacion";
@@ -38,6 +39,8 @@ const render = (contenido: React.ReactNode) =>
       <OverlayCierre />
     </React.StrictMode>,
   );
+// Cambios de pantalla y de pestaña con view transition (no al escribir en filtros).
+instalarTransiciones(router);
 const app = <RouterProvider router={router} />;
 
 /**
