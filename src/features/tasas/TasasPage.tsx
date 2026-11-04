@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { FileSpreadsheet, Images, ListChecks, Plus } from "lucide-react";
+import { FileSpreadsheet, Images, ListChecks, ListPlus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,6 +28,7 @@ import { reportError } from "@/lib/reportError";
 import { usePestanaUrl } from "@/lib/pestanaUrl";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { TasaFormDialog } from "./TasaFormDialog";
+import { CargarTasasDialog } from "./CargarTasasDialog";
 import { CalendarioTasas } from "./CalendarioTasas";
 import { FeriadosCard } from "./FeriadosCard";
 import { listFeriados } from "@/db/repos/feriados";
@@ -49,6 +50,7 @@ export function TasasPage() {
   // fecha: tasa nueva de un día elegido en el calendario; imagen: captura soltada sobre la pantalla.
   const [dialog, setDialog] = useState<{ open: boolean; tasa: TasaConUsos | null; fecha?: string; imagen?: File }>({ open: false, tasa: null });
   const [borrar, setBorrar] = useState<TasaConUsos | null>(null);
+  const [cargarVarias, setCargarVarias] = useState(false);
   const [vista, setVista] = usePestanaUrl(PESTANAS);
   const navigate = useNavigate();
   useAtajo("n", () => setDialog({ open: true, tasa: null }));
@@ -103,6 +105,10 @@ export function TasasPage() {
               <Images />
               Subir lote
             </Link>
+            <Button variant="outline" title="Varias tasas a mano, sin captura (los días que faltan ya vienen en la lista)" onClick={() => setCargarVarias(true)}>
+              <ListPlus />
+              Cargar varias…
+            </Button>
             <Button title="N" onClick={() => setDialog({ open: true, tasa: null })}>
               <Plus />
               Nueva tasa
@@ -190,6 +196,7 @@ export function TasasPage() {
           </TabsContent>
         </Tabs>
       )}
+      <CargarTasasDialog open={cargarVarias} onOpenChange={setCargarVarias} />
       <TasaFormDialog
         tasa={dialog.tasa}
         fechaFija={dialog.fecha}
