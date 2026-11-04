@@ -7,9 +7,7 @@ import { AvanceBar } from "@/components/ResumenCards";
 import { PageHeader } from "@/components/PageHeader";
 import { Cargando, Vacio } from "@/components/Feedback";
 import { EstadoBadge } from "@/components/EstadoBadge";
-import { listCampanas, type Campana } from "@/db/repos/campanas";
-import { loadCampanaData } from "@/db/queries/campanaData";
-import { buildCampanaView } from "@/domain/campanaView";
+import { loadTotalesCampanas, type TotalCampana } from "@/db/queries/totalesCampanas";
 import { formatPeriodo, todayIso } from "@/domain/dates";
 import { vistaMetas, type MetaVista } from "@/domain/metas";
 import { metasPorCampana } from "@/db/repos/metas";
@@ -19,7 +17,7 @@ import { useAtajo } from "@/hooks/useAtajo";
 import { cn } from "@/lib/utils";
 import { CampanaFormDialog } from "./CampanaFormDialog";
 
-type Fila = { campana: Campana; total: ReturnType<typeof buildCampanaView>["total"]; gerentes: number; metas: MetaVista[] };
+type Fila = TotalCampana & { metas: MetaVista[] };
 
 const KEY_CERRADAS = "campanas-cerradas-abiertas";
 
@@ -50,16 +48,11 @@ export function CampanasPage() {
   };
   useAtajo("n", () => setNueva(true));
   const { data, error } = useData(async (db) => {
-    const campanas = await listCampanas(db);
+    // Todo en pocas consultas (no tres por campaña): con muchas campañas cerradas la lista no se pone lenta.
+    const totales = await loadTotalesCampanas(db);
     const metas = await metasPorCampana(db);
     const hoy = todayIso();
-    return Promise.all(
-      campanas.map(async (campana) => {
-        const d = await loadCampanaData(db, campana.id);
-        const total = buildCampanaView(d.asignaciones, d.depositos).total;
-        return { campana, total, gerentes: d.asignaciones.length, metas: vistaMetas(metas.get(campana.id) ?? [], total, hoy).metas };
-      }),
-    );
+    return totales.map((t) => ({ ...t, metas: vistaMetas(metas.get(t.campana.id) ?? [], t.total, hoy).metas }));
   }, []);
   const activas = data?.filter((f) => f.campana.estado === "activa") ?? [];
   const cerradas = data?.filter((f) => f.campana.estado === "cerrada") ?? [];
