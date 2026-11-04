@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { createTestDb } from "@/db/testing/sqljsDriver";
 import { seedBasico } from "@/db/testing/fixtures";
-import { listColaDepositos } from "@/db/repos/cola";
+import { borradorDepositoVacio, encolarDeposito, listColaDepositos } from "@/db/repos/cola";
 import { renderApp } from "@/testing/renderApp";
 import { tauri } from "@/testing/tauri";
 
@@ -58,4 +58,28 @@ it("un lote subido desde el gerente vuelve a él con Esc, desde la subida y desd
   await user.keyboard("{Escape}");
   await screen.findByRole("button", { name: "Subir lote" });
   expect(screen.queryByText("Revisión de comprobantes")).not.toBeInTheDocument();
+});
+
+it("la página del gerente ofrece revisar los pendientes que van para él, y la revisión vuelve a él", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  const encolar = (sel: string) => encolarDeposito(db, s.campanaId, { imagenPath: "imagenes/1.png", nombreArchivo: "1.png", borrador: borradorDepositoVacio(sel) });
+  await encolar(`a:${s.asignacionId}`);
+  await encolar(`a:${s.asignacionId}`);
+  await encolar("");
+  const { user } = await renderApp(`/asignaciones/${s.asignacionId}`, { db });
+
+  await user.click(await screen.findByRole("link", { name: "Revisar pendientes (2)" }));
+  await screen.findByText("Revisión de comprobantes");
+  // Las migas terminan en el gerente: Esc vuelve a él.
+  expect(screen.getByRole("link", { name: "Ana" })).toHaveAttribute("href", `/asignaciones/${s.asignacionId}`);
+});
+
+it("sin pendientes para el gerente no se muestra el botón", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  await encolarDeposito(db, s.campanaId, { imagenPath: "imagenes/1.png", nombreArchivo: "1.png", borrador: borradorDepositoVacio("") });
+  await renderApp(`/asignaciones/${s.asignacionId}`, { db });
+  await screen.findAllByRole("link", { name: "Registrar depósito" });
+  expect(screen.queryByRole("link", { name: /Revisar pendientes/ })).not.toBeInTheDocument();
 });

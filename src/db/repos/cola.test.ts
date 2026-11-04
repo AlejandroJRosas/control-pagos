@@ -10,6 +10,7 @@ import {
   borradorDepositoVacio,
   borradorTasaVacio,
   contarPendientesDepositos,
+  contarPendientesDeAsignacion,
   contarPendientesTasas,
   descartarDeposito,
   descartarDepositos,
@@ -143,6 +144,15 @@ it("quita los hechos y cuenta pendientes", async () => {
   expect(await contarPendientesDepositos(db, s.campanaId)).toBe(1);
   expect(await quitarHechosDepositos(db, s.campanaId)).toBe(1);
   expect((await listColaDepositos(db, s.campanaId)).map((i) => i.estado)).toEqual(["pendiente"]);
+});
+
+it("cuenta los pendientes que ya van para un gerente", async () => {
+  await encolar(1, borradorDepositoVacio(`a:${s.asignacionId}`));
+  const b = await encolar(2, borradorDepositoVacio(`a:${s.asignacionId}`));
+  await encolar(3, borradorDepositoVacio(`a:${s.asignacionId + 100}`));
+  await encolar(4);
+  await marcarDepositoHecho(db, b, await createDeposito(db, s.asignacionId, depositoBase(s.tasaId)));
+  expect(await contarPendientesDeAsignacion(db, s.asignacionId)).toBe(1);
 });
 
 it("las colas de cada campaña van por separado", async () => {

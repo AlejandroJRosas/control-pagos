@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ChevronDown, Download, FileImage, FileSpreadsheet, FileText, Images, Loader2, MessageCircle, Plus } from "lucide-react";
+import { ChevronDown, Download, FileImage, FileSpreadsheet, FileText, Images, ListChecks, Loader2, MessageCircle, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -13,6 +13,7 @@ import { FiltrosDepositos, useFiltrosDepositos } from "@/components/FiltrosDepos
 import { BotonConMotivo, MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { getDb } from "@/db";
 import { getAsignacion } from "@/db/repos/asignaciones";
+import { contarPendientesDeAsignacion } from "@/db/repos/cola";
 import { getGerente, type Gerente } from "@/db/repos/gerentes";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { loadDuplicadosCampana } from "@/db/queries/duplicados";
@@ -56,6 +57,7 @@ export function AsignacionPage() {
     [asignacionId],
   );
 
+  const { data: pendientes } = useData((db) => contarPendientesDeAsignacion(db, asignacionId), [asignacionId]);
   const navigate = useNavigate();
   // Abierta desde la ficha del gerente vuelve a ella; si no, a la campaña.
   const volver = leerVolver(useLocation().state);
@@ -180,6 +182,17 @@ export function AsignacionPage() {
               <FileImage />
               Estado de cuenta
             </Button>
+            {!!pendientes && (
+              <Link
+                to={`/campanas/${a.campanaId}/revision`}
+                state={{ gerente: `a:${a.id}` } satisfies EstadoLote}
+                title="Comprobantes del lote que ya van para este gerente"
+                className={buttonVariants({ variant: "secondary" })}
+              >
+                <ListChecks />
+                Revisar pendientes ({pendientes})
+              </Link>
+            )}
             <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
               <Button variant="outline" disabled={cerrada} title="L · también puedes soltar las imágenes en cualquier parte" onClick={subirLote}>
                 <Images />

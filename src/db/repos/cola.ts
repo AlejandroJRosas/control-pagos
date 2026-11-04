@@ -169,6 +169,15 @@ export const quitarHechoDeposito = (db: SqlDriver, id: number) => quitarHecho(db
 export const quitarHechosDepositos = (db: SqlDriver, campanaId: number) => quitarHechos(db, DEP, campanaId);
 export const contarPendientesDepositos = (db: SqlDriver, campanaId: number) => contarPendientes(db, DEP, campanaId);
 
+/** Pendientes de la cola que ya van para ese gerente de la campaña (su borrador lo tiene elegido: `destino.sel` = "a:<id>"). */
+export async function contarPendientesDeAsignacion(db: SqlDriver, asignacionId: number): Promise<number> {
+  const [{ n }] = await db.select<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM cola_depositos WHERE estado = 'pendiente' AND json_extract(borrador, '$.destino.sel') = ?",
+    [`a:${asignacionId}`],
+  );
+  return n;
+}
+
 // Tasas
 
 export const encolarTasa = (db: SqlDriver, v: Encolar<BorradorTasa>) => insertar(db, TAS, v);
