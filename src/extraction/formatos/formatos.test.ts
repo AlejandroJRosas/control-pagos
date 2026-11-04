@@ -18,6 +18,7 @@ import { bancamigaTransaccion } from "./bancamigaTransaccion";
 import { bdvOtrosBancos } from "./bdvOtrosBancos";
 import { bancaribePagomovil } from "./bancaribePagomovil";
 import { mercantilDetalle } from "./mercantilDetalle";
+import { banescoMovimiento } from "./banescoMovimiento";
 import { reconocedoresDeposito, reconocedoresTasa } from "./index";
 import bdvOscuro from "./__fixtures__/bdv-oscuro.json";
 import bdvClaro from "./__fixtures__/bdv-claro.json";
@@ -44,6 +45,7 @@ import bancamigaFixture from "./__fixtures__/bancamiga.json";
 import bdvOtrosBancosFixture from "./__fixtures__/bdv-otros-bancos.json";
 import bancaribeFixture from "./__fixtures__/bancaribe-pagomovil.json";
 import mercantilDetalleFixture from "./__fixtures__/mercantil-detalle.json";
+import banescoMovimientoFixture from "./__fixtures__/banesco-movimiento.json";
 
 const HOY = "2026-10-18";
 const filasDe = (r: OcrResultado) => agruparFilas(r);
@@ -386,6 +388,7 @@ describe("detección", () => {
       [bdvOtrosBancos, [bdvOtrosBancosFixture]],
       [bancaribePagomovil, [bancaribeFixture]],
       [mercantilDetalle, [mercantilDetalleFixture]],
+      [banescoMovimiento, [banescoMovimientoFixture]],
       [tasaMariandres, [tasaFixture]],
     ]);
     const todas = [...propias.values()].flat();
@@ -409,6 +412,7 @@ describe("detección", () => {
     expect(bdvOtrosBancos.detecta(f)).toBe(false);
     expect(bancaribePagomovil.detecta(f)).toBe(false);
     expect(mercantilDetalle.detecta(f)).toBe(false);
+    expect(banescoMovimiento.detecta(f)).toBe(false);
   });
 
   it("el registro incluye los formatos", () => {
@@ -428,6 +432,7 @@ describe("detección", () => {
         bdvOtrosBancos,
         bancaribePagomovil,
         mercantilDetalle,
+        banescoMovimiento,
       ]),
     );
     expect(reconocedoresTasa).toContain(tasaMariandres);
@@ -554,5 +559,32 @@ describe("banesco y mercantil con texto sintético", () => {
   it("sin la etiqueta \"Desde mi cuenta\" no es Banesco, ni sin \"Cuenta origen\" es Mercantil", () => {
     expect(banescoOperacion.detecta(filas("NÚMERO DE REFERENCIA", "1", "BENEFICIARIO", "X", "MONTO", "Bs. 1,00"))).toBe(false);
     expect(mercantilSolicitud.detecta(filas("Nro. de referencia:", "1", "Cuenta destino:", "0102", "Monto (Bs.):", "1,00"))).toBe(false);
+  });
+});
+
+describe("banesco-movimiento", () => {
+  it("captura real: línea de movimientos TRFMB; el destino es el nombre del beneficiario y la referencia va bajo la fecha", () => {
+    const f = filasDe(banescoMovimientoFixture);
+    expect(banescoMovimiento.detecta(f)).toBe(true);
+    const r = banescoMovimiento.extrae(f);
+    expect(valores(normalizarDeposito(r, HOY))).toEqual({
+      montoBs: "2.418,00",
+      fecha: "2026-08-17",
+      referencia: "62287217602",
+      banco: "Banesco",
+      cuentaDestino: "INVERSIONES MARIA",
+    });
+    expect(r.referencia?.certeza).toBe("etiqueta");
+    // Sin etiqueta: el nombre se toma por posición y queda para revisar.
+    expect(r.cuentaDestino?.certeza).toBe("heuristica");
+  });
+
+  it("con la fecha y la referencia en la misma fila, y el monto con Bs.", () => {
+    const f = filas("TRFMB 0134 J123456789 INVERSIONES MARIA 0390", "Bs. 2.418,00", "17/08/2026 - 62287217602");
+    expect(valores(normalizarDeposito(banescoMovimiento.extrae(f), HOY))).toMatchObject({ montoBs: "2.418,00", fecha: "2026-08-17", referencia: "62287217602" });
+  });
+
+  it("sin la línea TRFMB no es este formato", () => {
+    expect(banescoMovimiento.detecta(filas("INVERSIONES MARIA", "BS 2.418,00", "17/08/2026 -", "62287217602"))).toBe(false);
   });
 });
