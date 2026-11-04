@@ -29,11 +29,13 @@ describe("instalarTransiciones", () => {
     await nav("?tab=gerentes&q=x", { replace: true });
     await nav("/tasas", { viewTransition: false });
     await nav(-1);
+    await nav("/gerentes", { replace: false, viewTransition: undefined });
     expect(navigate.mock.calls).toEqual([
       ["/tasas", { viewTransition: true }],
       ["?tab=gerentes&q=x", { replace: true }],
       ["/tasas", { viewTransition: false }],
       [-1, undefined],
+      ["/gerentes", { replace: false, viewTransition: true }],
     ]);
   });
 });

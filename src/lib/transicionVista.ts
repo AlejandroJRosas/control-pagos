@@ -39,7 +39,8 @@ type RouterNavegable = {
 export function instalarTransiciones(router: RouterNavegable): void {
   const original = router.navigate.bind(router) as (to: unknown, opts?: Record<string, unknown>) => Promise<void>;
   router.navigate = ((to: unknown, opts?: Record<string, unknown>) => {
-    if (typeof to === "number" || reducirMovimiento() || (opts && "viewTransition" in opts)) return original(to, opts);
+    // Los <Link> siempre pasan la clave `viewTransition` (undefined si no se pidió): solo manda si trae un valor.
+    if (typeof to === "number" || reducirMovimiento() || opts?.viewTransition !== undefined) return original(to, opts);
     if (!llevaTransicion(router.state.location, to as Destino)) return original(to, opts);
     return original(to, { ...opts, viewTransition: true });
   }) as RouterNavegable["navigate"];
