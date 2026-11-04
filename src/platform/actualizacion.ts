@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from "react";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { closeDb, getDb } from "@/db";
-import { respaldoAntesDe } from "./backup";
+import { AJUSTE_ERROR_CIERRE, respaldoAntesDe, respaldoDeCierre } from "./backup";
+import { setAjuste } from "@/db/repos/ajustes";
 
 /**
  * Actualizaciones: la app consulta el `latest.json` del último release de GitHub (URL en tauri.conf.json).
@@ -96,7 +97,7 @@ export const abrirAvisoActualizacion = () => {
 };
 
 /**
- * Descarga, respalda los datos (`antes-de-actualizar-*`), cierra la BD y lanza el instalador, que cierra la app
+ * Descarga, respalda los datos (`antes-de-actualizar-*` y el respaldo de cierre), cierra la BD y lanza el instalador, que cierra la app
  * y la vuelve a abrir ya actualizada. `onProgreso` recibe 0–100, o `null` si el servidor no dice el tamaño.
  */
 export async function instalarActualizacion(u: Update, onProgreso: (pct: number | null) => void): Promise<void> {
@@ -109,7 +110,16 @@ export async function instalarActualizacion(u: Update, onProgreso: (pct: number 
       onProgreso(total ? Math.min(100, Math.round((bajado / total) * 100)) : null);
     }
   });
-  await respaldoAntesDe(await getDb(), "actualizar");
+  const db = await getDb();
+  await respaldoAntesDe(db, "actualizar");
+  // El instalador cierra la app sin pasar por el cierre normal: aquí va el respaldo de cierre (auto-* y su copia a Drive,
+  // si hubo cambios). Si falla se instala igual y se avisa al abrir, como en el cierre.
+  try {
+    await respaldoDeCierre(db);
+  } catch (e) {
+    const mensaje = e instanceof Error ? e.message : String(e);
+    await setAjuste(db, AJUSTE_ERROR_CIERRE, JSON.stringify({ fecha: new Date().toISOString(), mensaje })).catch(() => {});
+  }
   await closeDb();
   await u.install();
 }

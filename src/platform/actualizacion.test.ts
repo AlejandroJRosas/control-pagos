@@ -2,8 +2,18 @@ import { beforeEach, expect, it, vi } from "vitest";
 
 const check = vi.fn();
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: () => check() }));
-vi.mock("@/db", () => ({ getDb: async () => ({}), closeDb: async () => {} }));
-vi.mock("./backup", () => ({ respaldoAntesDe: async () => "" }));
+const pasos: string[] = [];
+const respaldoDeCierre = vi.fn(async () => {
+  pasos.push("cierre");
+});
+const setAjuste = vi.fn(async (_db: unknown, _clave: string, _valor: string) => {});
+vi.mock("@/db", () => ({ getDb: async () => ({}), closeDb: async () => pasos.push("closeDb") }));
+vi.mock("@/db/repos/ajustes", () => ({ setAjuste: (db: unknown, c: string, v: string) => setAjuste(db, c, v) }));
+vi.mock("./backup", () => ({
+  AJUSTE_ERROR_CIERRE: "error_cierre",
+  respaldoAntesDe: async () => (pasos.push("antes"), ""),
+  respaldoDeCierre: () => respaldoDeCierre(),
+}));
 
 const nueva = { version: "0.3.2", currentVersion: "0.3.1", close: vi.fn(async () => {}) };
 
@@ -89,4 +99,24 @@ it("recuerda cuándo se revisó por última vez (solo si la búsqueda respondió
   check.mockResolvedValue(null);
   await a.buscarEnSegundoPlano();
   expect(a.revisadoEn()).toBeInstanceOf(Date);
+});
+
+const paraInstalar = () => ({ download: vi.fn(async () => {}), install: vi.fn(async () => void pasos.push("install")) });
+
+it("antes de instalar corre también el respaldo de cierre (el instalador cierra la app sin pasar por el cierre normal)", async () => {
+  pasos.length = 0;
+  const a = await import("./actualizacion");
+  const u = paraInstalar();
+  await a.instalarActualizacion(u as never, () => {});
+  expect(pasos).toEqual(["antes", "cierre", "closeDb", "install"]);
+});
+
+it("si el respaldo de cierre falla, igual instala y lo deja anotado para avisar al abrir", async () => {
+  pasos.length = 0;
+  setAjuste.mockClear();
+  respaldoDeCierre.mockRejectedValueOnce(new Error("disco lleno"));
+  const a = await import("./actualizacion");
+  await a.instalarActualizacion(paraInstalar() as never, () => {});
+  expect(pasos).toEqual(["antes", "closeDb", "install"]);
+  expect(setAjuste).toHaveBeenCalledWith(expect.anything(), "error_cierre", expect.stringContaining("disco lleno"));
 });
