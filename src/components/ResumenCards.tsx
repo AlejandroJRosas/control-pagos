@@ -1,9 +1,11 @@
 import Decimal from "decimal.js";
-import { CircleAlert, CircleCheck, Hourglass, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { CircleAlert, CircleCheck, Hourglass, Pencil, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import type { Resumen } from "@/domain/campanaView";
 import { formatPct, formatUsd } from "@/domain/money";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { BotonConMotivo } from "@/components/BotonConMotivo";
 import { cn } from "@/lib/utils";
 
 /** Colores fijos por significado (no siguen el tema): saldo azul, pagado verde, restante ámbar, de más rojo.
@@ -25,6 +27,7 @@ function Stat({
   tono,
   hint,
   danger,
+  accion,
   children,
 }: {
   label: string;
@@ -33,6 +36,8 @@ function Stat({
   tono: Tono;
   hint?: string;
   danger?: boolean;
+  /** Botón junto al monto (p. ej. editar el saldo). */
+  accion?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -45,7 +50,10 @@ function Stat({
             <Icon className="size-4" />
           </span>
         </div>
-        <CardTitle className={cn("text-2xl tabular-nums", danger && "text-destructive")}>{value}</CardTitle>
+        <div className="flex items-center gap-1">
+          <CardTitle className={cn("text-2xl tabular-nums", danger && "text-destructive")}>{value}</CardTitle>
+          {accion}
+        </div>
       </CardHeader>
       {hint && <CardContent className="px-4 text-xs text-destructive">{hint}</CardContent>}
       {children && <CardContent className="px-4">{children}</CardContent>}
@@ -53,12 +61,45 @@ function Stat({
   );
 }
 
-export function ResumenCards({ resumen, etiquetaAsignado = "Saldo asignado" }: { resumen: Resumen; etiquetaAsignado?: string }) {
+/** Editar el saldo asignado desde su tarjeta; `motivo` lo deshabilita (p. ej. la campaña cerrada). */
+export type EditarAsignado = { onClick: () => void; motivo?: string };
+
+export function ResumenCards({
+  resumen,
+  etiquetaAsignado = "Saldo asignado",
+  editarAsignado,
+}: {
+  resumen: Resumen;
+  etiquetaAsignado?: string;
+  editarAsignado?: EditarAsignado;
+}) {
   const pagoDeMas = new Decimal(resumen.restante).isNegative();
   const completo = resumen.pct >= 100;
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <Stat label={etiquetaAsignado} value={formatUsd(resumen.asignado)} icon={Wallet} tono={TONOS.asignado} />
+      <Stat
+        label={etiquetaAsignado}
+        value={formatUsd(resumen.asignado)}
+        icon={Wallet}
+        tono={TONOS.asignado}
+        accion={
+          editarAsignado && (
+            <BotonConMotivo motivo={editarAsignado.motivo}>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                className="text-muted-foreground"
+                aria-label="Editar el saldo asignado"
+                title={editarAsignado.motivo ? undefined : "Editar el saldo asignado"}
+                disabled={!!editarAsignado.motivo}
+                onClick={editarAsignado.onClick}
+              >
+                <Pencil />
+              </Button>
+            </BotonConMotivo>
+          )
+        }
+      />
       <Stat label="Pagado" value={formatUsd(resumen.pagado)} icon={CircleCheck} tono={TONOS.pagado} />
       <Stat
         label="Restante"

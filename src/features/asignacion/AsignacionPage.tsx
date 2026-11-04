@@ -28,6 +28,7 @@ import { EstadoGerenteBadge } from "@/components/EstadoGerenteBadge";
 import { reportError } from "@/lib/reportError";
 import { leerVolver } from "@/lib/volver";
 import { GerenteFormDialog } from "@/features/gerentes/GerenteFormDialog";
+import { AsignacionFormDialog, type AsignacionEditable } from "@/features/campana/AsignacionFormDialog";
 import { EstadoCuentaDialog } from "./EstadoCuentaDialog";
 import { getPlantillas } from "@/db/repos/plantillas";
 import { DomainError } from "@/domain/errors";
@@ -61,6 +62,7 @@ export function AsignacionPage() {
   const [estadoCuenta, setEstadoCuenta] = useState(false);
   const [editarGerente, setEditarGerente] = useState<Gerente | null>(null);
   const [exportando, setExportando] = useState(false);
+  const [editarAsignacion, setEditarAsignacion] = useState<AsignacionEditable | null>(null);
   const activa = data?.a.campanaEstado === "activa";
   const subirLote = () => data && navigate(`/campanas/${data.a.campanaId}/lote`, { state: { gerente: `a:${asignacionId}` } satisfies EstadoLote });
   useAtajo("n", () => navigate(`/asignaciones/${asignacionId}/depositos/nuevo`), { activo: activa });
@@ -201,7 +203,13 @@ export function AsignacionPage() {
         }
       />
       {cerrada && <Aviso>La campaña está cerrada: solo lectura.</Aviso>}
-      <ResumenCards resumen={resumen} />
+      <ResumenCards
+        resumen={resumen}
+        editarAsignado={{
+          motivo: cerrada ? MOTIVO_CERRADA : undefined,
+          onClick: () => setEditarAsignacion({ id: a.id, gerenteNombre: a.gerenteNombre, saldoUsd: resumen.asignado, jefeId: a.jefeId }),
+        }}
+      />
       {filtros.hayDepositos && <FiltrosDepositos filtros={filtros} />}
       <DepositosTable
         filas={filtros.r.filas}
@@ -253,6 +261,12 @@ export function AsignacionPage() {
         filas={r.filas}
         numero={numero}
         onWhatsApp={abrirWhatsApp}
+      />
+      <AsignacionFormDialog
+        asignacion={editarAsignacion}
+        companeros={data.asignaciones.map((x) => ({ id: x.id, gerenteNombre: x.gerenteNombre }))}
+        jefes={new Map(data.asignaciones.map((x) => [x.id, x.jefeId]))}
+        onOpenChange={(o) => !o && setEditarAsignacion(null)}
       />
       <GerenteFormDialog gerente={editarGerente} open={editarGerente !== null} onOpenChange={(o) => !o && setEditarGerente(null)} />
     </div>
