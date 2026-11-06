@@ -17,6 +17,7 @@ import { getDb } from "@/db";
 import { loadCampanaData } from "@/db/queries/campanaData";
 import { setEstadoCampana } from "@/db/repos/campanas";
 import { deleteAsignacion } from "@/db/repos/asignaciones";
+import { descripcionQuitar } from "./quitarGerente";
 import { contarPendientesDepositos } from "@/db/repos/cola";
 import { loadDuplicadosCampana } from "@/db/queries/duplicados";
 import { buildCampanaView, type GerenteResumen } from "@/domain/campanaView";
@@ -106,15 +107,6 @@ export function CampanaPage() {
     } finally {
       setConfirmEstado(false);
     }
-  }
-
-  function descripcionQuitar(g: GerenteResumen) {
-    const base = `Se quitará a ${g.gerenteNombre} de esta campaña.`;
-    const n = asignaciones.filter((a) => a.jefeId === g.asignacionId).length;
-    if (n === 0) return base;
-    const jefeId = jefes.get(g.asignacionId) ?? null;
-    const jefe = jefeId === null ? undefined : asignaciones.find((a) => a.id === jefeId)?.gerenteNombre;
-    return `${base} ${n === 1 ? "El 1 que tiene debajo pasa" : `Los ${n} que tiene debajo pasan`} ${jefe ? `a ${jefe}` : "a la punta, sin jefe"}.`;
   }
 
   async function quitarGerente(g: GerenteResumen) {
@@ -369,7 +361,7 @@ export function CampanaPage() {
         open={quitar !== null}
         onOpenChange={(o) => !o && setQuitar(null)}
         title="Quitar gerente"
-        description={quitar ? descripcionQuitar(quitar) : ""}
+        description={quitar ? descripcionQuitar(quitar.gerenteNombre, quitar.asignacionId, asignaciones) : ""}
         confirmLabel="Quitar"
         destructive
         onConfirm={() => (quitar ? quitarGerente(quitar) : undefined)}

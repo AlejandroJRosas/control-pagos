@@ -11,9 +11,12 @@ import { PageHeader } from "@/components/PageHeader";
 import { Cargando, Vacio } from "@/components/Feedback";
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { EtiquetaChip } from "@/components/EtiquetaChip";
+import { BotonEliminarFila } from "@/components/BotonEliminarFila";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { toast } from "sonner";
 import { getDb } from "@/db";
 import { listEtiquetas, type Etiqueta } from "@/db/repos/etiquetas";
-import { listGerentesConCampanas, setGerenteActivo, type Gerente, type GerenteConCampanas } from "@/db/repos/gerentes";
+import { deleteGerente, listGerentesConCampanas, setGerenteActivo, type Gerente, type GerenteConCampanas } from "@/db/repos/gerentes";
 import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
 import { reportError } from "@/lib/reportError";
@@ -43,6 +46,7 @@ export function GerentesPage() {
   const { data: etiquetas } = useData((db) => listEtiquetas(db), []);
   const [verEtiquetas, setVerEtiquetas] = useState(false);
   const [dialog, setDialog] = useState<{ open: boolean; gerente: Gerente | null }>({ open: false, gerente: null });
+  const [eliminar, setEliminar] = useState<Gerente | null>(null);
   const [vista, setVista] = usePestanaUrl(PESTANAS);
   const activos = useMemo(() => (data ?? []).filter((g) => g.activo), [data]);
 
@@ -52,6 +56,18 @@ export function GerentesPage() {
       invalidate();
     } catch (e) {
       reportError(e);
+    }
+  }
+
+  async function eliminarGerente(g: Gerente) {
+    try {
+      await deleteGerente(await getDb(), g.id);
+      toast.success(`${g.nombre} eliminado`);
+      invalidate();
+    } catch (e) {
+      reportError(e);
+    } finally {
+      setEliminar(null);
     }
   }
 
@@ -216,6 +232,7 @@ export function GerentesPage() {
                       <Button size="sm" variant="ghost" onClick={() => toggleActivo(g)}>
                         {g.activo ? "Desactivar" : "Activar"}
                       </Button>
+                      {g.campanas.length === 0 && <BotonEliminarFila label={`Eliminar a ${g.nombre}`} onClick={() => setEliminar(g)} />}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -224,6 +241,15 @@ export function GerentesPage() {
           )}
         </TabsContent>
       </Tabs>
+      <ConfirmDialog
+        open={eliminar !== null}
+        onOpenChange={(o) => !o && setEliminar(null)}
+        title="Eliminar gerente"
+        description={eliminar ? `Se eliminará a ${eliminar.nombre} con sus datos (teléfono, cumpleaños y etiquetas). No está en ninguna campaña.` : ""}
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={() => (eliminar ? eliminarGerente(eliminar) : undefined)}
+      />
       <EtiquetasDialog open={verEtiquetas} onOpenChange={setVerEtiquetas} />
       <GerenteFormDialog gerente={dialog.gerente} open={dialog.open} onOpenChange={(open) => setDialog((d) => ({ ...d, open }))} />
     </div>

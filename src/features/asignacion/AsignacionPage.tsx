@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ChevronDown, Download, FileImage, FileSpreadsheet, FileText, Images, ListChecks, Loader2, MessageCircle, Plus } from "lucide-react";
+import { ChevronDown, Download, FileImage, FileSpreadsheet, FileText, Images, ListChecks, Loader2, MessageCircle, Plus, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -12,7 +12,9 @@ import { DepositosTable } from "@/components/DepositosTable";
 import { FiltrosDepositos, useFiltrosDepositos } from "@/components/FiltrosDepositos";
 import { BotonConMotivo, MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { getDb } from "@/db";
-import { getAsignacion } from "@/db/repos/asignaciones";
+import { deleteAsignacion, getAsignacion } from "@/db/repos/asignaciones";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { descripcionQuitar } from "@/features/campana/quitarGerente";
 import { contarPendientesDeAsignacion } from "@/db/repos/cola";
 import { getGerente, type Gerente } from "@/db/repos/gerentes";
 import { loadCampanaData } from "@/db/queries/campanaData";
@@ -33,7 +35,7 @@ import { AsignacionFormDialog, type AsignacionEditable } from "@/features/campan
 import { EstadoCuentaDialog } from "./EstadoCuentaDialog";
 import { getPlantillas } from "@/db/repos/plantillas";
 import { DomainError } from "@/domain/errors";
-import { useData } from "@/hooks/useData";
+import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
 import { useReceptorArchivos } from "@/lib/soltarArchivos";
 import { receptorCampana, receptorCerrada, type EstadoLote } from "@/components/SoltarImagenes";
@@ -65,6 +67,7 @@ export function AsignacionPage() {
   const [editarGerente, setEditarGerente] = useState<Gerente | null>(null);
   const [exportando, setExportando] = useState(false);
   const [editarAsignacion, setEditarAsignacion] = useState<AsignacionEditable | null>(null);
+  const [quitar, setQuitar] = useState(false);
   const activa = data?.a.campanaEstado === "activa";
   const subirLote = () => data && navigate(`/campanas/${data.a.campanaId}/lote`, { state: { gerente: `a:${asignacionId}` } satisfies EstadoLote });
   useAtajo("n", () => navigate(`/asignaciones/${asignacionId}/depositos/nuevo`), { activo: activa });
@@ -120,6 +123,19 @@ export function AsignacionPage() {
       (avisar) => savePdf(buildGerentePdf(campana, view, asignacionId), archivoPdf(archivo, hoy), () => avisar("Generando PDF…")),
       "PDF guardado",
     );
+
+  async function quitarDeCampana() {
+    try {
+      await deleteAsignacion(await getDb(), a.id);
+      toast.success(`${a.gerenteNombre} quitado de la campaña`);
+      navigate(`/campanas/${a.campanaId}`, { replace: true });
+      invalidate();
+    } catch (e) {
+      reportError(e);
+    } finally {
+      setQuitar(false);
+    }
+  }
 
   async function whatsapp() {
     try {
@@ -255,11 +271,26 @@ export function AsignacionPage() {
                     <Images />
                     Subir lote de comprobantes
                   </Button>
+                  {!pendientes && (
+                    <Button variant="outline" className="text-destructive" onClick={() => setQuitar(true)}>
+                      <UserMinus />
+                      Quitar de la campaña
+                    </Button>
+                  )}
                 </>
               )}
             </Vacio>
           )
         }
+      />
+      <ConfirmDialog
+        open={quitar}
+        onOpenChange={setQuitar}
+        title="Quitar gerente"
+        description={descripcionQuitar(a.gerenteNombre, a.id, data.asignaciones)}
+        confirmLabel="Quitar"
+        destructive
+        onConfirm={quitarDeCampana}
       />
       <EstadoCuentaDialog
         open={estadoCuenta}

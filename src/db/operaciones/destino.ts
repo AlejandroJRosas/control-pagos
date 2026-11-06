@@ -1,7 +1,7 @@
 import type { SqlDriver } from "../driver";
 import { assertCampanaActiva } from "../repos/campanas";
 import { createAsignacion, getAsignacion } from "../repos/asignaciones";
-import { createGerente, listGerentes } from "../repos/gerentes";
+import { createGerente, getGerente, listGerentes } from "../repos/gerentes";
 import { claveComparacion, createDeposito, type DepositoGuardar } from "../repos/depositos";
 import type { Destino } from "@/domain/validation";
 import { DomainError } from "@/domain/errors";
@@ -31,6 +31,7 @@ export async function resolverDestino(db: SqlDriver, campanaId: number, d: Desti
     if (existente) throw new DomainError("DUPLICADO", `Ya existe un gerente llamado ${existente.nombre}; selecciónalo en la lista`);
     gerenteId = gerenteCreado = await createGerente(db, { nombre: d.nombre, telefono: null });
   } else {
+    if (!(await getGerente(db, d.gerenteId))) throw new DomainError("VALIDACION", "Ese gerente ya no existe; elige otro");
     gerenteId = d.gerenteId;
   }
 

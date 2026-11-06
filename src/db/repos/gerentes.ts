@@ -1,6 +1,7 @@
 import type { SqlDriver } from "../driver";
 import { nowIso } from "../clock";
 import type { GerenteValido } from "@/domain/validation";
+import { DomainError } from "@/domain/errors";
 
 /** `nacimiento`: YYYY-MM-DD o null. */
 export type Gerente = { id: number; nombre: string; telefono: string | null; nacimiento: string | null; activo: boolean; creadoEn: string };
@@ -69,4 +70,13 @@ export async function updateGerente(db: SqlDriver, id: number, v: GerenteValido)
 
 export async function setGerenteActivo(db: SqlDriver, id: number, activo: boolean): Promise<void> {
   await db.execute("UPDATE gerentes SET activo = ?, actualizado_en = ? WHERE id = ?", [activo ? 1 : 0, nowIso(), id]);
+}
+
+/** Elimina un gerente que no está en ninguna campaña (con sus etiquetas y los emparejamientos con la otra instalación). */
+export async function deleteGerente(db: SqlDriver, id: number): Promise<void> {
+  const [{ n }] = await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM asignaciones WHERE gerente_id = ?", [id]);
+  if (n > 0) throw new DomainError("VALIDACION", "No se puede eliminar: el gerente está en alguna campaña. Quítalo primero de cada una");
+  await db.execute("DELETE FROM gerente_etiquetas WHERE gerente_id = ?", [id]);
+  await db.execute("DELETE FROM equivalencias WHERE tabla = 'gerentes' AND id_local = ?", [id]);
+  await db.execute("DELETE FROM gerentes WHERE id = ?", [id]);
 }

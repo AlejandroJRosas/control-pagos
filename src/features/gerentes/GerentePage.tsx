@@ -1,18 +1,20 @@
 import { useMemo, useState } from "react";
 import Decimal from "decimal.js";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { EstadoBadge, GerenteActivoBadge } from "@/components/EstadoBadge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/PageHeader";
+import { BotonConMotivo } from "@/components/BotonConMotivo";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Cargando, Vacio } from "@/components/Feedback";
 import { ResumenCards } from "@/components/ResumenCards";
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { EtiquetaChip } from "@/components/EtiquetaChip";
 import { EstadoGerenteBadge, ORDEN_ESTADOS } from "@/components/EstadoGerenteBadge";
 import { getDb } from "@/db";
-import { setGerenteActivo } from "@/db/repos/gerentes";
+import { deleteGerente, setGerenteActivo } from "@/db/repos/gerentes";
 import { loadGerenteData, type CampanaDelGerente } from "@/db/queries/gerenteData";
 import { buildCampanaView, estadoGerente, type EstadoGerente, type GerenteResumen } from "@/domain/campanaView";
 import { formatFecha, todayIso } from "@/domain/dates";
@@ -20,6 +22,7 @@ import { proximoCumple, textoFaltan } from "@/domain/cumpleanos";
 import { formatPct, formatUsd } from "@/domain/money";
 import { invalidate, useData } from "@/hooks/useData";
 import { reportError } from "@/lib/reportError";
+import { toast } from "sonner";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { conVolver, leerVolver } from "@/lib/volver";
 import { cn } from "@/lib/utils";
@@ -66,6 +69,7 @@ export function GerentePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [editar, setEditar] = useState(false);
+  const [eliminar, setEliminar] = useState(false);
   // Sin orden elegido quedan las campañas más recientes primero.
   const { orden, alternar } = useOrden<Key>();
   const filas = useMemo(() => ordenar(data?.campanas ?? [], COLUMNAS, orden), [data, orden]);
@@ -80,6 +84,19 @@ export function GerentePage() {
       invalidate();
     } catch (e) {
       reportError(e);
+    }
+  }
+
+  async function eliminarGerente() {
+    try {
+      await deleteGerente(await getDb(), g.id);
+      toast.success(`${g.nombre} eliminado`);
+      invalidate();
+      navigate("/gerentes", { replace: true });
+    } catch (e) {
+      reportError(e);
+    } finally {
+      setEliminar(false);
     }
   }
 
@@ -111,6 +128,12 @@ export function GerentePage() {
               <Pencil />
               Editar
             </Button>
+            <BotonConMotivo motivo={data.campanas.length > 0 ? "Está en alguna campaña: quítalo primero de cada una (solo se puede si no tiene depósitos)" : undefined}>
+              <Button variant="outline" className="text-destructive" disabled={data.campanas.length > 0} onClick={() => setEliminar(true)}>
+                <Trash2 />
+                Eliminar
+              </Button>
+            </BotonConMotivo>
           </>
         }
       />
@@ -160,6 +183,15 @@ export function GerentePage() {
         </>
       )}
       <GerenteFormDialog gerente={g} open={editar} onOpenChange={setEditar} />
+      <ConfirmDialog
+        open={eliminar}
+        onOpenChange={setEliminar}
+        title="Eliminar gerente"
+        description={`Se eliminará a ${g.nombre} con sus datos (teléfono, cumpleaños y etiquetas). No está en ninguna campaña.`}
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={eliminarGerente}
+      />
     </div>
   );
 }

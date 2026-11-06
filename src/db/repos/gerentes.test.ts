@@ -1,7 +1,11 @@
 import { beforeEach, expect, it } from "vitest";
 import type { SqlDriver } from "../driver";
 import { createTestDb } from "../testing/sqljsDriver";
-import { createGerente, getGerente, listGerentes, listGerentesConCampanas, setGerenteActivo, updateGerente } from "./gerentes";
+import { createGerente, deleteGerente, getGerente, listGerentes, listGerentesConCampanas, setGerenteActivo, updateGerente } from "./gerentes";
+import { createCampana } from "./campanas";
+import { createAsignacion } from "./asignaciones";
+import { createEtiqueta, setEtiquetasGerente } from "./etiquetas";
+import { getEquivalencias, setEquivalencia } from "./consolidacion";
 
 let db: SqlDriver;
 beforeEach(async () => {
@@ -43,4 +47,23 @@ it("lista las campañas de cada gerente", async () => {
   const r = await listGerentesConCampanas(db);
   expect(r.find((g) => g.id === ana)?.campanas.sort()).toEqual(["Abril", "Marzo, 2026"]);
   expect(r.find((g) => g.nombre === "Luis")?.campanas).toEqual([]);
+});
+
+it("elimina un gerente sin campañas, con sus etiquetas y emparejamientos", async () => {
+  const id = await createGerente(db, { nombre: "Ana", telefono: null });
+  const etiqueta = await createEtiqueta(db, { nombre: "Zona", color: "azul" });
+  await setEtiquetasGerente(db, id, [etiqueta]);
+  await setEquivalencia(db, "gerentes", "uuid-remoto", id);
+  await deleteGerente(db, id);
+  expect(await getGerente(db, id)).toBeNull();
+  expect((await getEquivalencias(db, "gerentes")).size).toBe(0);
+  expect(await db.select("SELECT * FROM gerente_etiquetas")).toEqual([]);
+});
+
+it("no elimina un gerente que está en alguna campaña", async () => {
+  const id = await createGerente(db, { nombre: "Ana", telefono: null });
+  const campanaId = await createCampana(db, { nombre: "Marzo", fechaInicio: "2026-03-01", fechaFin: null, notas: null });
+  await createAsignacion(db, { campanaId, gerenteId: id, saldoUsd: "100" });
+  await expect(deleteGerente(db, id)).rejects.toMatchObject({ code: "VALIDACION" });
+  expect(await getGerente(db, id)).not.toBeNull();
 });
