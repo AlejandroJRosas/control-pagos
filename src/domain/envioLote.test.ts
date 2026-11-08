@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { seleccionInicial } from "./envioLote";
+import { nombresSinRepetir, seleccionInicial } from "./envioLote";
 
 it("marca por defecto a quien debe y tiene un teléfono válido", () => {
   expect(
@@ -11,4 +11,13 @@ it("marca por defecto a quien debe y tiene un teléfono válido", () => {
       { asignacionId: 5, gerenteNombre: "E", telefono: "123", restante: "10" },
     ]),
   ).toEqual(new Set([1]));
+});
+
+it("no repite nombres de archivo en un lote: al repetido le agrega (2), (3)…", () => {
+  expect(nombresSinRepetir(["Ana - Oct.pdf", "Beto - Oct.pdf", "ana - oct.pdf", "Ana - Oct.pdf"])).toEqual([
+    "Ana - Oct.pdf",
+    "Beto - Oct.pdf",
+    "ana - oct (2).pdf",
+    "Ana - Oct (3).pdf",
+  ]);
 });

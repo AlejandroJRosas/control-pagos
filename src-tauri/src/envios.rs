@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-/// Solo un nombre de archivo simple (sin carpetas ni caracteres que Windows no acepta) con extensión .pdf, .xlsx o .cpagos.
+/// Solo un nombre de archivo simple (sin carpetas ni caracteres que Windows no acepta) con extensión .pdf, .xlsx, .png o .cpagos.
 /// Se permiten espacios y acentos ("Mary Cordero - MARIANDRES C3 2026 - 03-11-2026.pdf").
 pub fn nombre_valido(nombre: &str) -> bool {
     let (base, ext) = match nombre.rsplit_once('.') {
@@ -16,7 +16,7 @@ pub fn nombre_valido(nombre: &str) -> bool {
         && !base.starts_with(['.', ' '])
         && !base.ends_with(['.', ' '])
         && base.chars().all(|c| !c.is_control() && !matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'))
-        && matches!(ext, "pdf" | "xlsx" | "cpagos")
+        && matches!(ext, "pdf" | "xlsx" | "png" | "cpagos")
 }
 
 /// Borra los envíos con más de `edad` (WhatsApp lee el archivo al pegarlo, así que el recién copiado se queda).
@@ -36,17 +36,18 @@ pub fn podar(dir: &Path, edad: Duration, ahora: SystemTime) -> Result<usize, Str
     Ok(borrados)
 }
 
+/// Copia uno o varios archivos juntos (en WhatsApp se pegan todos de una vez).
 #[cfg(windows)]
-pub fn copiar_al_portapapeles(ruta: &Path) -> Result<(), String> {
+pub fn copiar_al_portapapeles(rutas: &[&Path]) -> Result<(), String> {
     use clipboard_win::{formats, Clipboard, Setter};
-    let ruta = ruta.to_str().ok_or("Ruta inválida")?;
+    let rutas = rutas.iter().map(|r| r.to_str().ok_or("Ruta inválida")).collect::<Result<Vec<_>, _>>()?;
     let error = |e| format!("No se pudo copiar el archivo al portapapeles: {e}");
     let _abierto = Clipboard::new_attempts(10).map_err(error)?;
-    formats::FileList.write_clipboard(&[ruta][..]).map_err(error)
+    formats::FileList.write_clipboard(&rutas[..]).map_err(error)
 }
 
 #[cfg(not(windows))]
-pub fn copiar_al_portapapeles(_ruta: &Path) -> Result<(), String> {
+pub fn copiar_al_portapapeles(_rutas: &[&Path]) -> Result<(), String> {
     Err("Copiar archivos al portapapeles solo funciona en Windows".into())
 }
 
@@ -58,6 +59,7 @@ mod tests {
     fn acepta_solo_nombres_simples_de_pdf_o_excel() {
         assert!(nombre_valido("estado-de-cuenta-ana-julio-2026-10-21.pdf"));
         assert!(nombre_valido("ana_julio.xlsx"));
+        assert!(nombre_valido("Ana - Julio 2026 - 21-10-2026.png"));
         assert!(nombre_valido("consolidar-marzo-pc-2026-10-23.cpagos"));
         assert!(!nombre_valido("..\\control-pagos.db"));
         assert!(!nombre_valido("a/b.pdf"));

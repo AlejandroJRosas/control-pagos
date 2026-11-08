@@ -32,6 +32,11 @@ async function bytes(formato: FormatoEnvio, f: FuenteEstadoCuenta): Promise<Uint
 
 const nombre = (formato: FormatoEnvio, f: FuenteEstadoCuenta) => nombreEstadoCuenta(formato, f.gerenteNombre, f.campana.nombre, f.fechaCorte);
 
+/** El archivo del estado de cuenta (la imagen como PNG), para copiar o guardar varios juntos. */
+export async function archivoEstadoCuenta(formato: FormatoEnvio, f: FuenteEstadoCuenta): Promise<{ bytes: Uint8Array; nombre: string }> {
+  return { bytes: await bytes(formato, f), nombre: nombre(formato, f) };
+}
+
 /** La imagen se copia como imagen; el PDF y el Excel, como archivo. Devuelve el aviso para el usuario. */
 export async function copiarEstadoCuenta(formato: FormatoEnvio, f: FuenteEstadoCuenta): Promise<string> {
   if (formato === "imagen") {

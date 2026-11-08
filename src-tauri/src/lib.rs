@@ -151,15 +151,21 @@ fn restore_backup(app: AppHandle, zip_path: String) -> Result<(), String> {
 /// Copia al portapapeles, como archivo, `envios\<nombre>` (lo escribe JS antes) y borra los envíos de más de 7 días.
 #[tauri::command]
 fn copiar_envio(app: AppHandle, nombre: String) -> Result<(), String> {
-    if !envios::nombre_valido(&nombre) {
+    copiar_envios(app, vec![nombre])
+}
+
+/// Copia juntos varios archivos de `envios\` (el envío en lote de estados de cuenta).
+#[tauri::command]
+fn copiar_envios(app: AppHandle, nombres: Vec<String>) -> Result<(), String> {
+    if nombres.is_empty() || nombres.iter().any(|n| !envios::nombre_valido(n)) {
         return Err("Nombre de archivo inválido".into());
     }
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("envios");
-    let ruta = dir.join(&nombre);
-    if !ruta.is_file() {
+    let rutas: Vec<_> = nombres.iter().map(|n| dir.join(n)).collect();
+    if rutas.iter().any(|r| !r.is_file()) {
         return Err("No se encontró el archivo para enviar".into());
     }
-    envios::copiar_al_portapapeles(&ruta)?;
+    envios::copiar_al_portapapeles(&rutas.iter().map(|r| r.as_path()).collect::<Vec<_>>())?;
     let _ = envios::podar(&dir, Duration::from_secs(7 * 24 * 60 * 60), SystemTime::now());
     Ok(())
 }
@@ -281,6 +287,7 @@ pub fn run() {
             list_backups,
             restore_backup,
             copiar_envio,
+            copiar_envios,
             crear_paquete,
             abrir_paquete,
             tamano_imagenes,
