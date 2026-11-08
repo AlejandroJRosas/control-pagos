@@ -39,11 +39,12 @@ pub fn podar(dir: &Path, edad: Duration, ahora: SystemTime) -> Result<usize, Str
 /// Copia uno o varios archivos juntos (en WhatsApp se pegan todos de una vez).
 #[cfg(windows)]
 pub fn copiar_al_portapapeles(rutas: &[&Path]) -> Result<(), String> {
-    use clipboard_win::{formats, Clipboard, Setter};
+    use clipboard_win::{options::DoClear, raw, Clipboard};
     let rutas = rutas.iter().map(|r| r.to_str().ok_or("Ruta inválida")).collect::<Result<Vec<_>, _>>()?;
     let error = |e| format!("No se pudo copiar el archivo al portapapeles: {e}");
     let _abierto = Clipboard::new_attempts(10).map_err(error)?;
-    formats::FileList.write_clipboard(&rutas[..]).map_err(error)
+    // Vaciarlo antes: si quedaba otra cosa (p. ej. la imagen de un envío anterior), WhatsApp pegaba eso y no los archivos.
+    raw::set_file_list_with(&rutas[..], DoClear).map_err(error)
 }
 
 #[cfg(not(windows))]
