@@ -4,9 +4,10 @@ import { join } from "@tauri-apps/api/path";
 import { open as elegirCarpeta } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Copy, Download, MessageCircle, SkipForward } from "lucide-react";
+import { Copy, Download, MessageCircle, Search, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Aviso, Cargando } from "@/components/Feedback";
 import { BotonConMotivo } from "@/components/BotonConMotivo";
@@ -18,13 +19,15 @@ import { loadCampanaData, type CampanaData } from "@/db/queries/campanaData";
 import { loadDuplicadosCampana } from "@/db/queries/duplicados";
 import { buildCampanaView, filtrarDepositos, type CampanaView, type FilaDeposito, type GerenteResumen } from "@/domain/campanaView";
 import { todayIso } from "@/domain/dates";
-import { alternarRama, aplanarArbol, armarArbol, estadoRama } from "@/domain/arbol";
+import { alternarRama, aplanarArbol, armarArbol, estadoRama, filtrarArbol } from "@/domain/arbol";
+import { coincideBusqueda } from "@/domain/busqueda";
 import { nombresSinRepetir, seleccionInicial } from "@/domain/envioLote";
 import { formatUsd } from "@/domain/money";
 import { mensajeEstadoCuenta, numeroWhatsApp, urlWhatsApp, type Plantillas } from "@/domain/whatsapp";
 import { useData } from "@/hooks/useData";
 import { ETIQUETA_FORMATO, useFormatoEnvio } from "@/lib/formatoEnvio";
 import { reportError } from "@/lib/reportError";
+import { cn } from "@/lib/utils";
 import { GerenteFormDialog } from "@/features/gerentes/GerenteFormDialog";
 import { HojaEstadoCuenta } from "@/features/asignacion/HojaEstadoCuenta";
 import { archivoEstadoCuenta, copiarEstadoCuenta } from "@/features/asignacion/envioEstadoCuenta";
@@ -70,6 +73,7 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
   const [ocupado, setOcupado] = useState(false);
   const [progreso, setProgreso] = useState<{ hechos: number; total: number } | null>(null);
   const [fuera, setFuera] = useState<string[]>([]);
+  const [buscar, setBuscar] = useState("");
   /** El gerente cuya hoja se dibuja fuera de la vista para sacarle la imagen (Copiar/Descargar en imagen). */
   const [enHoja, setEnHoja] = useState<Fila | null>(null);
   const hoja = useRef<HTMLDivElement>(null);
@@ -85,6 +89,7 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
     setIndice(0);
     setEnviados(new Set());
     setFuera([]);
+    setBuscar("");
   }, [open]);
   useEffect(() => {
     if (open && data && marcados === null) setMarcados(seleccionInicial(data.filas));
@@ -93,6 +98,10 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
   const porId = useMemo(() => new Map((data?.filas ?? []).map((f) => [f.asignacionId, f])), [data]);
   const jefes = useMemo(() => new Map((data?.filas ?? []).map((f) => [f.asignacionId, f.jefeId])), [data]);
   const arbol = useMemo(() => aplanarArbol(armarArbol(data?.filas ?? [], (f) => f.asignacionId, jefes), (f) => f.asignacionId), [data, jefes]);
+  const buscando = buscar.trim() !== "";
+  const coincide = (f: { gerenteNombre: string }) => coincideBusqueda([f.gerenteNombre], [], buscar);
+  // Buscando se ven los que coinciden y sus jefes (atenuados), para saber en qué rama está cada uno.
+  const visibles = buscando ? filtrarArbol(arbol, (f) => f.asignacionId, jefes, coincide) : arbol;
   const actual = cola && indice < cola.length ? porId.get(cola[indice]) : undefined;
   const terminado = cola !== null && indice >= cola.length;
 
@@ -225,18 +234,25 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
           <Cargando error={error} />
         ) : cola === null ? (
           <div className="space-y-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input type="search" aria-label="Buscar gerente" placeholder="Buscar gerente…" className="pl-8" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
+            </div>
             <div className="max-h-[50vh] space-y-1 overflow-auto">
-              <label className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-fila-hover">
-                <Casilla
-                  className="size-4"
-                  checked={marcados.size === total && total > 0}
-                  indeterminado={marcados.size > 0 && marcados.size < total}
-                  onChange={() => setMarcados(marcados.size === total ? new Set() : new Set(data.filas.map((f) => f.asignacionId)))}
-                  aria-label="Marcar todos"
-                />
-                <span className="flex-1">Todos</span>
-              </label>
-              {arbol.map(({ item: f, nivel, debajo, tieneHijos }) => {
+              {buscando && visibles.length === 0 && <p className="px-2 py-1.5 text-sm text-muted-foreground">Ningún gerente coincide con «{buscar.trim()}».</p>}
+              {!buscando && (
+                <label className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-fila-hover">
+                  <Casilla
+                    className="size-4"
+                    checked={marcados.size === total && total > 0}
+                    indeterminado={marcados.size > 0 && marcados.size < total}
+                    onChange={() => setMarcados(marcados.size === total ? new Set() : new Set(data.filas.map((f) => f.asignacionId)))}
+                    aria-label="Marcar todos"
+                  />
+                  <span className="flex-1">Todos</span>
+                </label>
+              )}
+              {visibles.map(({ item: f, nivel, debajo, tieneHijos }) => {
                 const estado = tieneHijos ? estadoRama(marcados, jefes, f.asignacionId) : marcados.has(f.asignacionId) ? "todo" : "nada";
                 return (
                   <label
@@ -250,7 +266,7 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
                       indeterminado={estado === "parte"}
                       onChange={() => alternarFila(f.asignacionId, tieneHijos)}
                     />
-                    <span className="flex-1">
+                    <span className={cn("flex-1", buscando && !coincide(f) && "text-muted-foreground")}>
                       {f.gerenteNombre}
                       {tieneHijos && <span className="ml-2 text-muted-foreground">· {debajo} debajo</span>}
                       {tieneHijos && estado === "parte" && !marcados.has(f.asignacionId) && <span className="ml-2 text-muted-foreground">(él no)</span>}

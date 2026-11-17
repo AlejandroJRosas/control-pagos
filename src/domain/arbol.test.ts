@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acomodarDirectos, alternarRama, aplanarArbol, aplanarConCierres, armarArbol, cicloEn, creaCiclo, descendientes, estadoRama, type Jefes, type LugarDirecto, type NodoArbol } from "./arbol";
+import { acomodarDirectos, alternarRama, aplanarArbol, aplanarConCierres, armarArbol, cicloEn, creaCiclo, descendientes, estadoRama, filtrarArbol, type Jefes, type LugarDirecto, type NodoArbol } from "./arbol";
 
 // Árbol de ejemplo: 1 Ana → 2 Luis → (3 Pedro, 4 María); 1 Ana → 5 Carla; 6 José sin jefe.
 const jefes: Jefes = new Map([
@@ -58,6 +58,12 @@ describe("arbol", () => {
       [4, 2, 0],
     ]);
     expect(aplanarArbol(armarArbol(items, (x) => x, jefes), (x) => x, new Set([2])).map((f) => f.item)).toEqual([6, 1, 5, 2]);
+  });
+  it("filtrarArbol deja a los que coinciden y a sus jefes, en el mismo orden", () => {
+    const filas = aplanarArbol(armarArbol([1, 2, 3, 4, 5, 6], (x) => x, jefes), (x) => x);
+    expect(filtrarArbol(filas, (x) => x, jefes, (x) => x === 4).map((f) => f.item)).toEqual([1, 2, 4]);
+    expect(filtrarArbol(filas, (x) => x, jefes, (x) => x === 2 || x === 6).map((f) => f.item)).toEqual([6, 1, 2]);
+    expect(filtrarArbol(filas, (x) => x, jefes, () => false)).toEqual([]);
   });
   it("aplanarConCierres agrega el cierre de cada rama abierta después de su gente", () => {
     const arbol = armarArbol([1, 2, 3, 4, 5, 6], (x) => x, jefes);

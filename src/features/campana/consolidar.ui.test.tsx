@@ -40,9 +40,9 @@ it("comparte la campaña y lo copia para WhatsApp", async () => {
   await user.click(await abrir(user));
   await waitFor(() => expect(llamadas("copiar_envio")).toHaveLength(1));
   const crear = llamadas("crear_paquete");
-  expect(crear[0].nombre).toBe("consolidar-marzo-pc-ana-2026-10-23.cpagos");
+  expect(crear[0].nombre).toBe("Consolidar - Marzo - PC-ANA - 23-10-2026.cpagos");
   expect(JSON.parse(crear[0].datos as string).depositos).toHaveLength(1);
-  expect(llamadas("copiar_envio")[0].nombre).toBe("consolidar-marzo-pc-ana-2026-10-23.cpagos");
+  expect(llamadas("copiar_envio")[0].nombre).toBe("Consolidar - Marzo - PC-ANA - 23-10-2026.cpagos");
 });
 
 it('la segunda vez marca "Solo lo que cambió" y no repite lo ya enviado', async () => {
@@ -94,4 +94,16 @@ it("al marcar un jefe se marca toda su rama y se puede desmarcar a uno suelto", 
   await waitFor(() => expect(llamadas("crear_paquete")).toHaveLength(1));
   const nombres = JSON.parse(llamadas("crear_paquete")[0].datos as string).asignaciones.map((a: { gerente: { nombre: string } }) => a.gerente.nombre);
   expect(nombres.sort()).toEqual(["Ana", "Luis"]);
+});
+
+it("el buscador filtra los gerentes por nombre", async () => {
+  const { db, s } = await campanaConDeposito();
+  await createAsignacion(db, { campanaId: s.campanaId, gerenteId: await createGerente(db, { nombre: "Óscar Pérez", telefono: null }), saldoUsd: "50" });
+  const { user } = await renderApp(`/campanas/${s.campanaId}`, { db, hoy: "2026-10-23" });
+  await abrir(user);
+  expect(await screen.findByRole("checkbox", { name: /Óscar Pérez/ })).toBeInTheDocument();
+  await user.type(screen.getByRole("searchbox", { name: "Buscar gerente" }), "oscar");
+  expect(screen.getByRole("checkbox", { name: /Óscar Pérez/ })).toBeInTheDocument();
+  expect(screen.getAllByRole("checkbox", { name: /depósito/ })).toHaveLength(1);
+  expect(screen.queryByRole("checkbox", { name: "Marcar todos" })).not.toBeInTheDocument();
 });

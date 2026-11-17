@@ -109,6 +109,16 @@ export function aplanarArbol<T>(nodos: NodoArbol<T>[], id: (t: T) => number, ple
   return filas;
 }
 
+/** Las filas que `coincide` y la cadena de sus jefes (para no perder dónde está cada uno), en el mismo orden. */
+export function filtrarArbol<T>(filas: FilaArbol<T>[], id: (t: T) => number, jefes: Jefes, coincide: (t: T) => boolean): FilaArbol<T>[] {
+  const quedan = new Set<number>();
+  for (const f of filas) {
+    if (!coincide(f.item)) continue;
+    for (let x: number | null | undefined = id(f.item); x != null && !quedan.has(x); x = jefes.get(x)) quedan.add(x);
+  }
+  return filas.filter((f) => quedan.has(id(f.item)));
+}
+
 /** Una fila de `aplanarConCierres`: un nodo, o el cierre de la rama abierta de `item` (va después de toda su gente). */
 export type FilaConCierre<T> = ({ tipo: "nodo" } & FilaArbol<T>) | { tipo: "cierre"; item: T; nivel: number; debajo: number };
 

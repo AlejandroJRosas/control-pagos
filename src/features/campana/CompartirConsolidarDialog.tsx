@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessageCircle, Save } from "lucide-react";
+import { MessageCircle, Save, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Cargando } from "@/components/Feedback";
 import { BotonConMotivo } from "@/components/BotonConMotivo";
@@ -15,7 +16,8 @@ import { cargarEnvio } from "@/db/queries/envioConsolidar";
 import { marcarIntercambio } from "@/db/repos/consolidacion";
 import { listEtiquetas } from "@/db/repos/etiquetas";
 import { listGerentesConCampanas } from "@/db/repos/gerentes";
-import { alternarRama, aplanarArbol, armarArbol, estadoRama } from "@/domain/arbol";
+import { alternarRama, aplanarArbol, armarArbol, estadoRama, filtrarArbol } from "@/domain/arbol";
+import { coincideBusqueda } from "@/domain/busqueda";
 import { formatFechaHora, todayIso } from "@/domain/dates";
 import { formatNumberVE } from "@/domain/money";
 import { armarPaquete, nombreArchivoPaquete } from "@/domain/paquete";
@@ -23,6 +25,7 @@ import { invalidate, useData } from "@/hooks/useData";
 import { useVersion } from "@/hooks/useVersion";
 import { copiarPaquete, guardarPaqueteComo, nombreEquipo, tamanoImagenes } from "@/platform/paquete";
 import { reportError } from "@/lib/reportError";
+import { cn } from "@/lib/utils";
 
 async function cargar(db: SqlDriver, campanaId: number) {
   const [datos, gerentes, etiquetas, duplicados, equipo] = await Promise.all([
@@ -44,6 +47,7 @@ export function CompartirConsolidarDialog({ campanaId, open, onOpenChange }: Pro
   const [marcados, setMarcados] = useState<Set<number> | null>(null);
   const [soloElegido, setSoloElegido] = useState<boolean | null>(null);
   const [etiqueta, setEtiqueta] = useState("");
+  const [buscar, setBuscar] = useState("");
   const [ocupado, setOcupado] = useState<"copiar" | "guardar" | null>(null);
   const [imagenesBytes, setImagenesBytes] = useState<number | null>(null);
 
@@ -52,6 +56,7 @@ export function CompartirConsolidarDialog({ campanaId, open, onOpenChange }: Pro
     setMarcados(null);
     setSoloElegido(null);
     setEtiqueta("");
+    setBuscar("");
   }, [open]);
   useEffect(() => {
     if (open && data && marcados === null) setMarcados(new Set(data.datos.asignaciones.map((a) => a.id)));
@@ -60,6 +65,10 @@ export function CompartirConsolidarDialog({ campanaId, open, onOpenChange }: Pro
   const asignaciones = data?.datos.asignaciones ?? [];
   const jefes = useMemo(() => new Map(asignaciones.map((a) => [a.id, a.jefeId])), [asignaciones]);
   const filas = useMemo(() => aplanarArbol(armarArbol(asignaciones, (a) => a.id, jefes), (a) => a.id), [asignaciones, jefes]);
+  const buscando = buscar.trim() !== "";
+  const coincide = (a: { gerenteNombre: string }) => coincideBusqueda([a.gerenteNombre], [], buscar);
+  // Buscando se ven los que coinciden y sus jefes (atenuados), para saber en qué rama está cada uno.
+  const visibles = buscando ? filtrarArbol(filas, (a) => a.id, jefes, coincide) : filas;
   const ids = useMemo(() => asignaciones.filter((a) => marcados?.has(a.id)).map((a) => a.id), [asignaciones, marcados]);
   const ultimo = asignaciones.filter((a) => marcados?.has(a.id) && a.ultimoEnvio).map((a) => a.ultimoEnvio as string).sort().pop() ?? null;
   const hayEnvio = asignaciones.some((a) => a.ultimoEnvio);
@@ -155,18 +164,25 @@ export function CompartirConsolidarDialog({ campanaId, open, onOpenChange }: Pro
                 <BuscadorSelect value={etiqueta} onChange={porEtiqueta} opciones={opcionesEtiqueta} placeholder="Etiqueta…" />
               </div>
             )}
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input type="search" aria-label="Buscar gerente" placeholder="Buscar gerente…" className="pl-8" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
+            </div>
             <div className="max-h-[40vh] space-y-1 overflow-auto">
-              <label className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-fila-hover">
-                <Casilla
-                  className="size-4"
-                  checked={ids.length === asignaciones.length && asignaciones.length > 0}
-                  indeterminado={ids.length > 0 && ids.length < asignaciones.length}
-                  onChange={() => setMarcados(ids.length === asignaciones.length ? new Set() : new Set(asignaciones.map((a) => a.id)))}
-                  aria-label="Marcar todos"
-                />
-                <span className="flex-1">Todos</span>
-              </label>
-              {filas.map(({ item: a, nivel, debajo, tieneHijos }) => {
+              {buscando && visibles.length === 0 && <p className="px-2 py-1.5 text-sm text-muted-foreground">Ningún gerente coincide con «{buscar.trim()}».</p>}
+              {!buscando && (
+                <label className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-fila-hover">
+                  <Casilla
+                    className="size-4"
+                    checked={ids.length === asignaciones.length && asignaciones.length > 0}
+                    indeterminado={ids.length > 0 && ids.length < asignaciones.length}
+                    onChange={() => setMarcados(ids.length === asignaciones.length ? new Set() : new Set(asignaciones.map((a) => a.id)))}
+                    aria-label="Marcar todos"
+                  />
+                  <span className="flex-1">Todos</span>
+                </label>
+              )}
+              {visibles.map(({ item: a, nivel, debajo, tieneHijos }) => {
                 const n = armado?.porAsignacion.get(a.id) ?? 0;
                 const estado = tieneHijos ? estadoRama(marcados, jefes, a.id) : marcados.has(a.id) ? "todo" : "nada";
                 return (
@@ -176,7 +192,7 @@ export function CompartirConsolidarDialog({ campanaId, open, onOpenChange }: Pro
                     style={{ paddingLeft: `calc(0.5rem + ${nivel * 1.25}rem)` }}
                   >
                     <Casilla className="size-4" checked={estado === "todo"} indeterminado={estado === "parte"} onChange={() => alternarFila(a.id, tieneHijos)} />
-                    <span className="flex-1">
+                    <span className={cn("flex-1", buscando && !coincide(a) && "text-muted-foreground")}>
                       {a.gerenteNombre}
                       {tieneHijos && <span className="ml-2 text-muted-foreground">· {debajo} debajo</span>}
                       {tieneHijos && estado === "parte" && !marcados.has(a.id) && <span className="ml-2 text-muted-foreground">(él no)</span>}

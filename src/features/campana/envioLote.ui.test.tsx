@@ -85,3 +85,23 @@ it("en PDF o Excel salta a quien tiene depósitos duplicados", async () => {
   expect(copiadosJuntos()[0]).not.toContain("Beto - Octubre - 19-10-2026.xlsx");
   expect(await screen.findByText(/duplicados.*Beto/)).toBeInTheDocument();
 });
+
+it("el buscador deja a la vista a quien coincide y a su jefe, y lo marcado se conserva al borrar la búsqueda", async () => {
+  const { db, campanaId } = await campanaConEstructura();
+  const { user } = await abrir(campanaId, db);
+  const buscar = screen.getByRole("searchbox", { name: "Buscar gerente" });
+  await user.type(buscar, "beto");
+  expect(screen.getByRole("checkbox", { name: /Beto/ })).toBeInTheDocument();
+  expect(screen.getByRole("checkbox", { name: /Ana/ })).toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: /Caro/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: /Dani/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("checkbox", { name: /Beto/ }));
+
+  await user.clear(buscar);
+  await user.type(buscar, "zzz");
+  expect(screen.getByText("Ningún gerente coincide con «zzz».")).toBeInTheDocument();
+
+  await user.clear(buscar);
+  expect(screen.getByRole("checkbox", { name: /Beto/ })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: /Dani/ })).toBeInTheDocument();
+});
