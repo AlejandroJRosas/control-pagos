@@ -1,18 +1,20 @@
 import { useMemo } from "react";
 import Decimal from "decimal.js";
 import { useNavigate } from "react-router";
-import { ChevronDown, ChevronRight, Search, UserPlus } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleCheck, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { STICKY_PIE, Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Vacio } from "@/components/Feedback";
 import { SortableHead, useOrden } from "@/components/SortableHead";
 import { ColumnasMenu } from "@/components/ColumnasMenu";
+import { BuscadorSelect } from "@/components/BuscadorSelect";
 import { BotonConMotivo, MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import { ESTADOS_GERENTE, EstadoGerenteBadge, ORDEN_ESTADOS } from "@/components/EstadoGerenteBadge";
 import { estadoGerente, resumenesDeRama, sumarResumenes, type EstadoGerente, type GerenteResumen, type Resumen } from "@/domain/campanaView";
 import { aplanarConCierres, armarArbol, type FilaConCierre, type Jefes } from "@/domain/arbol";
 import { formatFecha } from "@/domain/dates";
+import { cumplimientoGerente, metaPorDefecto, metasDePorcentaje, vistaMetas, type CumplimientoGerente, type Meta } from "@/domain/metas";
 import { formatPct, formatUsd } from "@/domain/money";
 import { claveComparacion } from "@/domain/texto";
 import { useFiltrosUrl } from "@/lib/filtrosUrl";
@@ -21,8 +23,9 @@ import { agruparPie, useColumnas } from "@/lib/columnas";
 import { useRamasPlegadas } from "@/lib/ramasPlegadas";
 import { cn } from "@/lib/utils";
 
-type Fila = GerenteResumen & { estado: EstadoGerente };
-type Key = "gerenteNombre" | "estado" | "asignado" | "pagado" | "restante" | "pct" | "cantidad" | "ultimaFecha";
+/** `meta`: cómo va el gerente con la meta por porcentaje elegida (null sin meta elegida o sin saldo asignado). */
+type Fila = GerenteResumen & { estado: EstadoGerente; meta: CumplimientoGerente | null };
+type Key = "gerenteNombre" | "estado" | "asignado" | "pagado" | "restante" | "pct" | "meta" | "cantidad" | "ultimaFecha";
 const COLS: { key: Key; label: string; numeric?: boolean }[] = [
   { key: "gerenteNombre", label: "Gerente" },
   { key: "estado", label: "Estado" },
@@ -30,6 +33,7 @@ const COLS: { key: Key; label: string; numeric?: boolean }[] = [
   { key: "pagado", label: "Pagado", numeric: true },
   { key: "restante", label: "Restante", numeric: true },
   { key: "pct", label: "% avance", numeric: true },
+  { key: "meta", label: "Meta" },
   { key: "cantidad", label: "Depósitos", numeric: true },
   { key: "ultimaFecha", label: "Último depósito" },
 ];
@@ -42,10 +46,11 @@ const COLUMNAS: Columnas<Fila, Key> = {
   pagado: { tipo: "decimal", valor: (g) => g.pagado },
   restante: { tipo: "decimal", valor: (g) => g.restante },
   pct: { tipo: "numero", valor: (g) => g.pct },
+  meta: { tipo: "numero", valor: (g) => (g.meta ? (g.meta.cumplida ? 1 : 0) : -1) },
   cantidad: { tipo: "numero", valor: (g) => g.cantidad },
   ultimaFecha: { tipo: "texto", valor: (g) => g.ultimaFecha },
 };
-const FILTROS = ["qg", "estado"] as const;
+const FILTROS = ["qg", "estado", "meta", "cumple"] as const;
 const CON_TOTAL: Key[] = ["asignado", "pagado", "restante", "pct", "cantidad"];
 
 /** Celda con un total del pie: el mismo formato que la de cada gerente. */
@@ -85,6 +90,7 @@ function CeldaCierre({ col, t, nombre, nivel, debajo }: { col: Key; t: Resumen; 
         </TableCell>
       );
     case "estado":
+    case "meta":
       return <TableCell />;
     case "ultimaFecha":
       return <TableCell>{t.ultimaFecha ? formatFecha(t.ultimaFecha) : "—"}</TableCell>;
@@ -140,6 +146,21 @@ function Celda({ col, g, rama }: { col: Key; g: Fila; rama?: Rama }) {
       );
     case "pct":
       return <TableCell className="text-right tabular-nums">{formatPct(g.pct)}</TableCell>;
+    case "meta":
+      return (
+        <TableCell className="tabular-nums">
+          {!g.meta ? (
+            <span className="text-muted-foreground">—</span>
+          ) : g.meta.cumplida ? (
+            <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+              <CircleCheck className="size-3.5" />
+              Cumplida
+            </span>
+          ) : (
+            `Faltan ${formatUsd(g.meta.falta)}`
+          )}
+        </TableCell>
+      );
     case "cantidad":
       return <TableCell className="text-right tabular-nums">{g.cantidad}</TableCell>;
     case "ultimaFecha":
@@ -151,18 +172,33 @@ type Props = {
   campanaId: number;
   gerentes: GerenteResumen[];
   jefes: Jefes;
+  /** Metas de la campaña: las de porcentaje se miden en cada gerente. */
+  metas: Meta[];
+  hoy: string;
   cerrada: boolean;
   onEditarSaldo: (g: GerenteResumen) => void;
   onQuitar: (g: GerenteResumen) => void;
   onAgregar: () => void;
 };
 
-export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSaldo, onQuitar, onAgregar }: Props) {
+export function PorGerenteTab({ campanaId, gerentes, jefes, metas, hoy, cerrada, onEditarSaldo, onQuitar, onAgregar }: Props) {
   const navigate = useNavigate();
   const { orden, alternar } = useOrden<Key>({ key: "gerenteNombre", dir: 1 });
   const { valores: f, set, limpiar } = useFiltrosUrl(`campana-${campanaId}-gerentes`, FILTROS);
   const columnas = useColumnas("gerentes-campana", KEYS);
-  const conEstado = useMemo<Fila[]>(() => gerentes.map((g) => ({ ...g, estado: estadoGerente(g) })), [gerentes]);
+  // Metas por porcentaje (medidas en la campaña) y la elegida: la de la URL o, si no está, la que toca revisar.
+  const metasPct = useMemo(() => metasDePorcentaje(vistaMetas(metas, sumarResumenes(gerentes), hoy).metas), [metas, gerentes, hoy]);
+  const metaElegida = metasPct.find((m) => String(m.id) === f.meta) ?? metaPorDefecto(metasPct);
+  const conEstado = useMemo<Fila[]>(
+    () => gerentes.map((g) => ({ ...g, estado: estadoGerente(g), meta: metaElegida ? cumplimientoGerente(metaElegida, g) : null })),
+    [gerentes, metaElegida],
+  );
+  const cumplimiento = useMemo(() => {
+    const c = { si: 0, no: 0 };
+    conEstado.forEach((g) => g.meta && (g.meta.cumplida ? c.si++ : c.no++));
+    return c;
+  }, [conEstado]);
+  const filtroCumple = metaElegida && (f.cumple === "si" || f.cumple === "no") ? f.cumple : "";
   const conteo = useMemo(() => {
     const c = Object.fromEntries(ORDEN_ESTADOS.map((e) => [e, 0])) as Record<EstadoGerente, number>;
     conEstado.forEach((g) => (c[g.estado] += 1));
@@ -171,12 +207,17 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
   const ramas = useRamasPlegadas(`campana-${campanaId}`);
   const ordenadas = useMemo(() => {
     const k = claveComparacion(f.qg);
-    const visibles = conEstado.filter((g) => (!f.estado || g.estado === f.estado) && claveComparacion(g.gerenteNombre).includes(k));
+    const visibles = conEstado.filter(
+      (g) =>
+        (!f.estado || g.estado === f.estado) &&
+        (!filtroCumple || (!!g.meta && g.meta.cumplida === (filtroCumple === "si"))) &&
+        claveComparacion(g.gerenteNombre).includes(k),
+    );
     // sin orden elegido (vuelta al original) la base del árbol es por nombre
     return ordenar(visibles, COLUMNAS, orden ?? { key: "gerenteNombre", dir: 1 });
-  }, [conEstado, f.qg, f.estado, orden]);
+  }, [conEstado, f.qg, f.estado, filtroCumple, orden]);
   // árbol solo con el orden por defecto y sin filtros; con búsqueda, estado u otro orden es lista plana
-  const modoArbol = (!orden || (orden.key === "gerenteNombre" && orden.dir === 1)) && !f.qg && !f.estado;
+  const modoArbol = (!orden || (orden.key === "gerenteNombre" && orden.dir === 1)) && !f.qg && !f.estado && !filtroCumple;
   const plegadosClave = [...ramas.plegados].join(",");
   const arbol = useMemo(() => (modoArbol ? armarArbol(ordenadas, (a) => a.asignacionId, jefes) : []), [modoArbol, ordenadas, jefes]);
   const deRama = useMemo(() => resumenesDeRama(arbol, (a) => a.asignacionId), [arbol]);
@@ -188,6 +229,8 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [modoArbol, arbol, ordenadas, plegadosClave],
   );
+  // la columna de la meta solo existe con una meta por porcentaje
+  const visiblesCols = columnas.visibles.filter((k) => k !== "meta" || metaElegida);
   // las ramas plegadas siguen contando en el total: solo cambia lo que se ve
   const total = useMemo(() => sumarResumenes(ordenadas), [ordenadas]);
 
@@ -220,6 +263,22 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
     </button>
   );
 
+  const chipCumple = (valor: "si" | "no", label: string, n: number) => (
+    <button
+      type="button"
+      aria-pressed={filtroCumple === valor}
+      onClick={() => set({ cumple: filtroCumple === valor ? "" : valor })}
+      className={cn(
+        "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors hover:bg-fila-hover",
+        filtroCumple === valor && "border-primary-intenso bg-fila-hover font-medium",
+      )}
+    >
+      <span className={cn("size-1.5 rounded-full", valor === "si" ? "bg-emerald-600" : "bg-destructive")} />
+      {label}
+      <span className="text-muted-foreground tabular-nums">{n}</span>
+    </button>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -239,6 +298,22 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
           {chip("", "Todos", conEstado.length)}
           {ORDEN_ESTADOS.filter((e) => conteo[e] > 0 || f.estado === e).map((e) => chip(e, ESTADOS_GERENTE[e].label, conteo[e]))}
         </div>
+        {metaElegida && (
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="meta-gerentes" className="text-sm text-muted-foreground">
+              Meta
+            </label>
+            <BuscadorSelect
+              id="meta-gerentes"
+              className="w-48"
+              value={String(metaElegida.id)}
+              onChange={(v) => v && set({ meta: v })}
+              opciones={metasPct.map((m) => ({ value: String(m.id), label: `${formatPct(Number(m.porcentaje))} · ${formatFecha(m.fecha)}` }))}
+            />
+            {chipCumple("si", "Cumplieron", cumplimiento.si)}
+            {chipCumple("no", "No cumplieron", cumplimiento.no)}
+          </div>
+        )}
         <div className="ml-auto">
           <ColumnasMenu
             estado={columnas.estado}
@@ -260,9 +335,9 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
         <Table>
           <TableHeader>
             <TableRow>
-              {columnas.visibles.map((k) => (
+              {visiblesCols.map((k) => (
                 <SortableHead key={k} col={k} orden={orden} onOrden={alternar} className={cn(COLS.find((c) => c.key === k)?.numeric && "text-right")}>
-                  {ETIQUETAS[k]}
+                  {k === "meta" && metaElegida ? `Meta ${formatPct(Number(metaElegida.porcentaje))}` : ETIQUETAS[k]}
                 </SortableHead>
               ))}
               <TableHead className="text-right">Acciones</TableHead>
@@ -275,7 +350,7 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
                 const t = deRama.get(g.asignacionId) as Resumen;
                 return (
                   <TableRow key={`cierre-${g.asignacionId}`} className="text-muted-foreground italic hover:bg-transparent">
-                    {columnas.visibles.map((col) => (
+                    {visiblesCols.map((col) => (
                       <CeldaCierre key={col} col={col} t={t} nombre={g.gerenteNombre} nivel={nivel} debajo={debajo} />
                     ))}
                     <TableCell />
@@ -285,7 +360,7 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
               const { tieneHijos } = f;
               return (
                 <TableRow key={g.asignacionId} className="cursor-pointer" onClick={() => navigate(`/asignaciones/${g.asignacionId}`)}>
-                  {columnas.visibles.map((col) => (
+                  {visiblesCols.map((col) => (
                     <Celda
                       key={col}
                       col={col}
@@ -324,7 +399,7 @@ export function PorGerenteTab({ campanaId, gerentes, jefes, cerrada, onEditarSal
           </TableBody>
           <TableFooter data-barra-inferior className={STICKY_PIE}>
             <TableRow>
-              {agruparPie<Key | "acciones">([...columnas.visibles, "acciones"], CON_TOTAL).map((c, i) =>
+              {agruparPie<Key | "acciones">([...visiblesCols, "acciones"], CON_TOTAL).map((c, i) =>
                 c.tipo === "total" ? (
                   <CeldaTotal key={i} col={c.col as Key} t={total} />
                 ) : (

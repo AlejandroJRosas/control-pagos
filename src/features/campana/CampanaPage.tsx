@@ -311,6 +311,8 @@ export function CampanaPage() {
                 campanaId={campanaId}
                 gerentes={view.gerentes}
                 jefes={jefes}
+                metas={data.metas}
+                hoy={todayIso()}
                 cerrada={cerrada}
                 onEditarSaldo={(g) => setAsig({ id: g.asignacionId, gerenteNombre: g.gerenteNombre, saldoUsd: g.asignado, jefeId: jefes.get(g.asignacionId) ?? null })}
                 onQuitar={setQuitar}
