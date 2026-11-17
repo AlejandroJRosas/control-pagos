@@ -3,6 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
 import { Archive, Check, Database, Download, GraduationCap, Info, MessageSquare, Moon, RefreshCw, RotateCcw, SlidersHorizontal, Sun, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
+import { nombreLegible } from "@/domain/texto";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -61,7 +62,7 @@ export function ConfiguracionPage() {
   const backups = useMemo(() => ordenar(data?.backups ?? [], COLUMNAS, orden), [data, orden]);
 
   async function respaldar() {
-    const dest = await save({ defaultPath: `control-pagos-respaldo-${todayIso()}.zip`, filters: [{ name: "Respaldo", extensions: ["zip"] }] });
+    const dest = await save({ defaultPath: `${nombreLegible(["Respaldo Control de Pagos"], todayIso())}.zip`, filters: [{ name: "Respaldo", extensions: ["zip"] }] });
     if (!dest) return;
     setBusy(true);
     try {

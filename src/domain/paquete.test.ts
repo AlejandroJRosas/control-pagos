@@ -142,6 +142,6 @@ describe("leerPaquete", () => {
 
 describe("nombreArchivoPaquete", () => {
   it("arma el nombre", () => {
-    expect(nombreArchivoPaquete("Marzo 2026", "PC-OFICINA", "2026-10-23")).toBe("consolidar-marzo-2026-pc-oficina-2026-10-23.cpagos");
+    expect(nombreArchivoPaquete("Marzo 2026", "PC-OFICINA", "2026-10-23")).toBe("Consolidar - Marzo 2026 - PC-OFICINA - 23-10-2026.cpagos");
   });
 });

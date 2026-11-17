@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { ChevronDown, FileArchive, FileSpreadsheet, FileUp, Images, ListChecks, ListPlus, Plus, Repeat } from "lucide-react";
+import { nombreLegible } from "@/domain/texto";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -82,7 +83,7 @@ export function TasasPage() {
   async function exportarConCapturas() {
     try {
       const { archivo, imagenes } = armarArchivoTasas(data ?? [], nowIso());
-      if (await guardarArchivoTasas(archivo, imagenes, `tasas-${todayIso()}.${EXTENSION_TASAS}`)) toast.success("Tasas exportadas con sus capturas");
+      if (await guardarArchivoTasas(archivo, imagenes, `${nombreLegible(["Tasas"], todayIso())}.${EXTENSION_TASAS}`)) toast.success("Tasas exportadas con sus capturas");
     } catch (e) {
       reportError(e, "Exportar");
     }

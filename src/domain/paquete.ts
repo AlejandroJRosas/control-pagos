@@ -1,6 +1,6 @@
 import { DomainError } from "./errors";
 import { isValidIsoDate } from "./dates";
-import { archivoBase } from "./texto";
+import { nombreLegible } from "./texto";
 
 export const FORMATO_PAQUETE = 1;
 
@@ -155,5 +155,6 @@ export function leerPaquete(texto_: string): Paquete {
   };
 }
 
+/** "Consolidar - Marzo 2026 - PC-OFICINA - 23-10-2026.cpagos", como los Excel y PDF de la campaña. */
 export const nombreArchivoPaquete = (campana: string, origen: string, hoy: string): string =>
-  `consolidar-${archivoBase(campana)}-${archivoBase(origen)}-${hoy}.cpagos`;
+  `${nombreLegible(["Consolidar", campana, origen], hoy)}.cpagos`;
