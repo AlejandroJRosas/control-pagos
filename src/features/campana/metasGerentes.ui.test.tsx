@@ -53,3 +53,26 @@ it("sin metas por porcentaje no hay selector, chips ni columna de meta", async (
   expect(screen.queryByRole("button", { name: /Cumplieron/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("columnheader", { name: /^Meta/ })).not.toBeInTheDocument();
 });
+
+it("la casilla de la meta dice cuántos gerentes la cumplen y lleva a Por gerente con esa meta", async () => {
+  const { db, s, metaId } = await campanaConMeta();
+  const { user, router } = await renderApp(`/campanas/${s.campanaId}`, { db, hoy: "2026-03-05" });
+  const avance = await screen.findByRole("region", { name: "Avance de la campaña" });
+  // Campaña: 60 % de 200 = 120; pagado 100.
+  await user.hover(within(avance).getByRole("button", { name: /Meta 60,0 % \(\$ 120,00\) para el 20\/03\/2026 · faltan \$ 20,00/ }));
+  const casilla = within(avance).getByRole("tooltip");
+  expect(casilla).toHaveTextContent("1 de 2 gerentes la cumplen");
+
+  await user.click(within(casilla).getByRole("button", { name: "Ver gerentes" }));
+  expect(await screen.findByLabelText("Meta")).toHaveValue("60,0 % · 20/03/2026");
+  expect(screen.getByText("Luis", { selector: "[data-gerente]" })).toBeInTheDocument();
+  expect(router.state.location.search).toContain(`meta=${metaId}`);
+});
+
+it("la barra del gerente en la campaña marca las metas por porcentaje sobre su saldo (no las de monto)", async () => {
+  const { db, s, luis } = await campanaConMeta();
+  await createMeta(db, s.campanaId, { porcentaje: null, montoUsd: "150", fecha: "2026-03-25", nota: null });
+  await renderApp(`/asignaciones/${luis}`, { db, hoy: "2026-03-05" });
+  expect(await screen.findByRole("img", { name: /Meta 60,0 % \(\$ 60,00\) para el 20\/03\/2026 · faltan \$ 30,00/ })).toBeInTheDocument();
+  expect(screen.queryByRole("img", { name: /Meta \$ 150,00/ })).not.toBeInTheDocument();
+});

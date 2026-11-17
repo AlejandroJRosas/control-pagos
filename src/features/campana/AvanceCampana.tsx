@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CircleCheck, Copy, Plus } from "lucide-react";
 import { ESTILO_META, describirMeta, textoMeta } from "@/components/estiloMeta";
 import { toast } from "sonner";
@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BotonConMotivo, MOTIVO_CERRADA } from "@/components/BotonConMotivo";
 import type { Campana } from "@/db/repos/campanas";
-import type { Resumen } from "@/domain/campanaView";
+import type { GerenteResumen, Resumen } from "@/domain/campanaView";
 import { formatFecha } from "@/domain/dates";
-import { diasHasta, vistaMetas, type Meta, type MetaVista } from "@/domain/metas";
+import { contarCumplimiento, diasHasta, vistaMetas, type Meta, type MetaVista } from "@/domain/metas";
 import { formatPct, formatUsd } from "@/domain/money";
 import { reportError } from "@/lib/reportError";
 import { cn } from "@/lib/utils";
@@ -37,13 +37,17 @@ type Props = {
   cerrada: boolean;
   onAgregar: () => void;
   onEditar: (m: Meta) => void;
+  /** Para contar quiénes cumplen una meta por porcentaje. */
+  gerentes: GerenteResumen[];
+  /** Abre Por gerente con esa meta elegida. */
+  onVerGerentes: (metaId: number) => void;
 };
 
 /**
  * Avance de la campaña en grande: lo pagado sobre el saldo general, con las metas marcadas en la barra (clic = editar),
  * la próxima meta y lo que falta, y la fecha final de la campaña al 100 %.
  */
-export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, onEditar }: Props) {
+export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, onEditar, gerentes, onVerGerentes }: Props) {
   const { metas: vistas, proxima } = vistaMetas(metas, total, hoy);
   const filas = filasDeEtiquetas(vistas);
   const nFilas = vistas.length === 0 ? 0 : Math.max(...filas) + 1;
@@ -52,6 +56,17 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
   // La meta bajo el mouse (o con el foco): se marca su trayecto, las demás se atenúan y sale su casilla.
   const [enfocadaId, setEnfocadaId] = useState<number | null>(null);
   const enfocada = vistas.find((m) => m.id === enfocadaId) ?? null;
+  // Al salir se cierra con un respiro: así el mouse llega a la casilla (y a su enlace) sin que se cierre por el camino.
+  const cierre = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const enfocar = (id: number) => {
+    clearTimeout(cierre.current);
+    setEnfocadaId(id);
+  };
+  const soltar = () => {
+    clearTimeout(cierre.current);
+    cierre.current = setTimeout(() => setEnfocadaId(null), 120);
+  };
+  useEffect(() => () => clearTimeout(cierre.current), []);
 
   async function copiar() {
     try {
@@ -173,36 +188,46 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
               const estilo = ESTILO_META[m.estado];
               const Icono = estilo.icono;
               const atenuada = !!enfocada && enfocada.id !== m.id;
+              // La casilla va junto al botón (no dentro) para que su enlace se pueda pulsar; el contenedor la mantiene abierta.
               return (
-                <button
+                <div
                   key={m.id}
-                  type="button"
-                  // aria-disabled y no disabled: un botón deshabilitado no recibe el hover y la casilla no saldría.
-                  aria-disabled={cerrada || undefined}
-                  aria-label={describirMeta(m)}
-                  data-atenuada={atenuada || undefined}
-                  onClick={() => !cerrada && onEditar(m)}
-                  onMouseEnter={() => setEnfocadaId(m.id)}
-                  onMouseLeave={() => setEnfocadaId(null)}
-                  onFocus={() => setEnfocadaId(m.id)}
-                  onBlur={() => setEnfocadaId(null)}
-                  className={cn(
-                    "absolute grid justify-items-start rounded-md px-1.5 py-0.5 text-left text-xs leading-tight whitespace-nowrap tabular-nums transition-opacity",
-                    cerrada ? "cursor-default" : "hover:bg-fila-hover",
-                    atenuada && "opacity-30",
-                    enfocada?.id === m.id && "z-20",
-                    anclaje(m.posicion),
-                    estilo.texto,
-                  )}
+                  onMouseEnter={() => enfocar(m.id)}
+                  onMouseLeave={soltar}
+                  onFocus={() => enfocar(m.id)}
+                  onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && soltar()}
+                  className={cn("absolute", enfocada?.id === m.id && "z-20", anclaje(m.posicion))}
                   style={{ left: `${m.posicion}%`, top: `${filas[i] * 2.6}rem` }}
                 >
-                  <span className="flex items-center gap-1 font-medium">
-                    <Icono className="size-3.5" />
-                    {textoMeta(m)}
-                  </span>
-                  <span className="text-muted-foreground">{formatFecha(m.fecha)}</span>
-                  {enfocada?.id === m.id && <CasillaMeta m={m} hoy={hoy} />}
-                </button>
+                  <button
+                    type="button"
+                    // aria-disabled y no disabled: un botón deshabilitado no recibe el hover y la casilla no saldría.
+                    aria-disabled={cerrada || undefined}
+                    aria-label={describirMeta(m)}
+                    data-atenuada={atenuada || undefined}
+                    onClick={() => !cerrada && onEditar(m)}
+                    className={cn(
+                      "grid justify-items-start rounded-md px-1.5 py-0.5 text-left text-xs leading-tight whitespace-nowrap tabular-nums transition-opacity",
+                      cerrada ? "cursor-default" : "hover:bg-fila-hover",
+                      atenuada && "opacity-30",
+                      estilo.texto,
+                    )}
+                  >
+                    <span className="flex items-center gap-1 font-medium">
+                      <Icono className="size-3.5" />
+                      {textoMeta(m)}
+                    </span>
+                    <span className="text-muted-foreground">{formatFecha(m.fecha)}</span>
+                  </button>
+                  {enfocada?.id === m.id && (
+                    <CasillaMeta
+                      m={m}
+                      hoy={hoy}
+                      gerentes={m.porcentaje !== null ? contarCumplimiento(m, gerentes) : null}
+                      onVerGerentes={() => onVerGerentes(m.id)}
+                    />
+                  )}
+                </div>
               );
             })}
           </div>
@@ -221,16 +246,31 @@ function cuandoVence(hoy: string, fecha: string): string {
   return dias < 0 ? `vencida hace ${nDias(-dias)}` : dias === 0 ? "vence hoy" : `en ${nDias(dias)}`;
 }
 
-/** Casilla de la meta enfocada: solo lo que falta (o "Cumplida"), la fecha objetivo y los días. */
-function CasillaMeta({ m, hoy }: { m: MetaVista; hoy: string }) {
+/**
+ * Casilla de la meta enfocada: solo lo que falta (o "Cumplida"), la fecha objetivo y los días. En una de porcentaje, además,
+ * cuántos gerentes la cumplen y el enlace a Por gerente. El borde de arriba es relleno (no margen) para llegar sin cerrarla.
+ */
+function CasillaMeta({
+  m,
+  hoy,
+  gerentes,
+  onVerGerentes,
+}: {
+  m: MetaVista;
+  hoy: string;
+  gerentes: { cumplieron: number; noCumplieron: number } | null;
+  onVerGerentes: () => void;
+}) {
+  const cuentan = gerentes ? gerentes.cumplieron + gerentes.noCumplieron : 0;
   return (
     <span
       role="tooltip"
       className={cn(
-        "pointer-events-none absolute top-full z-30 mt-1 grid min-w-36 gap-0.5 rounded-md border bg-popover px-3 py-2 text-left text-xs text-popover-foreground shadow-md",
+        "absolute top-full z-30 pt-1 whitespace-nowrap",
         m.posicion < 8 ? "left-0" : m.posicion > 92 ? "right-0" : "left-1/2 -translate-x-1/2",
       )}
     >
+    <span className="grid min-w-36 gap-0.5 rounded-md border bg-popover px-3 py-2 text-left text-xs text-popover-foreground shadow-md">
       {m.estado === "cumplida" ? (
         <span className="flex items-center gap-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
           <CircleCheck className="size-3.5" />
@@ -243,6 +283,17 @@ function CasillaMeta({ m, hoy }: { m: MetaVista; hoy: string }) {
         Para el <span className="font-medium text-foreground">{formatFecha(m.fecha)}</span>
       </span>
       {m.estado !== "cumplida" && <span className={m.estado === "vencida" ? "text-destructive" : "text-muted-foreground"}>{cuandoVence(hoy, m.fecha)}</span>}
+      {gerentes && cuentan > 0 && (
+        <span className="mt-1 flex items-center justify-between gap-3 border-t pt-1.5">
+          <span className="tabular-nums">
+            {`${gerentes.cumplieron} de ${cuentan} ${cuentan === 1 ? "gerente la cumple" : "gerentes la cumplen"}`}
+          </span>
+          <button type="button" onClick={onVerGerentes} className="font-medium text-primary-intenso hover:underline">
+            Ver gerentes
+          </button>
+        </span>
+      )}
+    </span>
     </span>
   );
 }

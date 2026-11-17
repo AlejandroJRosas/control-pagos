@@ -92,12 +92,15 @@ export function ResumenCards({
   etiquetaAsignado = "Saldo asignado",
   editarAsignado,
   sinAvance = false,
+  metas,
 }: {
   resumen: Resumen;
   etiquetaAsignado?: string;
   editarAsignado?: EditarAsignado;
   /** Sin la tarjeta de Avance (la campaña lo muestra en grande, con sus metas). */
   sinAvance?: boolean;
+  /** Metas marcadas en la barra de Avance (las de porcentaje, medidas sobre este resumen). */
+  metas?: MetaVista[];
 }) {
   const pagoDeMas = new Decimal(resumen.restante).isNegative();
   const completo = resumen.pct >= 100;
@@ -137,7 +140,7 @@ export function ResumenCards({
       />
       {!sinAvance && (
       <Stat label="Avance" value={formatPct(resumen.pct)} icon={TrendingUp} tono={completo ? TONOS.pagado : TONOS.avance}>
-        <AvanceBar pct={resumen.pct} />
+        <AvanceBar pct={resumen.pct} metas={metas} />
       </Stat>
       )}
     </div>

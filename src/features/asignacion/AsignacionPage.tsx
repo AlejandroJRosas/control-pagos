@@ -35,6 +35,8 @@ import { AsignacionFormDialog, type AsignacionEditable } from "@/features/campan
 import { EstadoCuentaDialog } from "./EstadoCuentaDialog";
 import { getPlantillas } from "@/db/repos/plantillas";
 import { DomainError } from "@/domain/errors";
+import { listMetas } from "@/db/repos/metas";
+import { metasDePorcentaje, vistaMetas } from "@/domain/metas";
 import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
 import { useReceptorArchivos } from "@/lib/soltarArchivos";
@@ -54,7 +56,9 @@ export function AsignacionPage() {
       if (!resumen) throw new DomainError("NO_ENCONTRADO", "El gerente no está en esta campaña");
       // Con un depósito suyo duplicado no se exporta: los totales saldrían inflados.
       const duplicado = (await loadDuplicadosCampana(db, a.campanaId)).some((g) => g.some((dep) => dep.asignacionId === asignacionId));
-      return { a, campana: d.campana, asignaciones: d.asignaciones, view, duplicado, resumen, r: filtrarDepositos(view.depositos, { gerenteId: a.gerenteId }) };
+      // Las metas por porcentaje de la campaña se miden también sobre su saldo.
+      const metas = metasDePorcentaje(await listMetas(db, a.campanaId));
+      return { a, campana: d.campana, asignaciones: d.asignaciones, view, duplicado, resumen, metas, r: filtrarDepositos(view.depositos, { gerenteId: a.gerenteId }) };
     },
     [asignacionId],
   );
@@ -234,6 +238,7 @@ export function AsignacionPage() {
       {cerrada && <Aviso>La campaña está cerrada: solo lectura.</Aviso>}
       <ResumenCards
         resumen={resumen}
+        metas={vistaMetas(data.metas, resumen, hoy).metas}
         editarAsignado={{
           motivo: cerrada ? MOTIVO_CERRADA : undefined,
           onClick: () => setEditarAsignacion({ id: a.id, gerenteNombre: a.gerenteNombre, saldoUsd: resumen.asignado, jefeId: a.jefeId }),

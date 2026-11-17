@@ -299,6 +299,8 @@ export function CampanaPage() {
             cerrada={cerrada}
             onAgregar={() => setMeta("nueva")}
             onEditar={setMeta}
+            gerentes={view.gerentes}
+            onVerGerentes={(id) => navigate(`/campanas/${campanaId}?tab=gerentes&meta=${id}`)}
           />
           <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
             <TabsList>

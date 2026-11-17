@@ -87,7 +87,8 @@ it("al pasar sobre una meta marca el trayecto desde lo pagado, atenúa las demá
   expect(meta70).not.toHaveAttribute("data-atenuada");
 
   await user.unhover(meta70);
-  expect(within(avance).queryByRole("tooltip")).not.toBeInTheDocument();
+  // Se cierra con un respiro (para poder llegar a la casilla con el mouse).
+  await waitFor(() => expect(within(avance).queryByRole("tooltip")).not.toBeInTheDocument());
   expect(avance.querySelector("[data-trayecto]")).toBeNull();
   expect(meta40).not.toHaveAttribute("data-atenuada");
 
