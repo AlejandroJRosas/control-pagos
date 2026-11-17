@@ -100,11 +100,12 @@ function seccionMetas(campana: Campana, metas: MetaVista[]): Content[] {
     {
       table: {
         headerRows: 1,
-        widths: ["auto", "auto", "auto", "auto", "*"],
+        widths: ["auto", "auto", "auto", "auto", "auto", "*"],
         body: [
-          [enc("Para el"), enc("Monto", true), enc("Falta", true), enc("Estado"), enc("Nota")],
+          [enc("Para el"), enc("%", true), enc("Monto", true), enc("Falta", true), enc("Estado"), enc("Nota")],
           ...metas.map((m): TableCell[] => [
             formatFecha(m.fecha),
+            { text: m.porcentaje !== null ? formatPct(Number(m.porcentaje)) : "", alignment: "right" },
             { text: formatUsd(m.montoUsd), alignment: "right" },
             { text: formatUsd(m.falta), alignment: "right" },
             { text: ESTADO_META_EXPORT[m.estado].texto, bold: true, color: hex(ESTADO_META_EXPORT[m.estado].color) },

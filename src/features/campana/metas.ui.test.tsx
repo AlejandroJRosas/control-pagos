@@ -118,3 +118,28 @@ it("el Resumen marca las metas de cada campaña activa", async () => {
   await renderApp("/resumen", { db, hoy: "2026-03-05" });
   expect(await screen.findByRole("img", { name: /Meta \$ 40,00 para el 20\/03\/2026 · cumplida/ })).toBeInTheDocument();
 });
+
+it("agrega una meta por porcentaje con su monto equivalente y al editarla abre en porcentaje", async () => {
+  const { db, s } = await campanaConPagos();
+  const { user } = await renderApp(`/campanas/${s.campanaId}`, { db, hoy: "2026-03-05" });
+  const avance = await screen.findByRole("region", { name: "Avance de la campaña" });
+
+  await user.click(within(avance).getByRole("button", { name: "Agregar meta" }));
+  let dialogo = await screen.findByRole("dialog");
+  await user.click(within(dialogo).getByRole("button", { name: "Porcentaje" }));
+  await user.type(within(dialogo).getByLabelText("Porcentaje a pagar (%)"), "60");
+  const fecha = within(dialogo).getByLabelText("Para el");
+  await user.clear(fecha);
+  await user.type(fecha, "20/03/2026");
+  expect(within(dialogo).getByText(/\$ 60,00 del saldo general/)).toBeInTheDocument();
+  await user.click(within(dialogo).getByRole("button", { name: "Guardar" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+  const marca = await within(avance).findByRole("button", { name: /Meta 60,0 % \(\$ 60,00\) para el 20\/03\/2026 · faltan \$ 10,00/ });
+  expect(within(avance).getByText(/Próxima meta/).textContent).toContain("60,0 % ($ 60,00)");
+
+  await user.click(marca);
+  dialogo = await screen.findByRole("dialog");
+  expect(within(dialogo).getByRole("button", { name: "Porcentaje" })).toHaveAttribute("aria-pressed", "true");
+  expect(within(dialogo).getByLabelText("Porcentaje a pagar (%)")).toHaveValue("60");
+});

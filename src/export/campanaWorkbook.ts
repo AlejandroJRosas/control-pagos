@@ -177,17 +177,20 @@ function addMetas(ws: ExcelJS.Worksheet, desde: number, metas: MetaVista[]): voi
   titulo.value = "Metas";
   titulo.font = { bold: true, size: 12 };
   const encabezado = desde + 1;
-  ws.getRow(encabezado).values = ["Para el", "Monto USD", "Falta USD", "Estado", "Nota"];
+  ws.getRow(encabezado).values = ["Para el", "%", "Monto USD", "Falta USD", "Estado", "Nota"];
   metas.forEach((m, i) => {
     const row = ws.getRow(encabezado + 1 + i);
     const estado = ESTADO_META_EXPORT[m.estado];
-    row.values = [isoToExcelDate(m.fecha), num(m.montoUsd), num(m.falta), estado.texto, m.nota ?? ""];
+    // Una meta por porcentaje lleva el % y, en Monto, su equivalente sobre el saldo general.
+    const pct = m.porcentaje !== null ? new Decimal(m.porcentaje).div(100).toNumber() : null;
+    row.values = [isoToExcelDate(m.fecha), pct, num(m.montoUsd), num(m.falta), estado.texto, m.nota ?? ""];
     row.getCell(1).numFmt = FECHA;
-    row.getCell(2).numFmt = MONEY;
+    row.getCell(2).numFmt = "0.0%";
     row.getCell(3).numFmt = MONEY;
-    row.getCell(4).font = { bold: true, color: { argb: argb(estado.color) } };
+    row.getCell(4).numFmt = MONEY;
+    row.getCell(5).font = { bold: true, color: { argb: argb(estado.color) } };
   });
-  estilarTabla(ws, encabezado, encabezado + metas.length, 5);
+  estilarTabla(ws, encabezado, encabezado + metas.length, 6);
 }
 
 function imprimir(ws: ExcelJS.Worksheet, filaEncabezado: number): void {

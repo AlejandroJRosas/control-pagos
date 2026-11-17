@@ -3,6 +3,8 @@ import type { ContextPageSize, DynamicContent } from "pdfmake/interfaces";
 import { buildCampanaPdf, buildGerentePdf } from "./campanaPdf";
 import { buildCampanaView, type DepositoData } from "@/domain/campanaView";
 import type { Campana } from "@/db/repos/campanas";
+import Decimal from "decimal.js";
+import { formatUsd } from "@/domain/money";
 
 const campana: Campana = { id: 1, nombre: "Marzo", fechaInicio: "2026-03-01", fechaFin: null, estado: "activa", notas: null, creadoEn: "x" };
 const dep = (id: number, asignacionId: number, fecha: string, montoBs: string): DepositoData => ({
@@ -194,11 +196,17 @@ describe("buildCampanaPdf sin los gerentes sin pagos", () => {
 });
 
 it("el PDF de la campaña marca las metas en la barra y las lista", () => {
-  const metas = [{ id: 1, campanaId: 1, porcentaje: null, montoUsd: "140", fecha: "2026-10-30", nota: null }];
+  const metas = [
+    { id: 1, campanaId: 1, porcentaje: null, montoUsd: "140", fecha: "2026-10-30", nota: null },
+    { id: 2, campanaId: 1, porcentaje: "50", montoUsd: null, fecha: "2026-11-30", nota: null },
+  ];
   const texto = JSON.stringify(buildCampanaPdf({ ...campana, fechaFin: "2026-03-31" }, view, generadoEn, { metas }).content);
   expect(texto).toContain("Metas");
   expect(texto).toContain("30/10/2026");
   expect(texto).toContain("Pendiente");
+  // La de porcentaje lleva el % y su monto equivalente sobre el saldo general.
+  expect(texto).toContain("50,0 %");
+  expect(texto).toContain(formatUsd(new Decimal(view.total.asignado).div(2).toFixed(2)));
   // 100 % = fin de la campaña.
   expect(texto).toContain("100 % · fin 31/03/2026");
   expect(JSON.stringify(buildCampanaPdf(campana, view, generadoEn).content)).not.toContain("Metas");

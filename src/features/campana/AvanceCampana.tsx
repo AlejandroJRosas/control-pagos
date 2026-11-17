@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CircleCheck, Copy, Plus } from "lucide-react";
-import { ESTILO_META, describirMeta } from "@/components/estiloMeta";
+import { ESTILO_META, describirMeta, textoMeta } from "@/components/estiloMeta";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -198,7 +198,7 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
                 >
                   <span className="flex items-center gap-1 font-medium">
                     <Icono className="size-3.5" />
-                    {formatUsd(m.montoUsd)}
+                    {textoMeta(m)}
                   </span>
                   <span className="text-muted-foreground">{formatFecha(m.fecha)}</span>
                   {enfocada?.id === m.id && <CasillaMeta m={m} hoy={hoy} />}
@@ -259,7 +259,7 @@ function ProximaMeta({ proxima, hayMetas, hoy }: { proxima: MetaVista | null; ha
   const cuando = cuandoVence(hoy, proxima.fecha);
   return (
     <span className={cn("text-sm", proxima.estado === "vencida" ? "text-destructive" : "text-muted-foreground")}>
-      Próxima meta: <span className="font-medium text-foreground tabular-nums">{formatUsd(proxima.montoUsd)}</span> para el{" "}
+      Próxima meta: <span className="font-medium text-foreground tabular-nums">{textoMeta(proxima)}</span> para el{" "}
       <span className="tabular-nums">{formatFecha(proxima.fecha)}</span> · faltan{" "}
       <span className="font-medium tabular-nums">{formatUsd(proxima.falta)}</span> · {cuando}
     </span>

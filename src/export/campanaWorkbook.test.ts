@@ -231,13 +231,17 @@ it("el resumen lista las metas de la campaña con lo que falta y su estado", () 
   const metas = [
     { id: 1, campanaId: 1, porcentaje: null, montoUsd: "40", fecha: "2026-03-10", nota: null },
     { id: 2, campanaId: 1, porcentaje: null, montoUsd: "80", fecha: "2026-03-20", nota: "corte" },
+    { id: 3, campanaId: 1, porcentaje: "60", montoUsd: null, fecha: "2026-03-25", nota: null },
   ];
   const ws = buildCampanaWorkbook(campana, view, new Date("2026-03-15T12:00:00Z"), { metas }).getWorksheet("Resumen")!;
   // Tabla de gerentes: encabezado 7, Ana 8, TOTAL 9; las metas desde la 11.
   expect(ws.getCell("A11").value).toBe("Metas");
-  expect(ws.getRow(12).values).toEqual([undefined, "Para el", "Monto USD", "Falta USD", "Estado", "Nota"]);
-  expect([ws.getCell("B13").value, ws.getCell("C13").value, ws.getCell("D13").value]).toEqual([40, 0, "Cumplida"]);
-  expect([ws.getCell("B14").value, ws.getCell("C14").value, ws.getCell("D14").value, ws.getCell("E14").value]).toEqual([80, 30, "Pendiente", "corte"]);
+  expect(ws.getRow(12).values).toEqual([undefined, "Para el", "%", "Monto USD", "Falta USD", "Estado", "Nota"]);
+  expect([ws.getCell("B13").value, ws.getCell("C13").value, ws.getCell("D13").value, ws.getCell("E13").value]).toEqual([null, 40, 0, "Cumplida"]);
+  expect([ws.getCell("C14").value, ws.getCell("D14").value, ws.getCell("E14").value, ws.getCell("F14").value]).toEqual([80, 30, "Pendiente", "corte"]);
+  // Por porcentaje: el % y su monto equivalente sobre el saldo general (60 % de 100).
+  expect([ws.getCell("B15").value, ws.getCell("C15").value, ws.getCell("D15").value]).toEqual([0.6, 60, 10]);
+  expect(ws.getCell("B15").numFmt).toBe("0.0%");
   expect(ws.getCell("A13").value).toEqual(isoToExcelDate("2026-03-10"));
 });
 

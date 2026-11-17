@@ -11,11 +11,12 @@ import { FechaInput } from "@/components/FechaInput";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { getDb } from "@/db";
 import { createMeta, deleteMeta, updateMeta } from "@/db/repos/metas";
-import { validateMeta, type Meta, type MetaDraft } from "@/domain/metas";
-import { formatPct, parseMonto, toInputVE } from "@/domain/money";
+import { parsePorcentaje, validateMeta, type Meta, type MetaDraft } from "@/domain/metas";
+import { formatPct, formatUsd, parseMonto, toInputVE } from "@/domain/money";
 import { invalidate } from "@/hooks/useData";
 import { useDialogoSinGuardar } from "@/hooks/useAvisoSinGuardar";
 import { reportError } from "@/lib/reportError";
+import { cn } from "@/lib/utils";
 
 type Props = {
   campanaId: number;
@@ -59,6 +60,8 @@ export function MetaFormDialog({ campanaId, meta, asignado, fechaSugerida, onOpe
   const set = (k: keyof MetaDraft, v: string) => setDraft((d) => ({ ...d, [k]: v }));
   const monto = parseMonto(draft.monto);
   const parte = monto && new Decimal(asignado).gt(0) ? new Decimal(monto).div(asignado).times(100).toNumber() : null;
+  const pct = parsePorcentaje(draft.porcentaje);
+  const equivalente = pct ? new Decimal(asignado).times(pct).div(100).toDecimalPlaces(2).toFixed(2) : null;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -98,17 +101,55 @@ export function MetaFormDialog({ campanaId, meta, asignado, fechaSugerida, onOpe
         <form onSubmit={onSubmit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{editando ? "Editar meta" : "Nueva meta"}</DialogTitle>
-            <DialogDescription>Lo pagado de toda la campaña (USD) al que se quiere llegar para una fecha.</DialogDescription>
+            <DialogDescription>
+              Lo pagado de toda la campaña al que se quiere llegar para una fecha: un monto en USD o un porcentaje del saldo. Una meta por
+              porcentaje se mide también en cada gerente sobre su propio saldo.
+            </DialogDescription>
           </DialogHeader>
+          <div role="group" aria-label="Tipo de meta" className="flex gap-2">
+            {(["monto", "porcentaje"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                aria-pressed={draft.tipo === t}
+                onClick={() => set("tipo", t)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs transition-colors hover:bg-fila-hover",
+                  draft.tipo === t && "border-primary-intenso bg-fila-hover font-medium",
+                )}
+              >
+                {t === "monto" ? "Monto" : "Porcentaje"}
+              </button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 gap-4">
-            <Field
-              id="meta-monto"
-              label="Monto a pagar (USD)"
-              error={errors.monto}
-              hint={parte !== null ? `${formatPct(parte)} del saldo general${parte > 100 ? " (lo supera)" : ""}` : "Ej. 5.000,00"}
-            >
-              <MontoInput id="meta-monto" autoFocus className="text-right tabular-nums" value={draft.monto} onChange={(v) => set("monto", v)} />
-            </Field>
+            {draft.tipo === "monto" ? (
+              <Field
+                id="meta-monto"
+                label="Monto a pagar (USD)"
+                error={errors.monto}
+                hint={parte !== null ? `${formatPct(parte)} del saldo general${parte > 100 ? " (lo supera)" : ""}` : "Ej. 5.000,00"}
+              >
+                <MontoInput id="meta-monto" autoFocus className="text-right tabular-nums" value={draft.monto} onChange={(v) => set("monto", v)} />
+              </Field>
+            ) : (
+              <Field
+                id="meta-porcentaje"
+                label="Porcentaje a pagar (%)"
+                error={errors.porcentaje}
+                hint={equivalente !== null ? `${formatUsd(equivalente)} del saldo general` : "Ej. 60"}
+              >
+                <Input
+                  id="meta-porcentaje"
+                  autoFocus
+                  inputMode="decimal"
+                  autoComplete="off"
+                  className="text-right tabular-nums"
+                  value={draft.porcentaje}
+                  onChange={(e) => set("porcentaje", e.target.value.replace(/[^\d.,]/g, ""))}
+                />
+              </Field>
+            )}
             <Field id="meta-fecha" label="Para el" error={errors.fecha}>
               <FechaInput id="meta-fecha" value={draft.fecha} onChange={(v) => set("fecha", v)} />
             </Field>
