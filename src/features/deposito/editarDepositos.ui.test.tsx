@@ -51,6 +51,23 @@ it("filtra por cuenta destino, marca todos y les cambia la cuenta, el banco y ag
   await waitFor(async () => expect(await deposito(db, "111")).toEqual({ cuentaDestino: "0414-1234567", banco: "Bco de Vzla", observaciones: null }));
 });
 
+it("después de guardar se desmarcan los depósitos editados (al elegir otros no se suman)", async () => {
+  const { db, s } = await preparar();
+  const { user } = await renderApp(`/asignaciones/${s.asignacionId}`, { db, hoy: "2026-03-02" });
+  await user.click(await screen.findByLabelText("Seleccionar depósito 111"));
+  await user.click(screen.getByLabelText("Seleccionar depósito 222"));
+  await user.click(screen.getByRole("button", { name: "Editar seleccionados…" }));
+  const dialogo = await screen.findByRole("dialog");
+  await user.type(within(dialogo).getByLabelText("Agregar a las observaciones"), "revisado");
+  await user.click(within(dialogo).getByRole("button", { name: "Guardar en 2" }));
+
+  await waitFor(async () => expect((await deposito(db, "111")).observaciones).toBe("revisado"));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByLabelText("Seleccionar depósito 111")).not.toBeChecked());
+  expect(screen.getByLabelText("Seleccionar depósito 222")).not.toBeChecked();
+  expect(screen.queryByRole("button", { name: "Editar seleccionados…" })).not.toBeInTheDocument();
+});
+
 it("al cambiar la cuenta propone recordar los nombres viejos como variantes; las desmarcadas no se recuerdan", async () => {
   const { db, s } = await preparar();
   await recordarVariantesCuenta(db, ["Juan P"], "Juan Pérez");

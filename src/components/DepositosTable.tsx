@@ -520,7 +520,8 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
         onOpenChange={(o) => !o && setMover(null)}
         onMovidos={(ids) => setMarcados((m) => new Set([...m].filter((id) => !ids.includes(id))))}
       />
-      <EditarDepositosDialog depositos={editar} onOpenChange={(o) => !o && setEditar(null)} />
+      {/* Tras editar se suelta toda la selección (también lo marcado oculto por un filtro): al elegir otros no se suman. */}
+      <EditarDepositosDialog depositos={editar} onOpenChange={(o) => !o && setEditar(null)} onEditados={() => setMarcados(new Set())} />
       <ConfirmDialog
         open={borrar !== null}
         onOpenChange={(o) => !o && setBorrar(null)}

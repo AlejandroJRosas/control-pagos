@@ -28,10 +28,12 @@ type Props = {
   /** Los depósitos a editar; null = cerrado. */
   depositos: DepositoCalculado[] | null;
   onOpenChange: (open: boolean) => void;
+  /** Tras guardar, con los ids editados (la tabla los desmarca). */
+  onEditados?: (ids: number[]) => void;
 };
 
 /** Cambia la cuenta destino, el banco o la fecha de varios depósitos a la vez, o les agrega una nota. Solo cambia lo que se llena. */
-export function EditarDepositosDialog({ depositos, onOpenChange }: Props) {
+export function EditarDepositosDialog({ depositos, onOpenChange, onEditados }: Props) {
   const [cuenta, setCuenta] = useState("");
   const [banco, setBanco] = useState("");
   const [fecha, setFecha] = useState("");
@@ -95,6 +97,7 @@ export function EditarDepositosDialog({ depositos, onOpenChange }: Props) {
         { cuentaDestino: cuenta, banco, fecha, nota, recordarCuentas: variantes.filter(marcada).map((v) => v.variante) },
       );
       avisarDepositosEditados(editados);
+      onEditados?.(depositos.map((d) => d.id));
       invalidate();
       onOpenChange(false);
     } catch (err) {
