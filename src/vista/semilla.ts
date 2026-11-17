@@ -90,6 +90,7 @@ export async function sembrar(db: SqlDriver): Promise<void> {
   }
   await createMeta(db, campana, { porcentaje: null, montoUsd: "2000", fecha: sumarDias(hoy, -10), nota: null });
   await createMeta(db, campana, { porcentaje: null, montoUsd: "5000", fecha: sumarDias(hoy, 12), nota: null });
+  await createMeta(db, campana, { porcentaje: "50", montoUsd: null, fecha: sumarDias(hoy, 20), nota: null });
 
   const vieja = await createCampana(db, { nombre: "Temporada anterior", fechaInicio: sumarDias(hoy, -120), fechaFin: sumarDias(hoy, -60), notas: null });
   await createAsignacion(db, { campanaId: vieja, gerenteId: gerentes[0], saldoUsd: "800" });

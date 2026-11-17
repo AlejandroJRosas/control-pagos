@@ -4,7 +4,7 @@ import { assertCampanaActiva } from "./campanas";
 import { DomainError } from "@/domain/errors";
 import type { Meta, MetaValida } from "@/domain/metas";
 
-const SEL = "SELECT id, campana_id AS campanaId, monto_usd AS montoUsd, fecha, nota FROM metas";
+const SEL = "SELECT id, campana_id AS campanaId, NULLIF(monto_usd, '') AS montoUsd, porcentaje, fecha, nota FROM metas";
 
 export async function listMetas(db: SqlDriver, campanaId: number): Promise<Meta[]> {
   return db.select<Meta>(`${SEL} WHERE campana_id = ? ORDER BY fecha, id`, [campanaId]);
@@ -26,9 +26,10 @@ async function requireMeta(db: SqlDriver, id: number): Promise<Meta> {
 export async function createMeta(db: SqlDriver, campanaId: number, v: MetaValida): Promise<number> {
   await assertCampanaActiva(db, campanaId);
   const now = nowIso();
-  const r = await db.execute("INSERT INTO metas (campana_id, monto_usd, fecha, nota, uuid, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+  const r = await db.execute("INSERT INTO metas (campana_id, monto_usd, porcentaje, fecha, nota, uuid, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
     campanaId,
-    v.montoUsd,
+    v.montoUsd ?? "",
+    v.porcentaje,
     v.fecha,
     v.nota,
     crypto.randomUUID(),
@@ -40,7 +41,14 @@ export async function createMeta(db: SqlDriver, campanaId: number, v: MetaValida
 
 export async function updateMeta(db: SqlDriver, id: number, v: MetaValida): Promise<void> {
   await assertCampanaActiva(db, (await requireMeta(db, id)).campanaId);
-  await db.execute("UPDATE metas SET monto_usd = ?, fecha = ?, nota = ?, actualizado_en = ? WHERE id = ?", [v.montoUsd, v.fecha, v.nota, nowIso(), id]);
+  await db.execute("UPDATE metas SET monto_usd = ?, porcentaje = ?, fecha = ?, nota = ?, actualizado_en = ? WHERE id = ?", [
+    v.montoUsd ?? "",
+    v.porcentaje,
+    v.fecha,
+    v.nota,
+    nowIso(),
+    id,
+  ]);
 }
 
 export async function deleteMeta(db: SqlDriver, id: number): Promise<void> {

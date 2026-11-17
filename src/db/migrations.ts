@@ -199,6 +199,11 @@ const MIGRATIONS: Migration[] = [
       "CREATE INDEX IF NOT EXISTS idx_metas_campana ON metas(campana_id)",
     ],
   },
+  {
+    // Metas por porcentaje del saldo asignado (nulo = meta por monto). Una de porcentaje guarda monto_usd = ''.
+    version: 12,
+    statements: ["ALTER TABLE metas ADD COLUMN porcentaje TEXT"],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

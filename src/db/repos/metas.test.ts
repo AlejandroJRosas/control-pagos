@@ -37,3 +37,16 @@ it("eliminar la campaña borra sus metas", async () => {
   await eliminarCampana(db, s.campanaId);
   expect(await listMetas(db, s.campanaId)).toEqual([]);
 });
+
+it("guarda una meta por porcentaje y al editarla se queda solo con un tipo", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  const id = await createMeta(db, s.campanaId, { porcentaje: "60", montoUsd: null, fecha: "2026-03-20", nota: null });
+  expect((await listMetas(db, s.campanaId))[0]).toMatchObject({ porcentaje: "60", montoUsd: null });
+
+  await updateMeta(db, id, { porcentaje: null, montoUsd: "75", fecha: "2026-03-20", nota: null });
+  expect((await listMetas(db, s.campanaId))[0]).toMatchObject({ porcentaje: null, montoUsd: "75" });
+
+  await updateMeta(db, id, { porcentaje: "45.5", montoUsd: null, fecha: "2026-03-20", nota: null });
+  expect((await metasPorCampana(db)).get(s.campanaId)?.[0]).toMatchObject({ porcentaje: "45.5", montoUsd: null });
+});
