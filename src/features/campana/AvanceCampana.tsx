@@ -277,7 +277,9 @@ function CasillaMeta({
           Cumplida
         </span>
       ) : (
-        <span className={cn("text-sm font-semibold", m.estado === "vencida" && "text-destructive")}>Faltan {formatUsd(m.falta)}</span>
+        <span className={cn("text-sm font-semibold", m.estado === "vencida" && "text-destructive")}>
+          {m.sinSaldo ? "Sin saldo asignado" : `Faltan ${formatUsd(m.falta)}`}
+        </span>
       )}
       <span className="text-muted-foreground">
         Para el <span className="font-medium text-foreground">{formatFecha(m.fecha)}</span>
@@ -311,8 +313,15 @@ function ProximaMeta({ proxima, hayMetas, hoy }: { proxima: MetaVista | null; ha
   return (
     <span className={cn("text-sm", proxima.estado === "vencida" ? "text-destructive" : "text-muted-foreground")}>
       Próxima meta: <span className="font-medium text-foreground tabular-nums">{textoMeta(proxima)}</span> para el{" "}
-      <span className="tabular-nums">{formatFecha(proxima.fecha)}</span> · faltan{" "}
-      <span className="font-medium tabular-nums">{formatUsd(proxima.falta)}</span> · {cuando}
+      <span className="tabular-nums">{formatFecha(proxima.fecha)}</span> ·{" "}
+      {proxima.sinSaldo ? (
+        "sin saldo asignado"
+      ) : (
+        <>
+          faltan <span className="font-medium tabular-nums">{formatUsd(proxima.falta)}</span>
+        </>
+      )}{" "}
+      · {cuando}
     </span>
   );
 }

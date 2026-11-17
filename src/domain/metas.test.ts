@@ -60,7 +60,8 @@ describe("metas por porcentaje", () => {
 
   it("sin saldo asignado una meta de porcentaje no se cumple", () => {
     const [m] = vistaMetas([metaPct(1, "50", "2026-11-30")], { asignado: "0", pagado: "0" }, "2026-11-04").metas;
-    expect(m).toMatchObject({ estado: "pendiente", posicion: 50 });
+    expect(m).toMatchObject({ estado: "pendiente", posicion: 50, sinSaldo: true });
+    expect(vistaMetas([meta(2, "10", "2026-11-30")], { asignado: "0", pagado: "0" }, "2026-11-04").metas[0].sinSaldo).toBe(false);
   });
 
   it("valida el porcentaje (coma o punto, de 0 a 100)", () => {

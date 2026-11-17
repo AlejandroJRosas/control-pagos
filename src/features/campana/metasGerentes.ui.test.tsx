@@ -76,3 +76,23 @@ it("la barra del gerente en la campaña marca las metas por porcentaje sobre su 
   expect(await screen.findByRole("img", { name: /Meta 60,0 % \(\$ 60,00\) para el 20\/03\/2026 · faltan \$ 30,00/ })).toBeInTheDocument();
   expect(screen.queryByRole("img", { name: /Meta \$ 150,00/ })).not.toBeInTheDocument();
 });
+
+it("un gerente sin saldo asignado no lleva marcas de metas por porcentaje en su barra", async () => {
+  const { db, s } = await campanaConMeta();
+  const pedro = await createAsignacion(db, { campanaId: s.campanaId, gerenteId: await createGerente(db, { nombre: "Pedro", telefono: null }), saldoUsd: "0" });
+  await renderApp(`/asignaciones/${pedro}`, { db, hoy: "2026-03-05" });
+  await screen.findByText("Pedro", { selector: "h1, h1 *" });
+  expect(screen.queryByRole("img", { name: /Meta/ })).not.toBeInTheDocument();
+});
+
+it("la campaña sin saldo asignado dice que la meta por porcentaje no tiene saldo, no lo que falta", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  await createAsignacion(db, { campanaId: s.campanaId, gerenteId: await createGerente(db, { nombre: "Luis", telefono: null }), saldoUsd: "0" });
+  await db.execute("UPDATE asignaciones SET saldo_usd = '0' WHERE id = ?", [s.asignacionId]);
+  await createMeta(db, s.campanaId, { porcentaje: "60", montoUsd: null, fecha: "2026-03-20", nota: null });
+  await renderApp(`/campanas/${s.campanaId}`, { db, hoy: "2026-03-05" });
+  const avance = await screen.findByRole("region", { name: "Avance de la campaña" });
+  expect(within(avance).getByRole("button", { name: /Meta 60,0 % \(\$ 0,00\) para el 20\/03\/2026 · sin saldo asignado/ })).toBeInTheDocument();
+  expect(within(avance).getByText(/Próxima meta/).textContent).not.toContain("faltan");
+});

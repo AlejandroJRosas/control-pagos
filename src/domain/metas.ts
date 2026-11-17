@@ -16,7 +16,15 @@ export type EstadoMeta = "cumplida" | "vencida" | "pendiente";
  * `posicion`: dónde va su marca en la barra de avance (0–100, % del saldo; al final si lo pasa: `fueraDeEscala`).
  * `falta`: lo que queda por pagar para cumplirla (0.00 si se cumplió).
  */
-export type MetaVista = Omit<Meta, "montoUsd"> & { montoUsd: string; posicion: number; estado: EstadoMeta; falta: string; fueraDeEscala: boolean };
+export type MetaVista = Omit<Meta, "montoUsd"> & {
+  montoUsd: string;
+  posicion: number;
+  estado: EstadoMeta;
+  falta: string;
+  fueraDeEscala: boolean;
+  /** Meta de porcentaje sobre un saldo asignado de 0: no se puede cumplir ni decir cuánto falta. */
+  sinSaldo: boolean;
+};
 
 /** Monto equivalente de un porcentaje del saldo (2 decimales). */
 const equivalenteDe = (porcentaje: string, asignado: Decimal) => asignado.times(porcentaje).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
@@ -45,6 +53,7 @@ export function vistaMetas(metas: Meta[], total: { asignado: string; pagado: str
         montoUsd: pct ? monto.toFixed(2) : m.montoUsd!,
         posicion,
         fueraDeEscala,
+        sinSaldo: pct && asignado.lte(0),
         estado: cumplida ? "cumplida" : m.fecha < hoy ? "vencida" : "pendiente",
         falta: Decimal.max(monto.minus(pagado), 0).toFixed(2),
       };

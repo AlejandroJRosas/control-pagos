@@ -17,6 +17,7 @@ export function textoMeta(m: MetaVista): string {
 
 /** "Meta $ 80,00 para el 20/03/2026 · vencida · faltan $ 30,00" (nombre de la marca y aviso al pasar el mouse). */
 export function describirMeta(m: MetaVista): string {
-  const estado = m.estado === "cumplida" ? "cumplida" : `${m.estado === "vencida" ? "vencida · " : ""}faltan ${formatUsd(m.falta)}`;
+  const estado =
+    m.estado === "cumplida" ? "cumplida" : `${m.estado === "vencida" ? "vencida · " : ""}${m.sinSaldo ? "sin saldo asignado" : `faltan ${formatUsd(m.falta)}`}`;
   return `Meta ${textoMeta(m)} para el ${formatFecha(m.fecha)} · ${estado}${m.fueraDeEscala ? " · supera el saldo general" : ""}${m.nota ? ` · ${m.nota}` : ""}`;
 }

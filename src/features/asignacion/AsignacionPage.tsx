@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -238,7 +239,7 @@ export function AsignacionPage() {
       {cerrada && <Aviso>La campaña está cerrada: solo lectura.</Aviso>}
       <ResumenCards
         resumen={resumen}
-        metas={vistaMetas(data.metas, resumen, hoy).metas}
+        metas={new Decimal(resumen.asignado).gt(0) ? vistaMetas(data.metas, resumen, hoy).metas : undefined}
         editarAsignado={{
           motivo: cerrada ? MOTIVO_CERRADA : undefined,
           onClick: () => setEditarAsignacion({ id: a.id, gerenteNombre: a.gerenteNombre, saldoUsd: resumen.asignado, jefeId: a.jefeId }),
