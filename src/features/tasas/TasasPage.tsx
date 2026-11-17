@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { FileSpreadsheet, Images, ListChecks, ListPlus, Plus } from "lucide-react";
+import { ChevronDown, FileArchive, FileSpreadsheet, FileUp, Images, ListChecks, ListPlus, Plus, Repeat } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -31,6 +32,10 @@ import { TasaFormDialog } from "./TasaFormDialog";
 import { CargarTasasDialog } from "./CargarTasasDialog";
 import { CalendarioTasas } from "./CalendarioTasas";
 import { FeriadosCard } from "./FeriadosCard";
+import { ImportarTasasDialog } from "./ImportarTasasDialog";
+import { armarArchivoTasas, EXTENSION_TASAS, type ArchivoTasas } from "@/domain/archivoTasas";
+import { abrirArchivoTasas, guardarArchivoTasas } from "@/platform/paquete";
+import { nowIso } from "@/db/clock";
 import { listFeriados } from "@/db/repos/feriados";
 
 type Col = "fecha" | "valor" | "notas" | "usos";
@@ -51,6 +56,7 @@ export function TasasPage() {
   const [dialog, setDialog] = useState<{ open: boolean; tasa: TasaConUsos | null; fecha?: string; imagen?: File }>({ open: false, tasa: null });
   const [borrar, setBorrar] = useState<TasaConUsos | null>(null);
   const [cargarVarias, setCargarVarias] = useState(false);
+  const [importando, setImportando] = useState<{ carpeta: string; archivo: ArchivoTasas } | null>(null);
   const [vista, setVista] = usePestanaUrl(PESTANAS);
   const navigate = useNavigate();
   useAtajo("n", () => setDialog({ open: true, tasa: null }));
@@ -69,6 +75,25 @@ export function TasasPage() {
       if (await saveWorkbook(buildTasasWorkbook(data ?? []), archivoExcel(["Tasas"], todayIso()))) toast.success("Excel guardado");
     } catch (e) {
       reportError(e, "Exportar");
+    }
+  }
+
+  // Todas las tasas con sus capturas, para cargarlas en otra instalación con "Importar tasas…".
+  async function exportarConCapturas() {
+    try {
+      const { archivo, imagenes } = armarArchivoTasas(data ?? [], nowIso());
+      if (await guardarArchivoTasas(archivo, imagenes, `tasas-${todayIso()}.${EXTENSION_TASAS}`)) toast.success("Tasas exportadas con sus capturas");
+    } catch (e) {
+      reportError(e, "Exportar");
+    }
+  }
+
+  async function importar() {
+    try {
+      const abierto = await abrirArchivoTasas();
+      if (abierto) setImportando(abierto);
+    } catch (e) {
+      reportError(e, "Importar tasas");
     }
   }
 
@@ -91,10 +116,28 @@ export function TasasPage() {
         subtitle="Histórico de la tasa del día (Bs por USD)"
         actions={
           <>
-            <Button variant="outline" onClick={exportar} disabled={!data?.length}>
-              <FileSpreadsheet />
-              Exportar a Excel
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="outline" />}>
+                <Repeat />
+                Exportar / importar
+                <ChevronDown data-icon="inline-end" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-auto min-w-56">
+                <DropdownMenuItem disabled={!data?.length} onClick={() => void exportar()}>
+                  <FileSpreadsheet />
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={!data?.length} onClick={() => void exportarConCapturas()}>
+                  <FileArchive />
+                  Todas con capturas (.{EXTENSION_TASAS})
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => void importar()}>
+                  <FileUp />
+                  Importar tasas…
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {!!pendientes && (
               <Link to="/tasas/revision" className={buttonVariants({ variant: "secondary" })}>
                 <ListChecks />
@@ -197,6 +240,7 @@ export function TasasPage() {
         </Tabs>
       )}
       <CargarTasasDialog open={cargarVarias} onOpenChange={setCargarVarias} />
+      <ImportarTasasDialog abierto={importando} onClose={() => setImportando(null)} />
       <TasaFormDialog
         tasa={dialog.tasa}
         fechaFija={dialog.fecha}

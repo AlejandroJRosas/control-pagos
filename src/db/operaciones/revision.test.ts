@@ -7,7 +7,7 @@ import { createDeposito, getDeposito } from "../repos/depositos";
 import { getAsignacion } from "../repos/asignaciones";
 import { getTasa } from "../repos/tasas";
 import { borradorDepositoVacio, borradorTasaVacio, encolarDeposito, encolarTasa, getItemColaDeposito, getItemColaTasa } from "../repos/cola";
-import { actualizarDuplicado, completarConDuplicado, completarDeposito, completarTasa } from "./revision";
+import { actualizarDuplicado, completarConDuplicado, completarDeposito, completarTasa, completarTasaReemplazando } from "./revision";
 
 let db: SqlDriver;
 let s: Awaited<ReturnType<typeof seedBasico>>;
@@ -94,6 +94,22 @@ it("tasas: fecha con tasa existente o sábado se rechaza y sigue pendiente", asy
   const t = await tasaItem();
   await expect(completarTasa(db, t, { fecha: "2026-03-02", valor: "1", notas: null })).rejects.toMatchObject({ code: "DUPLICADO" });
   await expect(completarTasa(db, t, { fecha: "2026-10-17", valor: "1", notas: null })).rejects.toMatchObject({ code: "VALIDACION" });
+  expect(await getItemColaTasa(db, t)).toMatchObject({ estado: "pendiente" });
+});
+
+it("tasas: reemplazar la de esa fecha toma valor y captura de la cola, conserva sus notas y marca hecho", async () => {
+  await db.execute("UPDATE tasas SET notas = 'mía' WHERE id = ?", [s.tasaId]);
+  const t = await tasaItem();
+  const id = await completarTasaReemplazando(db, t, { fecha: "2026-03-02", valor: "37", notas: null });
+  expect(id).toBe(s.tasaId);
+  expect(await getTasa(db, id)).toMatchObject({ valor: "37", notas: "mía", imagenPath: "imagenes/t.png" });
+  expect(await getItemColaTasa(db, t)).toMatchObject({ estado: "hecho", tasaId: id });
+});
+
+it("tasas: si marcar falla al reemplazar, la tasa queda como estaba", async () => {
+  const t = await tasaItem();
+  await expect(completarTasaReemplazando(fallaAlMarcar("cola_tasas"), t, { fecha: "2026-03-02", valor: "37", notas: null })).rejects.toThrow("disco lleno");
+  expect(await getTasa(db, s.tasaId)).toMatchObject({ valor: "36.5", imagenPath: null });
   expect(await getItemColaTasa(db, t)).toMatchObject({ estado: "pendiente" });
 });
 

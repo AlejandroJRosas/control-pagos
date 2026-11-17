@@ -9,7 +9,9 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { BotonConMotivo, motivoTasaEnUso } from "@/components/BotonConMotivo";
 import { TasaCampos } from "./TasaCampos";
 import { getDb } from "@/db";
-import { createTasa, deleteTasa, getTasa, updateTasa, type Tasa, type TasaConUsos } from "@/db/repos/tasas";
+import { createTasa, deleteTasa, getTasa, getTasaByFecha, updateTasa, type Tasa, type TasaConUsos } from "@/db/repos/tasas";
+import { reemplazarTasa } from "@/db/operaciones/revision";
+import { AvisoTasaExistente, useTasaExistente } from "./TasaExistente";
 import { validateTasa, type TasaDraft } from "@/domain/validation";
 import { parseTasa, toInputVE } from "@/domain/money";
 import { createFeriado } from "@/db/repos/feriados";
@@ -108,6 +110,8 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
 
   const nuevoValor = parseTasa(draft.valor);
   const afectados = tasa && nuevoValor !== null && nuevoValor !== tasa.valor ? tasa.usos : 0;
+  // Una tasa nueva en un día que ya tiene: en vez de rechazarla, se ofrece reemplazar la existente.
+  const existente = useTasaExistente(draft.fecha, open && !tasa);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -118,16 +122,25 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
     setSaving(true);
     try {
       const db = await getDb();
+      const enLaFecha = tasa ? null : await getTasaByFecha(db, r.value.fecha);
+      if (enLaFecha && enLaFecha.id !== existente?.id) {
+        // Apareció recién (el aviso no alcanzó a cargar): se muestra el aviso antes de reemplazar.
+        invalidate();
+        return;
+      }
       const imagenPath = await persistImagen(imagen);
       let id: number;
       if (tasa) {
         await updateTasa(db, tasa.id, { valor: r.value.valor, notas: r.value.notas, imagenPath });
         id = tasa.id;
+      } else if (enLaFecha) {
+        await reemplazarTasa(db, enLaFecha.id, { valor: r.value.valor, notas: r.value.notas, imagenPath });
+        id = enLaFecha.id;
       } else {
         id = await createTasa(db, { ...r.value, imagenPath });
       }
       const guardada = await getTasa(db, id);
-      toast.success(tasa ? "Tasa actualizada" : "Tasa registrada");
+      toast.success(tasa || enLaFecha ? "Tasa actualizada" : "Tasa registrada");
       invalidate();
       onOpenChange(false);
       if (guardada) onSaved?.(guardada);
@@ -139,7 +152,7 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
   }
 
   // Por si se cerró el aviso de tasa faltante (que ofrece "Hoy es feriado"): el día se marca feriado desde aquí.
-  const puedeSerFeriado = !tasa && isValidIsoDate(draft.fecha) && !esFinDeSemana(draft.fecha) && !feriados.has(draft.fecha);
+  const puedeSerFeriado = !tasa && !existente && isValidIsoDate(draft.fecha) && !esFinDeSemana(draft.fecha) && !feriados.has(draft.fecha);
 
   async function marcarFeriado() {
     try {
@@ -183,7 +196,13 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
               fechaBloqueada={tasa != null || fechaFija != null}
               fechaImagen={null}
               avisoFinDeSemana={!tasa}
-              avisosExtra={afectados > 0 && <Aviso tono="warning">Cambiar esta tasa recalcula {afectados} depósito(s).</Aviso>}
+              avisosExtra={
+                existente ? (
+                  <AvisoTasaExistente existente={existente} valor={draft.valor} accion="Al guardar" />
+                ) : (
+                  afectados > 0 && <Aviso tono="warning">Cambiar esta tasa recalcula {afectados} depósito(s).</Aviso>
+                )
+              }
             />
             <ImageDrop label="Captura de la tasa (opcional)" value={imagen} onChange={onImagen} pasteEnabled={open} className="h-56" />
             {leyendo && <p className="text-sm text-muted-foreground">Leyendo imagen…</p>}
@@ -211,7 +230,7 @@ export function TasaFormDialog({ tasa, fechaFija, imagenInicial, open, onOpenCha
                 Cancelar
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? "Guardando…" : afectados > 0 ? `Guardar (afecta ${afectados})` : "Guardar"}
+                {saving ? "Guardando…" : existente ? "Reemplazar" : afectados > 0 ? `Guardar (afecta ${afectados})` : "Guardar"}
               </Button>
             </DialogFooter>
           </form>

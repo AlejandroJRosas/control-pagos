@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { BaseDirectory, mkdir, readFile, writeFile } from "@tauri-apps/plugin-fs";
 import { leerPaquete, type Paquete } from "@/domain/paquete";
+import { EXTENSION_TASAS, leerArchivoTasas, type ArchivoTasas } from "@/domain/archivoTasas";
 import { mimeForPath, saveImage } from "./images";
 
 const opts = { baseDir: BaseDirectory.AppData };
@@ -60,3 +61,22 @@ export async function nombreEquipo(): Promise<string> {
 }
 
 export const esPaquete = (f: { name: string }): boolean => f.name.toLowerCase().endsWith(".cpagos");
+
+const FILTRO_TASAS = { name: "Tasas de Control de Pagos", extensions: [EXTENSION_TASAS] };
+
+/** Pide dónde guardar el archivo de tasas (zip con las capturas); `false` si se cancela. */
+export async function guardarArchivoTasas(archivo: ArchivoTasas, imagenes: string[], nombre: string): Promise<boolean> {
+  const ruta = await save({ defaultPath: nombre, filters: [FILTRO_TASAS] });
+  if (!ruta) return false;
+  await invoke<string>("crear_paquete", { datos: JSON.stringify(archivo), imagenes, nombre, ruta });
+  return true;
+}
+
+/** Elige un archivo de tasas, lo extrae y lo lee; `null` si se cancela. Las capturas quedan en `carpeta` (`importarImagenRecibida`). */
+export async function abrirArchivoTasas(): Promise<{ carpeta: string; archivo: ArchivoTasas } | null> {
+  const ruta = await open({ multiple: false, directory: false, filters: [FILTRO_TASAS] });
+  if (!ruta || Array.isArray(ruta)) return null;
+  const carpeta = await invoke<string>("abrir_paquete", { ruta });
+  const bytes = await readFile(`${carpeta}/paquete.json`, opts);
+  return { carpeta, archivo: leerArchivoTasas(new TextDecoder().decode(bytes)) };
+}

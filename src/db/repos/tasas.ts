@@ -26,6 +26,14 @@ export async function getTasaByFecha(db: SqlDriver, fecha: string): Promise<Tasa
   return row ?? null;
 }
 
+export async function getTasaConUsosByFecha(db: SqlDriver, fecha: string): Promise<TasaConUsos | null> {
+  const [row] = await db.select<TasaConUsos>(
+    `SELECT ${COLS}, (SELECT COUNT(*) FROM depositos d WHERE d.tasa_id = t.id) AS usos FROM tasas t WHERE t.fecha = ?`,
+    [fecha],
+  );
+  return row ?? null;
+}
+
 /** Tasa que rige un día: la de esa fecha o, en sábado, domingo y feriados, la del siguiente día hábil. */
 export async function getTasaParaFecha(db: SqlDriver, fecha: string): Promise<Tasa | null> {
   const propia = await getTasaByFecha(db, fecha);

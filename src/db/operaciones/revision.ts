@@ -1,6 +1,6 @@
 import type { SqlDriver } from "../driver";
 import { createDeposito, getDeposito, updateDeposito, type DepositoGuardar } from "../repos/depositos";
-import { createTasa, deleteTasa } from "../repos/tasas";
+import { createTasa, deleteTasa, getTasa, getTasaByFecha, updateTasa } from "../repos/tasas";
 import { getItemColaDeposito, getItemColaTasa, marcarDepositoHecho, marcarTasaHecha, type BorradorDeposito, type BorradorTasa } from "../repos/cola";
 import { resolverDestino } from "./destino";
 import type { Destino, DepositoValido, TasaValida } from "@/domain/validation";
@@ -55,6 +55,35 @@ export async function completarTasa(db: SqlDriver, itemId: number, v: TasaValida
     throw e;
   }
   return tasaId;
+}
+
+type DatosTasa = { valor: string; notas: string | null; imagenPath: string | null };
+
+/**
+ * "Actualizar" ante una tasa que ya existe en esa fecha: toma el valor nuevo (los depósitos que la usan se recalculan).
+ * Sin captura o notas nuevas conserva las suyas. Devuelve cómo estaba, para revertir con `updateTasa`.
+ */
+export async function reemplazarTasa(db: SqlDriver, tasaId: number, v: DatosTasa): Promise<DatosTasa> {
+  const actual = await getTasa(db, tasaId);
+  if (!actual) throw new DomainError("NO_ENCONTRADO", "La tasa ya no existe");
+  await updateTasa(db, tasaId, { valor: v.valor, notas: v.notas ?? actual.notas, imagenPath: v.imagenPath ?? actual.imagenPath });
+  return { valor: actual.valor, notas: actual.notas, imagenPath: actual.imagenPath };
+}
+
+/** "Actualizar" en la revisión de tasas: la tasa de esa fecha toma los datos y la captura de la cola, y el elemento queda hecho apuntando a ella. */
+export async function completarTasaReemplazando(db: SqlDriver, itemId: number, v: TasaValida, borrador?: BorradorTasa): Promise<number> {
+  const item = await getItemColaTasa(db, itemId);
+  assertPendiente(item);
+  const existente = await getTasaByFecha(db, v.fecha);
+  if (!existente) throw new DomainError("NO_ENCONTRADO", "Ya no hay tasa en esa fecha: regístrala con Hecho");
+  const antes = await reemplazarTasa(db, existente.id, { valor: v.valor, notas: v.notas, imagenPath: item!.imagenPath });
+  try {
+    await marcarTasaHecha(db, itemId, existente.id, borrador);
+  } catch (e) {
+    await updateTasa(db, existente.id, antes);
+    throw e;
+  }
+  return existente.id;
 }
 
 /**

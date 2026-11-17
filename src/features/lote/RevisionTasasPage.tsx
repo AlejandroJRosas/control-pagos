@@ -7,7 +7,9 @@ import { Aviso, Cargando, Vacio } from "@/components/Feedback";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { getDb } from "@/db";
 import { descartarTasa, guardarBorradorTasa, listColaTasas, quitarHechoTasa, quitarHechosTasas, type BorradorTasa, type ItemColaTasa } from "@/db/repos/cola";
-import { completarTasa } from "@/db/operaciones/revision";
+import { completarTasa, completarTasaReemplazando } from "@/db/operaciones/revision";
+import { getTasaByFecha } from "@/db/repos/tasas";
+import { AvisoTasaExistente, useTasaExistente } from "@/features/tasas/TasaExistente";
 import { siguientePendiente } from "@/domain/cola";
 import { formatFecha, isValidIsoDate } from "@/domain/dates";
 import { validateTasa, type TasaDraft } from "@/domain/validation";
@@ -115,6 +117,8 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
   const [saving, setSaving] = useState(false);
   const [confirmDescartar, setConfirmDescartar] = useState(false);
   // Fecha leída de la imagen: si se cambia a mano, se avisa que la imagen es de otro día.
+  // Si la fecha ya tiene tasa, Hecho la reemplaza (con el aviso a la vista) en vez de rechazarla.
+  const existente = useTasaExistente(form.draft.fecha, !hecho);
   const fechaImagen = useRef(item.borrador.auto.estado.fecha === "ocr" ? item.borrador.draft.fecha : null);
 
   const auto = useAutoguardado(hecho ? "" : JSON.stringify(form), async (v) => {
@@ -147,8 +151,18 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
     setSaving(true);
     auto.cancelar();
     try {
-      await completarTasa(await getDb(), item.id, r.value, form);
-      toast.success("Tasa registrada");
+      const db = await getDb();
+      const enLaFecha = await getTasaByFecha(db, r.value.fecha);
+      if (enLaFecha && enLaFecha.id !== existente?.id) {
+        // Apareció recién (el aviso no alcanzó a cargar): se muestra el aviso antes de reemplazar.
+        invalidate();
+        void auto.guardar();
+        setSaving(false);
+        return;
+      }
+      if (enLaFecha) await completarTasaReemplazando(db, item.id, r.value, form);
+      else await completarTasa(db, item.id, r.value, form);
+      toast.success(enLaFecha ? "Tasa actualizada" : "Tasa registrada");
       onSiguiente();
       invalidate();
     } catch (e) {
@@ -190,7 +204,14 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
       {!hecho && item.formato === null && <Aviso tono="warning">No se leyó la imagen: completa los datos a mano o vuelve a leerla.</Aviso>}
       {!hecho && <BotonReleer leyendo={releer.leyendo} disabled={saving} onClick={() => void releer.releer()} />}
       <fieldset disabled={hecho || saving} className="grid gap-4">
-        <TasaCampos form={form} set={set} errors={errors} fechaBloqueada={false} fechaImagen={fechaImagen.current} />
+        <TasaCampos
+          form={form}
+          set={set}
+          errors={errors}
+          fechaBloqueada={false}
+          fechaImagen={fechaImagen.current}
+          avisosExtra={existente && <AvisoTasaExistente existente={existente} valor={form.draft.valor} accion="Con Hecho" />}
+        />
       </fieldset>
       {!hecho && (
         <BarraAcciones>
@@ -204,7 +225,7 @@ function EditorTasa({ item, onSiguiente, onSaltar }: { item: ItemColaTasa; onSig
           </Button>
           <Button type="submit" size="lg" className="px-4" disabled={saving} title="Ctrl+Enter">
             <Check />
-            Hecho
+            {existente ? "Reemplazar" : "Hecho"}
             <TeclaAtajo>Ctrl+Enter</TeclaAtajo>
           </Button>
         </BarraAcciones>
