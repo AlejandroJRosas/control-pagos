@@ -52,8 +52,8 @@ it("agrega una meta, la marca en la barra con lo que falta, y se edita y elimina
 it("al 100 % muestra la fecha final de la campaña; una meta cumplida y una vencida se distinguen", async () => {
   const { db, s } = await campanaConPagos();
   await updateCampana(db, s.campanaId, { nombre: "Marzo", fechaInicio: "2026-03-01", fechaFin: "2026-03-31", notas: null });
-  await createMeta(db, s.campanaId, { montoUsd: "40", fecha: "2026-03-10", nota: null });
-  await createMeta(db, s.campanaId, { montoUsd: "70", fecha: "2026-03-03", nota: null });
+  await createMeta(db, s.campanaId, { porcentaje: null, montoUsd: "40", fecha: "2026-03-10", nota: null });
+  await createMeta(db, s.campanaId, { porcentaje: null, montoUsd: "70", fecha: "2026-03-03", nota: null });
   await renderApp(`/campanas/${s.campanaId}`, { db, hoy: "2026-03-05" });
 
   const avance = await screen.findByRole("region", { name: "Avance de la campaña" });
@@ -64,8 +64,8 @@ it("al 100 % muestra la fecha final de la campaña; una meta cumplida y una venc
 
 it("al pasar sobre una meta marca el trayecto desde lo pagado, atenúa las demás y dice solo lo que falta, la fecha y los días", async () => {
   const { db, s } = await campanaConPagos();
-  await createMeta(db, s.campanaId, { montoUsd: "40", fecha: "2026-03-10", nota: null });
-  await createMeta(db, s.campanaId, { montoUsd: "70", fecha: "2026-03-20", nota: null });
+  await createMeta(db, s.campanaId, { porcentaje: null, montoUsd: "40", fecha: "2026-03-10", nota: null });
+  await createMeta(db, s.campanaId, { porcentaje: null, montoUsd: "70", fecha: "2026-03-20", nota: null });
   const { user } = await renderApp(`/campanas/${s.campanaId}`, { db, hoy: "2026-03-05" });
 
   const avance = await screen.findByRole("region", { name: "Avance de la campaña" });
@@ -107,14 +107,14 @@ it("con la campaña cerrada no se agregan metas", async () => {
 
 it("la lista de Campañas marca las metas en la barra de avance", async () => {
   const { db, s } = await campanaConPagos();
-  await createMeta(db, s.campanaId, { montoUsd: "80", fecha: "2026-03-20", nota: null });
+  await createMeta(db, s.campanaId, { porcentaje: null, montoUsd: "80", fecha: "2026-03-20", nota: null });
   await renderApp("/campanas", { db, hoy: "2026-03-05" });
   expect(await screen.findByRole("img", { name: /Meta \$ 80,00 para el 20\/03\/2026 · faltan \$ 30,00/ })).toBeInTheDocument();
 });
 
 it("el Resumen marca las metas de cada campaña activa", async () => {
   const { db, s } = await campanaConPagos();
-  await createMeta(db, s.campanaId, { montoUsd: "40", fecha: "2026-03-20", nota: null });
+  await createMeta(db, s.campanaId, { porcentaje: null, montoUsd: "40", fecha: "2026-03-20", nota: null });
   await renderApp("/resumen", { db, hoy: "2026-03-05" });
   expect(await screen.findByRole("img", { name: /Meta \$ 40,00 para el 20\/03\/2026 · cumplida/ })).toBeInTheDocument();
 });

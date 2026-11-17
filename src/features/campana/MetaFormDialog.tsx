@@ -28,7 +28,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
 };
 
-const VACIO: MetaDraft = { monto: "", fecha: "", nota: "" };
+const VACIO: MetaDraft = { tipo: "monto", monto: "", porcentaje: "", fecha: "", nota: "" };
 
 /** Agrega o edita una meta general de la campaña (monto pagado de toda la campaña para una fecha). */
 export function MetaFormDialog({ campanaId, meta, asignado, fechaSugerida, onOpenChange }: Props) {
@@ -42,7 +42,15 @@ export function MetaFormDialog({ campanaId, meta, asignado, fechaSugerida, onOpe
 
   useEffect(() => {
     if (meta === null) return;
-    const d = editando ? { monto: toInputVE(editando.montoUsd), fecha: editando.fecha, nota: editando.nota ?? "" } : { ...VACIO, fecha: fechaSugerida };
+    const d: MetaDraft = editando
+      ? {
+          tipo: editando.porcentaje !== null ? "porcentaje" : "monto",
+          monto: editando.montoUsd !== null ? toInputVE(editando.montoUsd) : "",
+          porcentaje: editando.porcentaje?.replace(".", ",") ?? "",
+          fecha: editando.fecha,
+          nota: editando.nota ?? "",
+        }
+      : { ...VACIO, fecha: fechaSugerida };
     setDraft(d);
     setInicial(d);
     setErrors({});

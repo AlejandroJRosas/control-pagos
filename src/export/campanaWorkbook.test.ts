@@ -229,8 +229,8 @@ it("sin las hojas de los gerentes sin pagos: el resumen los sigue mostrando", as
 it("el resumen lista las metas de la campaña con lo que falta y su estado", () => {
   const view = buildCampanaView([{ id: 1, gerenteId: 10, gerenteNombre: "Ana", saldoUsd: "100" }], [dep(1, 1, "2026-03-02", "1825")]);
   const metas = [
-    { id: 1, campanaId: 1, montoUsd: "40", fecha: "2026-03-10", nota: null },
-    { id: 2, campanaId: 1, montoUsd: "80", fecha: "2026-03-20", nota: "corte" },
+    { id: 1, campanaId: 1, porcentaje: null, montoUsd: "40", fecha: "2026-03-10", nota: null },
+    { id: 2, campanaId: 1, porcentaje: null, montoUsd: "80", fecha: "2026-03-20", nota: "corte" },
   ];
   const ws = buildCampanaWorkbook(campana, view, new Date("2026-03-15T12:00:00Z"), { metas }).getWorksheet("Resumen")!;
   // Tabla de gerentes: encabezado 7, Ana 8, TOTAL 9; las metas desde la 11.
