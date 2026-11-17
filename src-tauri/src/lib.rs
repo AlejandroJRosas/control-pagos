@@ -102,15 +102,15 @@ fn prune_auto_backups(app: AppHandle) -> Result<(), String> {
     backup::prune_auto(&paths(&app)?.backups, 7)
 }
 
-/// Respaldos `antes-de-*`: se conservan los 5 más recientes y cualquiera de los últimos 30 días.
+/// Respaldos `antes-de-*`: se conservan los 5 más recientes y cualquiera de los últimos 30 días. Los
+/// `antes-de-actualizar-*` (uno por versión, y ya están los automáticos diarios) solo los 3 más recientes.
 #[tauri::command]
 fn prune_safety_backups(app: AppHandle) -> Result<usize, String> {
-    backup::prune_antes(
-        &paths(&app)?.backups,
-        5,
-        Duration::from_secs(30 * 24 * 60 * 60),
-        SystemTime::now(),
-    )
+    let dir = paths(&app)?.backups;
+    let now = SystemTime::now();
+    let actualizar = backup::prune_antes_de(&dir, "antes-de-actualizar-", 3, Duration::ZERO, now)?;
+    let resto = backup::prune_antes(&dir, 5, Duration::from_secs(30 * 24 * 60 * 60), now)?;
+    Ok(actualizar + resto)
 }
 
 /// `usadas`: nombres de archivo de `imagenes\` que todavía referencia la BD. Lo demás, con más de un día, se borra.

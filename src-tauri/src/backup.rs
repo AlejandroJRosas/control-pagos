@@ -279,13 +279,18 @@ fn antiguedad(p: &Path, now: SystemTime) -> Result<Duration, String> {
 /// Respaldos de seguridad (`antes-de-*.zip`): siempre quedan los `keep` más recientes; del resto se borran
 /// los que tienen más de `max_age`.
 pub fn prune_antes(dir: &Path, keep: usize, max_age: Duration, now: SystemTime) -> Result<usize, String> {
+    prune_antes_de(dir, "antes-de-", keep, max_age, now)
+}
+
+/// Como `prune_antes`, solo con los zips cuyo nombre empieza con `prefijo` (p. ej. `antes-de-actualizar-`).
+pub fn prune_antes_de(dir: &Path, prefijo: &str, keep: usize, max_age: Duration, now: SystemTime) -> Result<usize, String> {
     let mut zips: Vec<(PathBuf, Duration)> = Vec::new();
     for entry in fs::read_dir(dir).map_err(s)? {
         let p = entry.map_err(s)?.path();
         let es_seguridad = p
             .file_name()
             .and_then(|n| n.to_str())
-            .map(|n| n.starts_with("antes-de-") && n.ends_with(".zip"))
+            .map(|n| n.starts_with(prefijo) && n.ends_with(".zip"))
             .unwrap_or(false);
         if es_seguridad && p.is_file() {
             let edad = antiguedad(&p, now)?;
@@ -568,6 +573,21 @@ mod tests {
         assert_eq!(n.iter().filter(|x| x.starts_with("antes-de-")).count(), 2);
         assert!(n.contains(&"auto-2026-01-01.zip".to_string()));
         assert!(n.contains(&"manual.zip".to_string()));
+    }
+
+    #[test]
+    fn prune_antes_con_prefijo_solo_toca_ese_motivo() {
+        let dir = tempdir().unwrap();
+        for i in 1..=5 {
+            write(&dir.path().join(format!("antes-de-actualizar-{i}.zip")), b"z");
+        }
+        write(&dir.path().join("antes-de-consolidar-1.zip"), b"z");
+
+        // Sin antigüedad mínima: quedan los 3 más recientes aunque sean de hoy.
+        assert_eq!(prune_antes_de(dir.path(), "antes-de-actualizar-", 3, Duration::ZERO, SystemTime::now() + DIA).unwrap(), 2);
+        let n = nombres(dir.path());
+        assert_eq!(n.iter().filter(|x| x.starts_with("antes-de-actualizar-")).count(), 3);
+        assert!(n.contains(&"antes-de-consolidar-1.zip".to_string()));
     }
 
     #[test]
