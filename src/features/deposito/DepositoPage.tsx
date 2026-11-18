@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Aviso, Cargando } from "@/components/Feedback";
 import { Field } from "@/components/Field";
 import { BuscadorSelect } from "@/components/BuscadorSelect";
@@ -290,8 +291,10 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
     }
   }
 
+  const [confirmarBorrar, setConfirmarBorrar] = useState(false);
   async function eliminar() {
     if (!deposito) return;
+    setConfirmarBorrar(false);
     try {
       avisarDepositosEliminados(await deleteDeposito(await getDb(), deposito.id));
       aviso.permitirSalida();
@@ -330,7 +333,7 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
                 </div>
               )}
               {!cerrada && (
-                <Button variant="outline" className="text-destructive" onClick={() => void eliminar()}>
+                <Button variant="outline" className="text-destructive" onClick={() => setConfirmarBorrar(true)}>
                   <Trash2 />
                   Eliminar
                 </Button>
@@ -340,6 +343,15 @@ function DepositoForm({ deposito, asignacion, data, bancos, gerentes }: Ctx) {
         }
       />
       {cerrada && <Aviso>La campaña está cerrada: el depósito no se puede modificar.</Aviso>}
+      <ConfirmDialog
+        open={confirmarBorrar}
+        onOpenChange={setConfirmarBorrar}
+        title="Eliminar depósito"
+        description={`Se eliminará el depósito${deposito ? ` ${deposito.banco} · ref. ${deposito.referencia}` : ""} y los saldos se recalcularán. Podrás deshacerlo desde el aviso.`}
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={eliminar}
+      />
 
       <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-6">
         <ImageDrop

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { DepositosTable } from "./DepositosTable";
@@ -31,7 +31,10 @@ function filas(n: number): FilaDeposito[] {
 }
 
 type Aviso = (entradas: { isIntersecting: boolean }[]) => void;
-let avisos: Aviso[] = [];
+let avisos: { cb: Aviso; el: Element }[] = [];
+// El último observador de cada cosa: la fila "Mostrando N de M" (un <tr>) o la barra de arriba de la tabla.
+const avisar = (que: "final" | "barra", si: boolean) =>
+  act(() => [...avisos].reverse().find((a) => (a.el.tagName === "TR") === (que === "final"))!.cb([{ isIntersecting: si }]));
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -42,10 +45,10 @@ function conObservador() {
   vi.stubGlobal(
     "IntersectionObserver",
     class {
-      constructor(cb: Aviso) {
-        avisos.push(cb);
+      constructor(private cb: Aviso) {}
+      observe(el: Element) {
+        avisos.push({ cb: this.cb, el });
       }
-      observe() {}
       disconnect() {}
     },
   );
@@ -66,7 +69,7 @@ it("dibuja los depósitos por tramos al bajar; seleccionar todos y Mostrar todos
   expect(screen.getByText("Mostrando 150 de 400 depósitos")).toBeInTheDocument();
 
   // Al acercarse al final llega el siguiente tramo.
-  act(() => avisos[avisos.length - 1]([{ isIntersecting: true }]));
+  avisar("final", true);
   expect(dibujadas()).toBe(300);
 
   await user.click(screen.getByRole("checkbox", { name: "Seleccionar todos" }));
@@ -76,6 +79,27 @@ it("dibuja los depósitos por tramos al bajar; seleccionar todos y Mostrar todos
   expect(dibujadas()).toBe(400);
   expect(screen.queryByText(/^Mostrando/)).not.toBeInTheDocument();
 }, 20000);
+
+it("al bajar, las acciones de lo marcado acompañan en el pie", async () => {
+  conObservador();
+  const user = userEvent.setup();
+  render(tabla(filas(20)));
+  await user.click(screen.getByRole("checkbox", { name: "Seleccionar todos" }));
+  expect(screen.queryByTestId("seleccion-abajo")).not.toBeInTheDocument();
+
+  avisar("barra", false);
+  const abajo = screen.getByTestId("seleccion-abajo");
+  expect(abajo.closest("tfoot")).not.toBeNull();
+  expect(abajo).toHaveTextContent("20 seleccionado(s)");
+
+  await user.click(within(abajo).getByRole("button", { name: "Quitar selección" }));
+  expect(screen.queryByTestId("seleccion-abajo")).not.toBeInTheDocument();
+
+  // De vuelta arriba, solo la barra de siempre.
+  await user.click(screen.getByRole("checkbox", { name: "Seleccionar todos" }));
+  avisar("barra", true);
+  expect(screen.queryByTestId("seleccion-abajo")).not.toBeInTheDocument();
+});
 
 it("los días plegados no ocupan el tramo", async () => {
   conObservador();
@@ -92,4 +116,16 @@ it("sin IntersectionObserver se dibuja todo", () => {
   vi.stubGlobal("IntersectionObserver", undefined);
   render(tabla(filas(200)));
   expect(dibujadas()).toBe(200);
+});
+
+it("eliminar un depósito desde su fila pide confirmación y dice cuál", async () => {
+  const user = userEvent.setup();
+  render(tabla(filas(3)));
+  await user.click(screen.getAllByRole("button", { name: "Eliminar depósito" })[0]);
+  const confirmar = await screen.findByRole("alertdialog");
+  expect(confirmar).toHaveTextContent("Eliminar depósito");
+  expect(confirmar).toHaveTextContent(/ref\. 10000\d/);
+  await user.click(within(confirmar).getByRole("button", { name: "Cancelar" }));
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(dibujadas()).toBe(3);
 });

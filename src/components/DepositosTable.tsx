@@ -180,6 +180,30 @@ function useAlLlegarAlFinal(el: HTMLElement | null, limite: number, onLlegar: ()
   }, [el, limite, onLlegar]);
 }
 
+/** Título y texto de la confirmación de eliminar: con uno solo, cuál (referencia, fecha y monto). */
+function descripcionBorrar(depositos: FilaDeposito[]) {
+  const d = depositos[0];
+  if (depositos.length === 1)
+    return {
+      titulo: "Eliminar depósito",
+      descripcion: `Se eliminará el depósito ${d.banco} · ref. ${d.referencia} del ${formatFecha(d.fecha)} por Bs ${formatNumberVE(d.montoBs)} (${formatUsd(d.usd)}) y los saldos se recalcularán. Podrás deshacerlo desde el aviso.`,
+    };
+  const n = depositos.length;
+  return { titulo: `Eliminar ${n} depósitos`, descripcion: `Se eliminarán ${n} depósitos y los saldos se recalcularán. Podrás deshacerlo desde el aviso.` };
+}
+
+/** Si `el` (la barra de arriba de la tabla) quedó fuera de la vista del `<main>` al bajar. Sin IntersectionObserver, nunca. */
+function useFueraDeVista(el: HTMLElement | null) {
+  const [fuera, setFuera] = useState(false);
+  useEffect(() => {
+    if (!el || !hayObservador()) return;
+    const obs = new IntersectionObserver((entradas) => setFuera(!entradas[entradas.length - 1].isIntersecting), { root: el.closest("main") });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [el]);
+  return fuera;
+}
+
 export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, totalDe, totales, soloLectura = false, vacio, volverLabel, clave, filtrando = false, asignaciones }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -196,6 +220,8 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
   const [finEl, setFinEl] = useState<HTMLElement | null>(null);
   const masFilas = useCallback(() => setTramo((t) => ({ orden, n: (t.orden === orden ? t.n : TRAMO_FILAS) + TRAMO_FILAS })), [orden]);
   useAlLlegarAlFinal(finEl, limite, masFilas);
+  const [barraEl, setBarraEl] = useState<HTMLElement | null>(null);
+  const barraOculta = useFueraDeVista(barraEl);
   // En orden de fecha (el de siempre o al ordenar por ella) se agrupa por día; ordenada por otra columna, lista plana.
   const porDia = !orden || orden.key === "fecha";
   const antiguosPrimero = orden?.key === "fecha" && orden.dir === 1;
@@ -245,7 +271,8 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
       setBorrar(null);
     }
   }, []);
-  const eliminarFila = useCallback((ids: number[]) => void eliminar(ids), [eliminar]);
+  // Siempre se confirma antes de eliminar (también uno solo, desde su fila).
+  const eliminarFila = useCallback((ids: number[]) => setBorrar(ids), []);
 
   const abrir = useCallback(
     (id: number) =>
@@ -392,30 +419,36 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
     );
   }
 
+  const textoBorrar = descripcionBorrar(filas.filter((d) => borrar?.includes(d.id)));
+  const conSeleccion = !soloLectura && elegidos.length > 0;
+  const accionesSeleccion = (abajo: boolean) => (
+    <div className="flex flex-1 items-center gap-3 rounded-md border bg-fila-hover px-3 py-1 text-sm" data-testid={abajo ? "seleccion-abajo" : undefined}>
+      <span className="font-medium">{elegidos.length} seleccionado(s)</span>
+      <Button size="sm" variant="destructive" onClick={() => setBorrar(elegidos)}>
+        <Trash2 />
+        Eliminar seleccionados
+      </Button>
+      <Button size="sm" variant="outline" onClick={moverElegidos}>
+        <ArrowRightLeft />
+        Mover a otro gerente…
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => setEditar(filas.filter((d) => marcados.has(d.id)))}>
+        <Pencil />
+        Editar seleccionados…
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => setMarcados(new Set())}>
+        Quitar selección
+      </Button>
+    </div>
+  );
+  // Al bajar, la barra de lo marcado acompaña en el pie (sticky) para no tener que subir a buscarla.
+  const seleccionAbajo = conSeleccion && barraOculta;
+
   // La tabla de un gerente lleva su propio color (franja, encabezado, pie y borde; index.css) para no confundirla al bajar con Todos los depósitos.
   return (
     <div className="space-y-2" data-vista-tabla={mostrarGerente ? undefined : "gerente"}>
-      <div className="flex min-h-9 items-center gap-3">
-        {!soloLectura && elegidos.length > 0 && (
-          <div className="flex flex-1 items-center gap-3 rounded-md border bg-fila-hover px-3 py-1 text-sm">
-            <span className="font-medium">{elegidos.length} seleccionado(s)</span>
-            <Button size="sm" variant="destructive" onClick={() => (elegidos.length === 1 ? void eliminar(elegidos) : setBorrar(elegidos))}>
-              <Trash2 />
-              Eliminar seleccionados
-            </Button>
-            <Button size="sm" variant="outline" onClick={moverElegidos}>
-              <ArrowRightLeft />
-              Mover a otro gerente…
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setEditar(filas.filter((d) => marcados.has(d.id)))}>
-              <Pencil />
-              Editar seleccionados…
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setMarcados(new Set())}>
-              Quitar selección
-            </Button>
-          </div>
-        )}
+      <div ref={setBarraEl} className="flex min-h-9 items-center gap-3">
+        {conSeleccion && accionesSeleccion(false)}
         <div className="ml-auto flex items-center gap-2">
           {plegable && (
             <Button
@@ -496,21 +529,30 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
             </TableRow>
           )}
         </TableBody>
-        {totales && (
+        {(totales || seleccionAbajo) && (
           <TableFooter data-barra-inferior className={STICKY_PIE}>
-            <TableRow>
-              {pie.map((c, i) =>
-                c.tipo === "total" ? (
-                  <TableCell key={i} className={num}>
-                    {c.col === "montoBs" ? formatNumberVE(totales.totalBs) : formatUsd(totales.totalUsd)}
-                  </TableCell>
-                ) : (
-                  <TableCell key={i} colSpan={c.span} className="whitespace-nowrap">
-                    {c.tipo === "etiqueta" && `Total ${totalDe} (${totales.cantidad} ${totales.cantidad === 1 ? "depósito" : "depósitos"})`}
-                  </TableCell>
-                ),
-              )}
-            </TableRow>
+            {seleccionAbajo && (
+              <TableRow>
+                <TableCell colSpan={visibles.length + extra.length * 2} className="py-1.5">
+                  {accionesSeleccion(true)}
+                </TableCell>
+              </TableRow>
+            )}
+            {totales && (
+              <TableRow>
+                {pie.map((c, i) =>
+                  c.tipo === "total" ? (
+                    <TableCell key={i} className={num}>
+                      {c.col === "montoBs" ? formatNumberVE(totales.totalBs) : formatUsd(totales.totalUsd)}
+                    </TableCell>
+                  ) : (
+                    <TableCell key={i} colSpan={c.span} className="whitespace-nowrap">
+                      {c.tipo === "etiqueta" && `Total ${totalDe} (${totales.cantidad} ${totales.cantidad === 1 ? "depósito" : "depósitos"})`}
+                    </TableCell>
+                  ),
+                )}
+              </TableRow>
+            )}
           </TableFooter>
         )}
       </Table>
@@ -525,8 +567,8 @@ export function DepositosTable({ filas, mostrarGerente, saldoLabel, contexto, to
       <ConfirmDialog
         open={borrar !== null}
         onOpenChange={(o) => !o && setBorrar(null)}
-        title={`Eliminar ${borrar?.length ?? 0} depósitos`}
-        description={`Se eliminarán ${borrar?.length ?? 0} depósitos y los saldos se recalcularán. Podrás deshacerlo desde el aviso.`}
+        title={textoBorrar.titulo}
+        description={textoBorrar.descripcion}
         confirmLabel="Eliminar"
         destructive
         onConfirm={() => (borrar ? eliminar(borrar) : undefined)}
