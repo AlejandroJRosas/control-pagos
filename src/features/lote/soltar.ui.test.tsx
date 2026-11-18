@@ -1,5 +1,6 @@
 import { beforeEach, expect, it } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { strToU8, zipSync } from "fflate";
 import { createTestDb } from "@/db/testing/sqljsDriver";
 import { seedBasico } from "@/db/testing/fixtures";
 import { setEstadoCampana } from "@/db/repos/campanas";
@@ -16,6 +17,11 @@ beforeEach(() => {
 });
 
 const imagenes = (n: number) => Array.from({ length: n }, (_, i) => new File(["x"], `${i + 1}.png`, { type: "image/png" }));
+/** Como el .zip que descarga WhatsApp con varias imágenes elegidas. */
+const zipDeImagenes = (n: number) =>
+  new File([zipSync(Object.fromEntries(Array.from({ length: n }, (_, i) => [`WhatsApp Image ${i + 1}.jpeg`, strToU8("x")])))], "WhatsApp Unknown.zip", {
+    type: "application/x-zip-compressed",
+  });
 
 /** Arrastra los archivos sobre el cuerpo de la página (fuera de cualquier zona propia) hasta que el aviso diga `aviso`, y los suelta. */
 async function soltar(files: File[], aviso: string | RegExp) {
@@ -46,6 +52,30 @@ it("varias imágenes soltadas en el gerente van al lote con el gerente elegido",
   await waitFor(() => expect(router.state.location.pathname).toBe(`/campanas/${s.campanaId}/lote`));
   expect(await screen.findByText(/3 subido\(s\)/)).toBeInTheDocument();
   expect(screen.getByRole("combobox")).toHaveValue("Ana");
+});
+
+it("un .zip de imágenes soltado en el gerente sube sus imágenes al lote", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  const { router } = await renderApp(`/asignaciones/${s.asignacionId}`, { db });
+  await screen.findByRole("button", { name: "Subir lote" });
+  await soltar([zipDeImagenes(3)], "Suelta para abrir el .zip");
+  await waitFor(() => expect(router.state.location.pathname).toBe(`/campanas/${s.campanaId}/lote`));
+  expect(await screen.findByText(/3 subido\(s\)/)).toBeInTheDocument();
+  expect(screen.getByText("WhatsApp Image 1.jpeg")).toBeInTheDocument();
+});
+
+it("en la subida en lote, un .zip elegido o soltado en la zona agrega sus imágenes; uno sin imágenes avisa", async () => {
+  const db = await createTestDb();
+  const s = await seedBasico(db);
+  const { user } = await renderApp(`/campanas/${s.campanaId}/lote`, { db });
+  const zona = (await screen.findByText(/Arrastra aquí varias imágenes/)).parentElement!;
+  await user.upload(zona.querySelector<HTMLInputElement>('input[type="file"]')!, zipDeImagenes(2));
+  expect(await screen.findByText(/2 subido\(s\)/)).toBeInTheDocument();
+  const vacio = new File([zipSync({ "a.pdf": strToU8("x") })], "docs.zip", { type: "application/zip" });
+  fireEvent.drop(zona, { dataTransfer: { files: [vacio, zipDeImagenes(1)], types: ["Files"] } });
+  expect(await screen.findByText('"docs.zip" no trae imágenes PNG, JPG o WEBP')).toBeInTheDocument();
+  expect(await screen.findByText(/3 subido\(s\)/)).toBeInTheDocument();
 });
 
 it("en una campaña cerrada no acepta imágenes", async () => {

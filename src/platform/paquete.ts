@@ -6,7 +6,8 @@ import { EXTENSION_TASAS, leerArchivoTasas, type ArchivoTasas } from "@/domain/a
 import { mimeForPath, saveImage } from "./images";
 
 const opts = { baseDir: BaseDirectory.AppData };
-const FILTRO = { name: "Paquete de Control de Pagos", extensions: ["cpagos"] };
+// WhatsApp entrega el .cpagos (y el .ctasas) como .zip: el contenido es el mismo y lo valida `abrir_paquete`.
+const FILTRO = { name: "Paquete de Control de Pagos", extensions: ["cpagos", "zip"] };
 
 /** Escribe el paquete en `envios\` y lo copia al portapapeles como archivo (se pega en WhatsApp con Ctrl+V). */
 export async function copiarPaquete(paquete: Paquete, imagenes: string[], nombre: string): Promise<void> {
@@ -60,9 +61,7 @@ export async function nombreEquipo(): Promise<string> {
   return (await invoke<string>("nombre_equipo")) || "otro equipo";
 }
 
-export const esPaquete = (f: { name: string }): boolean => f.name.toLowerCase().endsWith(".cpagos");
-
-const FILTRO_TASAS = { name: "Tasas de Control de Pagos", extensions: [EXTENSION_TASAS] };
+const FILTRO_TASAS = { name: "Tasas de Control de Pagos", extensions: [EXTENSION_TASAS, "zip"] };
 
 /** Pide dónde guardar el archivo de tasas (zip con las capturas); `false` si se cancela. */
 export async function guardarArchivoTasas(archivo: ArchivoTasas, imagenes: string[], nombre: string): Promise<boolean> {

@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { strToU8, zipSync } from "fflate";
 import { createTestDb } from "@/db/testing/sqljsDriver";
 import { depositoBase, seedBasico } from "@/db/testing/fixtures";
 import { createDeposito } from "@/db/repos/depositos";
@@ -145,6 +146,18 @@ it("soltar un .cpagos abre la pantalla Consolidar", async () => {
   fireEvent.drop(window, { dataTransfer: { files: [new File(["x"], "a.cpagos")], types: ["Files"] } });
   await waitFor(() => expect(router.state.location.pathname).toBe("/consolidar"));
   expect(router.state.location.search).toBe(`?carpeta=recibidos%2Fp1&campana=${s.campanaId}`);
+  expect(await seccion(/Nuevos \(1\)/)).toBeInTheDocument();
+});
+
+it("soltar el .cpagos que WhatsApp descargó como .zip abre la pantalla Consolidar", async () => {
+  await paqueteDeOrigen();
+  const { db, s } = await destino();
+  const { router } = await renderApp(`/campanas/${s.campanaId}`, { db, hoy: "2026-03-06" });
+  await screen.findByRole("heading", { level: 1, name: /Marzo/ });
+
+  const zip = new File([zipSync({ "paquete.json": strToU8(JSON.stringify(m.paquete)) })], "Consolidar - Marzo.cpagos.zip", { type: "application/x-zip-compressed" });
+  fireEvent.drop(window, { dataTransfer: { files: [zip], types: ["Files"] } });
+  await waitFor(() => expect(router.state.location.pathname).toBe("/consolidar"));
   expect(await seccion(/Nuevos \(1\)/)).toBeInTheDocument();
 });
 

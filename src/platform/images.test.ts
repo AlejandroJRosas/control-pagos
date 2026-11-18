@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
   remove: (...args: unknown[]) => remove(...args),
 }));
 
-const { deleteImage, extensionFor, mimeForPath, separarImagenes } = await import("./images");
+const { deleteImage, extensionFor, mimeForPath } = await import("./images");
 
 beforeEach(() => {
   remove.mockReset();
@@ -17,15 +17,6 @@ it("mapea tipos MIME y extensiones", () => {
   expect(extensionFor("application/pdf")).toBeNull();
   expect(mimeForPath("imagenes/a.JPG")).toBe("image/jpeg");
   expect(mimeForPath("imagenes/a.bin")).toBe("application/octet-stream");
-});
-
-it("separa por tipo los archivos de un lote", () => {
-  const f = (type: string) => ({ type });
-  const png = f("image/png");
-  const pdf = f("application/pdf");
-  const jpeg = f("image/jpeg");
-  const heic = f("image/heic");
-  expect(separarImagenes([png, pdf, jpeg, heic])).toEqual({ aceptadas: [png, jpeg], rechazadas: [pdf, heic] });
 });
 
 it("borra la imagen en AppData", async () => {

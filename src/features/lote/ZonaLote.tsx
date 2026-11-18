@@ -7,22 +7,26 @@ import { Tecla } from "@/components/AyudaAtajos";
 import { useAtajo } from "@/hooks/useAtajo";
 import { tomarArchivos, useReceptorArchivos } from "@/lib/soltarArchivos";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ACCEPTED_IMAGE_TYPES, separarImagenes } from "@/platform/images";
+import { ACCEPTED_IMAGE_TYPES } from "@/platform/images";
+import { avisoPaquete, avisoTasas, separarRecibidos } from "@/lib/archivosRecibidos";
+import { reportError } from "@/lib/reportError";
 import { cn } from "@/lib/utils";
 import type { FilaLote } from "./useLote";
 
-/** Zona para soltar, pegar o elegir varias imágenes; avisa por cada archivo que no es imagen. */
+/** Zona para soltar, pegar o elegir varias imágenes (o un .zip con ellas, como el que descarga WhatsApp); avisa por cada archivo que no sirve. */
 export function ZonaLote({ onArchivos, disabled = false }: { onArchivos: (files: File[]) => void; disabled?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const onArchivosRef = useRef(onArchivos);
   onArchivosRef.current = onArchivos;
 
-  const recibir = (files: File[]) => {
-    const { aceptadas, rechazadas } = separarImagenes(files);
-    for (const f of rechazadas) toast.error(`"${f.name}" no es una imagen PNG, JPG o WEBP`);
-    if (aceptadas.length > 0) onArchivosRef.current(aceptadas);
-  };
+  const recibir = (files: File[]) =>
+    separarRecibidos(files).then(({ imagenes, paquetes, tasas, rechazos }) => {
+      for (const f of paquetes) toast.error(avisoPaquete(f.name));
+      for (const f of tasas) toast.error(avisoTasas(f.name));
+      for (const m of rechazos) toast.error(m);
+      if (imagenes.length > 0) onArchivosRef.current(imagenes);
+    }, reportError);
   const recibirRef = useRef(recibir);
   recibirRef.current = recibir;
   const { pathname } = useLocation();
@@ -72,7 +76,7 @@ export function ZonaLote({ onArchivos, disabled = false }: { onArchivos: (files:
       <div>
         Arrastra aquí varias imágenes o pégalas con Ctrl+V
         <br />
-        (PNG, JPG o WEBP)
+        (PNG, JPG o WEBP, o un .zip con ellas)
       </div>
       <Button type="button" variant="outline" disabled={disabled} onClick={() => inputRef.current?.click()}>
         Elegir archivos…
@@ -81,7 +85,7 @@ export function ZonaLote({ onArchivos, disabled = false }: { onArchivos: (files:
         ref={inputRef}
         type="file"
         multiple
-        accept={ACCEPTED_IMAGE_TYPES.join(",")}
+        accept={[...ACCEPTED_IMAGE_TYPES, ".zip"].join(",")}
         hidden
         onChange={(e) => {
           recibir(Array.from(e.target.files ?? []));

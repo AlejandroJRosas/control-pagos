@@ -43,9 +43,3 @@ export async function deleteImage(relPath: string): Promise<void> {
     if (!/os error 2\b/.test(String(e))) throw e;
   }
 }
-
-/** Separa los archivos de un lote en imágenes aceptadas (PNG, JPG, WEBP) y el resto. */
-export function separarImagenes<T extends { type: string }>(files: T[]): { aceptadas: T[]; rechazadas: T[] } {
-  const aceptadas = files.filter((f) => ACCEPTED_IMAGE_TYPES.includes(f.type));
-  return { aceptadas, rechazadas: files.filter((f) => !aceptadas.includes(f)) };
-}
