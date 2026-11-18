@@ -53,3 +53,14 @@ it("con un depósito duplicado no deja enviar el PDF ni el Excel, pero sí la im
   expect(screen.getByRole("button", { name: "Copiar excel" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Copiar y abrir WhatsApp" })).toBeDisabled();
 });
+
+it("en PDF y Excel copia los dos archivos juntos para pegarlos de una vez", async () => {
+  const { db, s } = await gerenteConDeposito();
+  const { user } = await renderApp(`/asignaciones/${s.asignacionId}`, { db, hoy: "2026-10-21" });
+  await user.click(await screen.findByRole("button", { name: "Estado de cuenta" }));
+  await user.click(await screen.findByRole("button", { name: "PDF y Excel" }));
+  await user.click(screen.getByRole("button", { name: "Copiar pdf y excel" }));
+  const juntos = () => tauri.invoke.mock.calls.filter(([cmd]) => cmd === "copiar_envios").map(([, args]) => (args as { nombres: string[] }).nombres);
+  await waitFor(() => expect(juntos()).toEqual([["Ana - Marzo - 21-10-2026.pdf", "Ana - Marzo - 21-10-2026.xlsx"]]));
+  expect(await screen.findByText("PDF y Excel copiados: pégalos con Ctrl+V")).toBeInTheDocument();
+});

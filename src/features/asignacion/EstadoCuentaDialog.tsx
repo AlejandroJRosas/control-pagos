@@ -7,7 +7,7 @@ import { Aviso } from "@/components/Feedback";
 import { BotonConMotivo } from "@/components/BotonConMotivo";
 import type { Campana } from "@/db/repos/campanas";
 import type { CampanaView, FilaDeposito, Resumen } from "@/domain/campanaView";
-import { ETIQUETA_FORMATO, useFormatoEnvio } from "@/lib/formatoEnvio";
+import { ETIQUETA_FORMATO, archivosDeFormato, useFormatoEnvio } from "@/lib/formatoEnvio";
 import { reportError } from "@/lib/reportError";
 import { copiarEstadoCuenta, guardarEstadoCuenta } from "./envioEstadoCuenta";
 import { FormatoEnvioSelector } from "./FormatoEnvioSelector";
@@ -37,6 +37,9 @@ export function EstadoCuentaDialog({ open, onOpenChange, gerenteNombre, campana,
   const [formato, setFormato] = useFormatoEnvio();
   const fuente = () => ({ hoja: hoja.current, campana, view, asignacionId, gerenteNombre, fechaCorte });
   const nombre = ETIQUETA_FORMATO[formato].toLowerCase();
+  // "PDF y Excel" son dos archivos que se pegan juntos.
+  const varios = archivosDeFormato(formato).length > 1;
+  const pegalo = varios ? "pégalos" : "pégalo";
   const motivo = duplicado && formato !== "imagen" ? `Resuelve los depósitos duplicados de la campaña para enviar el ${nombre}` : undefined;
 
   async function trabajar(accion: () => Promise<void>, contexto: string) {
@@ -52,7 +55,7 @@ export function EstadoCuentaDialog({ open, onOpenChange, gerenteNombre, campana,
 
   const copiar = () =>
     trabajar(async () => {
-      toast.success(`${await copiarEstadoCuenta(formato, fuente())}: pégalo con Ctrl+V`);
+      toast.success(`${await copiarEstadoCuenta(formato, fuente())}: ${pegalo} con Ctrl+V`);
     }, "Copiar");
 
   const guardar = () =>
@@ -64,7 +67,7 @@ export function EstadoCuentaDialog({ open, onOpenChange, gerenteNombre, campana,
     trabajar(async () => {
       const aviso = await copiarEstadoCuenta(formato, fuente());
       await onWhatsApp();
-      toast.success(`${aviso}: pégalo en el chat con Ctrl+V`);
+      toast.success(`${aviso}: ${pegalo} en el chat con Ctrl+V`);
     }, "WhatsApp");
 
   return (
@@ -73,7 +76,7 @@ export function EstadoCuentaDialog({ open, onOpenChange, gerenteNombre, campana,
         <DialogHeader>
           <DialogTitle>Estado de cuenta</DialogTitle>
           <DialogDescription>
-            Cópialo para pegarlo en un chat, guárdalo o envíalo directo por WhatsApp: se abre el chat con el mensaje listo y pegas el {nombre} con Ctrl+V.
+            Cópialo para pegarlo en un chat, guárdalo o envíalo directo por WhatsApp: se abre el chat con el mensaje listo y pegas {varios ? "los dos archivos" : `el ${nombre}`} con Ctrl+V.
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-auto rounded-md border bg-neutral-100 p-3">

@@ -1,10 +1,10 @@
-import { FileImage, FileSpreadsheet, FileText } from "lucide-react";
+import { FileImage, FileSpreadsheet, FileText, Files } from "lucide-react";
 import { ETIQUETA_FORMATO, FORMATOS_ENVIO, type FormatoEnvio } from "@/lib/formatoEnvio";
 import { cn } from "@/lib/utils";
 
-const ICONO = { imagen: FileImage, pdf: FileText, excel: FileSpreadsheet } satisfies Record<FormatoEnvio, unknown>;
+const ICONO = { imagen: FileImage, pdf: FileText, excel: FileSpreadsheet, "pdf-excel": Files } satisfies Record<FormatoEnvio, unknown>;
 
-/** Imagen, PDF o Excel: en qué se copia, guarda o manda por WhatsApp el estado de cuenta. */
+/** Imagen, PDF, Excel o PDF y Excel juntos: en qué se copia, guarda o manda por WhatsApp el estado de cuenta. */
 export function FormatoEnvioSelector({ formato, onChange }: { formato: FormatoEnvio; onChange: (f: FormatoEnvio) => void }) {
   return (
     <div role="group" aria-label="Enviar como" className="flex items-center gap-1.5 text-sm">

@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { nombreEstadoCuenta, normalizarFormato } from "./formatoEnvio";
+import { archivosDeFormato, nombreEstadoCuenta, normalizarFormato } from "./formatoEnvio";
 
 describe("normalizarFormato", () => {
   it("por defecto la imagen; acepta solo los formatos conocidos", () => {
     expect(normalizarFormato(null)).toBe("imagen");
     expect(normalizarFormato("pdf")).toBe("pdf");
     expect(normalizarFormato("excel")).toBe("excel");
+    expect(normalizarFormato("pdf-excel")).toBe("pdf-excel");
     expect(normalizarFormato("word")).toBe("imagen");
+  });
+});
+
+describe("archivosDeFormato", () => {
+  it("PDF y Excel son dos archivos; los demás, uno", () => {
+    expect(archivosDeFormato("pdf-excel")).toEqual(["pdf", "excel"]);
+    expect(archivosDeFormato("imagen")).toEqual(["imagen"]);
+    expect(archivosDeFormato("excel")).toEqual(["excel"]);
   });
 });
 

@@ -30,7 +30,7 @@ import { reportError } from "@/lib/reportError";
 import { cn } from "@/lib/utils";
 import { GerenteFormDialog } from "@/features/gerentes/GerenteFormDialog";
 import { HojaEstadoCuenta } from "@/features/asignacion/HojaEstadoCuenta";
-import { archivoEstadoCuenta, copiarEstadoCuenta } from "@/features/asignacion/envioEstadoCuenta";
+import { archivosEstadoCuenta, copiarEstadoCuenta } from "@/features/asignacion/envioEstadoCuenta";
 import { copiarArchivos } from "@/platform/envios";
 import { FormatoEnvioSelector } from "@/features/asignacion/FormatoEnvioSelector";
 
@@ -133,16 +133,16 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
         // La imagen sale de la hoja dibujada: se dibuja la de este gerente antes de capturarla.
         if (formato === "imagen") flushSync(() => setEnHoja(f));
         archivos.push(
-          await archivoEstadoCuenta(formato, {
+          ...(await archivosEstadoCuenta(formato, {
             hoja: hojaOculta.current,
             campana: data.campana,
             view: data.view,
             asignacionId: f.asignacionId,
             gerenteNombre: f.gerenteNombre,
             fechaCorte: hoy,
-          }),
+          })),
         );
-        setProgreso({ hechos: archivos.length, total: van.length });
+        setProgreso((p) => ({ hechos: (p?.hechos ?? 0) + 1, total: van.length }));
       }
     } finally {
       setEnHoja(null);
@@ -173,7 +173,7 @@ export function EnvioLoteDialog({ campanaId, open, onOpenChange }: Props) {
       if (typeof carpeta !== "string") return;
       const archivos = await armarArchivos();
       for (const a of archivos) await writeFile(await join(carpeta, a.nombre), a.bytes);
-      if (archivos.length > 0) toast.success(archivos.length === 1 ? "1 estado de cuenta guardado" : `${archivos.length} estados de cuenta guardados`);
+      if (archivos.length > 0) toast.success(archivos.length === 1 ? "1 archivo guardado" : `${archivos.length} archivos guardados`);
     } catch (e) {
       reportError(e, "Descargar estados de cuenta");
     } finally {
