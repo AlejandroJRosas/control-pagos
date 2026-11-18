@@ -69,12 +69,27 @@ it("la casilla de la meta dice cuántos gerentes la cumplen y lleva a Por gerent
   expect(router.state.location.search).toContain(`meta=${metaId}`);
 });
 
-it("la barra del gerente en la campaña marca las metas por porcentaje sobre su saldo (no las de monto)", async () => {
+it("el gerente en la campaña ve su avance en grande con las metas por porcentaje sobre su saldo (no las de monto)", async () => {
   const { db, s, luis } = await campanaConMeta();
   await createMeta(db, s.campanaId, { porcentaje: null, montoUsd: "150", fecha: "2026-03-25", nota: null });
+  const { user } = await renderApp(`/asignaciones/${luis}`, { db, hoy: "2026-03-05" });
+  const avance = await screen.findByRole("region", { name: "Avance de Luis" });
+  const meta = within(avance).getByRole("button", { name: /Meta 60,0 % \(\$ 60,00\) para el 20\/03\/2026 · faltan \$ 30,00/ });
+  expect(within(avance).queryByRole("button", { name: /Meta \$ 150,00/ })).not.toBeInTheDocument();
+  expect(within(avance).getByText(/Próxima meta/)).toHaveTextContent("faltan $ 30,00");
+  // Las metas son de la campaña: aquí no se agregan ni se editan, y la casilla no cuenta gerentes.
+  expect(within(avance).queryByRole("button", { name: /Agregar meta/ })).not.toBeInTheDocument();
+  await user.hover(meta);
+  expect(within(avance).getByRole("tooltip")).not.toHaveTextContent("gerentes");
+  await user.click(meta);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+it("sin metas por porcentaje el gerente sigue con la tarjeta de Avance", async () => {
+  const { db, luis } = await campanaConMeta({ porcentaje: false });
   await renderApp(`/asignaciones/${luis}`, { db, hoy: "2026-03-05" });
-  expect(await screen.findByRole("img", { name: /Meta 60,0 % \(\$ 60,00\) para el 20\/03\/2026 · faltan \$ 30,00/ })).toBeInTheDocument();
-  expect(screen.queryByRole("img", { name: /Meta \$ 150,00/ })).not.toBeInTheDocument();
+  await screen.findByText("Luis", { selector: "h1, h1 *" });
+  expect(screen.queryByRole("region", { name: "Avance de Luis" })).not.toBeInTheDocument();
 });
 
 it("un gerente sin saldo asignado no lleva marcas de metas por porcentaje en su barra", async () => {
@@ -83,6 +98,7 @@ it("un gerente sin saldo asignado no lleva marcas de metas por porcentaje en su 
   await renderApp(`/asignaciones/${pedro}`, { db, hoy: "2026-03-05" });
   await screen.findByText("Pedro", { selector: "h1, h1 *" });
   expect(screen.queryByRole("img", { name: /Meta/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Avance de Pedro" })).not.toBeInTheDocument();
 });
 
 it("la campaña sin saldo asignado dice que la meta por porcentaje no tiene saldo, no lo que falta", async () => {

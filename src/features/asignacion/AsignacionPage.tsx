@@ -37,7 +37,8 @@ import { EstadoCuentaDialog } from "./EstadoCuentaDialog";
 import { getPlantillas } from "@/db/repos/plantillas";
 import { DomainError } from "@/domain/errors";
 import { listMetas } from "@/db/repos/metas";
-import { metasDePorcentaje, vistaMetas } from "@/domain/metas";
+import { metasDePorcentaje } from "@/domain/metas";
+import { AvanceCampana } from "@/features/campana/AvanceCampana";
 import { invalidate, useData } from "@/hooks/useData";
 import { useAtajo } from "@/hooks/useAtajo";
 import { useReceptorArchivos } from "@/lib/soltarArchivos";
@@ -93,6 +94,7 @@ export function AsignacionPage() {
   const cerrada = a.campanaEstado === "cerrada";
   const numero = numeroWhatsApp(a.gerenteTelefono);
   const hoy = todayIso();
+  const conMetas = data.metas.length > 0 && new Decimal(resumen.asignado).gt(0);
 
   async function abrirWhatsApp() {
     if (!numero) return;
@@ -237,9 +239,11 @@ export function AsignacionPage() {
         }
       />
       {cerrada && <Aviso>La campaña está cerrada: solo lectura.</Aviso>}
+      {/* Con metas por porcentaje (y saldo asignado), su avance en grande con esas metas medidas sobre su propio saldo. */}
+      {conMetas && <AvanceCampana campana={campana} total={resumen} metas={data.metas} hoy={hoy} cerrada={cerrada} titulo={`Avance de ${a.gerenteNombre}`} />}
       <ResumenCards
         resumen={resumen}
-        metas={new Decimal(resumen.asignado).gt(0) ? vistaMetas(data.metas, resumen, hoy).metas : undefined}
+        sinAvance={conMetas}
         editarAsignado={{
           motivo: cerrada ? MOTIVO_CERRADA : undefined,
           onClick: () => setEditarAsignacion({ id: a.id, gerenteNombre: a.gerenteNombre, saldoUsd: resumen.asignado, jefeId: a.jefeId }),

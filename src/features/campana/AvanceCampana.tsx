@@ -35,19 +35,24 @@ type Props = {
   metas: Meta[];
   hoy: string;
   cerrada: boolean;
-  onAgregar: () => void;
-  onEditar: (m: Meta) => void;
-  /** Para contar quiénes cumplen una meta por porcentaje. */
-  gerentes: GerenteResumen[];
+  /** "Avance de la campaña" o, en la página de un gerente, "Avance de Ana". */
+  titulo?: string;
+  /** Sin ellos (la página de un gerente) no se agregan ni editan metas: son de la campaña. */
+  onAgregar?: () => void;
+  onEditar?: (m: Meta) => void;
+  /** Para contar quiénes cumplen una meta por porcentaje (solo en la campaña). */
+  gerentes?: GerenteResumen[];
   /** Abre Por gerente con esa meta elegida. */
-  onVerGerentes: (metaId: number) => void;
+  onVerGerentes?: (metaId: number) => void;
 };
 
 /**
  * Avance de la campaña en grande: lo pagado sobre el saldo general, con las metas marcadas en la barra (clic = editar),
- * la próxima meta y lo que falta, y la fecha final de la campaña al 100 %.
+ * la próxima meta y lo que falta, y la fecha final de la campaña al 100 %. Sirve igual para un gerente: `total` es su
+ * resumen y `metas` las de porcentaje, medidas sobre su saldo.
  */
-export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, onEditar, gerentes, onVerGerentes }: Props) {
+export function AvanceCampana({ campana, total, metas, hoy, cerrada, titulo = "Avance de la campaña", onAgregar, onEditar, gerentes, onVerGerentes }: Props) {
+  const editable = !cerrada && !!onEditar;
   const { metas: vistas, proxima } = vistaMetas(metas, total, hoy);
   const filas = filasDeEtiquetas(vistas);
   const nFilas = vistas.length === 0 ? 0 : Math.max(...filas) + 1;
@@ -78,12 +83,12 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
   }
 
   return (
-    <section aria-label="Avance de la campaña">
+    <section aria-label={titulo}>
     {/* overflow-visible: la casilla de la meta enfocada sale por debajo de la tarjeta. */}
     <Card className="gap-4 overflow-visible px-5 py-4">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
         <div className="grid gap-0.5">
-          <span className="text-sm text-muted-foreground">Avance de la campaña</span>
+          <span className="text-sm text-muted-foreground">{titulo}</span>
           <div className="flex items-baseline gap-3">
             <button
               type="button"
@@ -102,12 +107,14 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <ProximaMeta proxima={proxima} hayMetas={vistas.length > 0} hoy={hoy} />
-          <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
-            <Button variant="outline" size="sm" disabled={cerrada} onClick={onAgregar}>
-              <Plus />
-              Agregar meta
-            </Button>
-          </BotonConMotivo>
+          {onAgregar && (
+            <BotonConMotivo motivo={cerrada ? MOTIVO_CERRADA : undefined}>
+              <Button variant="outline" size="sm" disabled={cerrada} onClick={onAgregar}>
+                <Plus />
+                Agregar meta
+              </Button>
+            </BotonConMotivo>
+          )}
         </div>
       </div>
 
@@ -202,13 +209,13 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
                   <button
                     type="button"
                     // aria-disabled y no disabled: un botón deshabilitado no recibe el hover y la casilla no saldría.
-                    aria-disabled={cerrada || undefined}
+                    aria-disabled={!editable || undefined}
                     aria-label={describirMeta(m)}
                     data-atenuada={atenuada || undefined}
-                    onClick={() => !cerrada && onEditar(m)}
+                    onClick={() => editable && onEditar(m)}
                     className={cn(
                       "grid justify-items-start rounded-md px-1.5 py-0.5 text-left text-xs leading-tight whitespace-nowrap tabular-nums transition-opacity",
-                      cerrada ? "cursor-default" : "hover:bg-fila-hover",
+                      editable ? "hover:bg-fila-hover" : "cursor-default",
                       atenuada && "opacity-30",
                       estilo.texto,
                     )}
@@ -223,8 +230,8 @@ export function AvanceCampana({ campana, total, metas, hoy, cerrada, onAgregar, 
                     <CasillaMeta
                       m={m}
                       hoy={hoy}
-                      gerentes={m.porcentaje !== null ? contarCumplimiento(m, gerentes) : null}
-                      onVerGerentes={() => onVerGerentes(m.id)}
+                      gerentes={gerentes && m.porcentaje !== null ? contarCumplimiento(m, gerentes) : null}
+                      onVerGerentes={() => onVerGerentes?.(m.id)}
                     />
                   )}
                 </div>
