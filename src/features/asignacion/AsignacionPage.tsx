@@ -239,8 +239,6 @@ export function AsignacionPage() {
         }
       />
       {cerrada && <Aviso>La campaña está cerrada: solo lectura.</Aviso>}
-      {/* Con metas por porcentaje (y saldo asignado), su avance en grande con esas metas medidas sobre su propio saldo. */}
-      {conMetas && <AvanceCampana campana={campana} total={resumen} metas={data.metas} hoy={hoy} cerrada={cerrada} titulo={`Avance de ${a.gerenteNombre}`} />}
       <ResumenCards
         resumen={resumen}
         sinAvance={conMetas}
@@ -249,6 +247,8 @@ export function AsignacionPage() {
           onClick: () => setEditarAsignacion({ id: a.id, gerenteNombre: a.gerenteNombre, saldoUsd: resumen.asignado, jefeId: a.jefeId }),
         }}
       />
+      {/* Con metas por porcentaje (y saldo asignado), su avance en grande con esas metas medidas sobre su propio saldo; debajo de las tarjetas, como en la campaña. */}
+      {conMetas && <AvanceCampana campana={campana} total={resumen} metas={data.metas} hoy={hoy} cerrada={cerrada} titulo={`Avance de ${a.gerenteNombre}`} />}
       {filtros.hayDepositos && <FiltrosDepositos filtros={filtros} />}
       <DepositosTable
         filas={filtros.r.filas}
