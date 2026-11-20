@@ -1,6 +1,7 @@
 import { strFromU8, unzipSync } from "fflate";
 import { EXTENSION_TASAS, FORMATO_TASAS } from "@/domain/archivoTasas";
 import { ACCEPTED_IMAGE_TYPES, mimeForPath } from "@/platform/images";
+import { procesando } from "@/lib/procesando";
 
 /** Lo que llegó al soltar, pegar o elegir archivos, ya separado. Los `.zip` se abren y se clasifican por su contenido. */
 export type Recibidos = {
@@ -68,8 +69,17 @@ async function leerZip(f: File): Promise<ContenidoZip> {
   return { tipo: "imagenes", imagenes: nombres.map((n) => new File([entradas[n] as BlobPart], base(n), { type: mimeForPath(n), lastModified: f.lastModified })) };
 }
 
-/** Separa lo recibido. Las imágenes de un `.zip` van en su lugar, como si se hubieran soltado sueltas y en orden. */
-export async function separarRecibidos(files: File[]): Promise<Recibidos> {
+/**
+ * Separa lo recibido. Las imágenes de un `.zip` van en su lugar, como si se hubieran soltado sueltas y en orden.
+ * Con algún `.zip` (abrirlo puede tardar) muestra el aviso de `procesando`.
+ */
+export function separarRecibidos(files: File[]): Promise<Recibidos> {
+  const zips = files.filter((f) => !ACCEPTED_IMAGE_TYPES.includes(f.type) && esZip(f)).length;
+  if (zips === 0) return separar(files);
+  return procesando(zips === 1 ? "Abriendo el .zip…" : `Abriendo ${zips} .zip…`, () => separar(files));
+}
+
+async function separar(files: File[]): Promise<Recibidos> {
   const r: Recibidos = { imagenes: [], paquetes: [], tasas: [], rechazos: [] };
   for (const f of files) {
     if (ACCEPTED_IMAGE_TYPES.includes(f.type)) r.imagenes.push(f);

@@ -16,6 +16,7 @@ import { importarPagos, planificarImportacion, type PlanImportacion } from "@/db
 import { parseLibro, type CampoEditable } from "@/import/cuadroPagos";
 import { validateDestino } from "@/domain/validation";
 import { invalidate, useData } from "@/hooks/useData";
+import { procesando } from "@/lib/procesando";
 import { reportError } from "@/lib/reportError";
 import { cn } from "@/lib/utils";
 import { ArchivoCard, type Archivo } from "./ArchivoCard";
@@ -46,7 +47,12 @@ export function ImportarPage() {
   const { campana } = data.campana;
   const cerrada = campana.estado === "cerrada";
 
-  async function leer(files: File[]) {
+  function leer(files: File[]) {
+    if (files.length === 0) return;
+    void procesando(files.length === 1 ? `Leyendo ${files[0]!.name}…` : `Leyendo ${files.length} archivos…`, () => leerArchivos(files));
+  }
+
+  async function leerArchivos(files: File[]) {
     setLeyendo(true);
     try {
       const db = await getDb();
@@ -184,7 +190,7 @@ export function ImportarPage() {
           onDrop={(e) => {
             e.preventDefault();
             setOver(false);
-            void leer(Array.from(e.dataTransfer.files));
+            leer(Array.from(e.dataTransfer.files));
           }}
           onClick={() => inputRef.current?.click()}
           className={cn(
@@ -201,7 +207,7 @@ export function ImportarPage() {
             multiple
             hidden
             onChange={(e) => {
-              void leer(Array.from(e.target.files ?? []));
+              leer(Array.from(e.target.files ?? []));
               e.target.value = "";
             }}
           />

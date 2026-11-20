@@ -10,6 +10,7 @@ import { AvisoTasaFaltante } from "@/components/AvisoTasaFaltante";
 import { AvisoEspejo } from "@/components/AvisoEspejo";
 import { AvisoCumpleanos } from "@/components/AvisoCumpleanos";
 import { SoltarImagenes } from "@/components/SoltarImagenes";
+import { Procesando } from "@/components/Procesando";
 import { VolverArriba } from "@/components/VolverArriba";
 import { VersionApp } from "@/components/VersionApp";
 import { Tutorial } from "@/features/tutorial/Tutorial";
@@ -177,6 +178,7 @@ export function AppLayout() {
       <AvisoActualizacion />
       <NovedadesVersion />
       <SoltarImagenes />
+      <Procesando />
       <Tutorial />
     </div>
   );
