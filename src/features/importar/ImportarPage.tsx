@@ -75,6 +75,7 @@ export function ImportarPage() {
               marcadas: marcadasPorDefecto(plan.filas),
               actualizarSaldo: false,
               ediciones: new Map(),
+              quitadas: new Set(),
             };
             setArchivos((prev) => [...prev, a]);
           }
@@ -149,7 +150,7 @@ export function ImportarPage() {
 
   async function importar(a: Archivo) {
     // La tasa que se muestra es la que se usa: la registrada, la del Excel o la que se completó.
-    const filas = a.plan.filas.filter((f) => a.marcadas.has(f.fila)).map((f) => ({ ...f, tasa: f.tasaAplicada ?? f.tasa }));
+    const filas = a.plan.filas.filter((f) => a.marcadas.has(f.fila) && !a.quitadas.has(f.fila)).map((f) => ({ ...f, tasa: f.tasaAplicada ?? f.tasa }));
     const rd = validateDestino(a.destino);
     if (!rd.ok) {
       toast.error(`${a.nombre}: ${Object.values(rd.errors)[0]}`);

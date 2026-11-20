@@ -19,3 +19,10 @@ export function ajustarMarcadas(antes: PlanImportacion, despues: PlanImportacion
       .map((f) => f.fila),
   );
 }
+
+/**
+ * Filas que no se pueden importar por ser duplicadas: ya registradas o repetidas más arriba en el archivo (la primera queda).
+ * Un posible repetido (Provincial) no cuenta: puede ser otro pago.
+ */
+export const filasDuplicadas = (filas: FilaPlan[]): number[] =>
+  filas.filter((f) => f.duplicados.length > 0 || f.repetidaEnArchivo !== null).map((f) => f.fila);

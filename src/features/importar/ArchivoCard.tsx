@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Decimal from "decimal.js";
-import { X } from "lucide-react";
+import { CopyX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import type { DestinoDraft } from "@/domain/validation";
 import { ordenar, type Columnas } from "@/lib/orden";
 import { cn } from "@/lib/utils";
 import { motivosFila } from "./incidencias";
+import { filasDuplicadas } from "./seleccion";
 
 export type Archivo = {
   key: string;
@@ -32,6 +33,8 @@ export type Archivo = {
   actualizarSaldo: boolean;
   /** Lo que el usuario completó, por fila del Excel. */
   ediciones: Map<number, EdicionFila>;
+  /** Filas duplicadas que el usuario quitó de la lista ("Quitar duplicados"); no se importan. */
+  quitadas: Set<number>;
 };
 
 type Vista = "todas" | "bien" | "incidencias";
@@ -72,7 +75,9 @@ type CardProps = {
 export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, onEditar, onQuitar, onImportar }: CardProps) {
   const [importando, setImportando] = useState(false);
   const { orden, alternar } = useOrden<Col>();
-  const { cuadro, filas } = a.plan;
+  const { cuadro } = a.plan;
+  const filas = a.plan.filas.filter((f) => !a.quitadas.has(f.fila));
+  const duplicadas = filasDuplicadas(filas);
   const [vista, setVista] = useState<Vista>("todas");
   const conIncidencias = filas.filter((f) => motivosFila(f).length > 0);
   const visibles = vista === "todas" ? filas : filas.filter((f) => (motivosFila(f).length > 0) === (vista === "incidencias"));
@@ -86,7 +91,13 @@ export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, 
   const todas = importables.length > 0 && importables.every((f) => a.marcadas.has(f.fila));
   const marcadasVisibles = importables.filter((f) => a.marcadas.has(f.fila)).length;
   // Sin depósitos elegidos todavía sirve para agregar el gerente a la campaña (p. ej. uno sin depósitos en un Excel exportado).
-  const soloGerente = elegidas.length === 0 && filas.length === 0 && a.destino.sel !== "" && !selAsignacion;
+  const soloGerente = elegidas.length === 0 && a.plan.filas.length === 0 && a.destino.sel !== "" && !selAsignacion;
+
+  function quitarDuplicados() {
+    const marcadas = new Set(a.marcadas);
+    duplicadas.forEach((n) => marcadas.delete(n));
+    onChange({ quitadas: new Set([...a.quitadas, ...duplicadas]), marcadas });
+  }
 
   function marcar(fila: number, si: boolean) {
     const next = new Set(a.marcadas);
@@ -125,7 +136,7 @@ export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, 
           <CardTitle>{a.nombre}</CardTitle>
           <p className="text-sm text-muted-foreground">
             En el Excel: {cuadro.gerenteNombre ?? "sin nombre de gerente"}
-            {cuadro.saldoInicial && ` · saldo inicial ${formatUsd(cuadro.saldoInicial)}`} · {filas.length} fila(s)
+            {cuadro.saldoInicial && ` · saldo inicial ${formatUsd(cuadro.saldoInicial)}`} · {a.plan.filas.length} fila(s)
           </p>
         </div>
         <Button size="icon-sm" variant="ghost" aria-label="Quitar archivo" onClick={onQuitar}>
@@ -149,11 +160,27 @@ export function ArchivoCard({ archivo: a, campana, gerentes, cerrada, onChange, 
           </label>
         )}
 
-        {filas.length > 0 && (
+        {a.plan.filas.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             {chip("todas", "Todas", filas.length)}
             {chip("bien", "Bien", filas.length - conIncidencias.length)}
             {chip("incidencias", "Con incidencias", conIncidencias.length)}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {a.quitadas.size > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {a.quitadas.size} duplicado(s) quitado(s) ·{" "}
+                  <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => onChange({ quitadas: new Set() })}>
+                    Volver a mostrar
+                  </button>
+                </span>
+              )}
+              {duplicadas.length > 0 && (
+                <Button size="sm" variant="outline" onClick={quitarDuplicados}>
+                  <CopyX />
+                  Quitar {duplicadas.length} duplicado(s)
+                </Button>
+              )}
+            </div>
           </div>
         )}
 

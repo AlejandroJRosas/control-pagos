@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { FilaPlan, PlanImportacion } from "@/db/operaciones/importarPagos";
-import { ajustarMarcadas, marcadasPorDefecto } from "./seleccion";
+import { ajustarMarcadas, filasDuplicadas, marcadasPorDefecto } from "./seleccion";
 
 const fila = (n: number, importable: boolean, marcada: boolean) => ({ fila: n, importable, marcada }) as FilaPlan;
 const plan = (filas: FilaPlan[]) => ({ filas }) as PlanImportacion;
@@ -21,4 +21,11 @@ it("ajustarMarcadas desmarca la que pasó a no sugerirse (p. ej. un posible repe
   const despues = plan([fila(1, true, false), fila(2, true, false)]);
   // La 1 era sugerida y dejó de serlo; la 2 ya no se sugería y el usuario la marcó igual.
   expect(ajustarMarcadas(antes, despues, new Set([1, 2]))).toEqual(new Set([2]));
+});
+
+it("filasDuplicadas: las ya registradas y las repetidas en el archivo (la primera del archivo queda); un posible repetido no", () => {
+  const f = (n: number, extra: Partial<FilaPlan>) => ({ fila: n, duplicados: [], repetidaEnArchivo: null, posiblesRepetidos: [], ...extra }) as FilaPlan;
+  const registrado = { id: 1 } as FilaPlan["duplicados"][number];
+  const filas = [f(1, {}), f(2, { duplicados: [registrado] }), f(3, { repetidaEnArchivo: 1 }), f(4, { posiblesRepetidos: [registrado] })];
+  expect(filasDuplicadas(filas)).toEqual([2, 3]);
 });
